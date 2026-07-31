@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c49e3c578236804d9d53f8eae1699e8, type: 3}
+  m_Name: Slime
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.SlimeCardData
+  cardName: "\u30B9\u30E9\u30A4\u30E0"
+  icon: {fileID: 21300000, guid: 7c3a934ce5978cd4faae0a005e630c57, type: 3}
+  description: "\u5408\u6210\u3067\u751F\u307F\u51FA\u305B\u308B\u57FA\u672C\u7A2E\u306E\u30B9\u30E9\u30A4\u30E0\u3002"
+  species: {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
