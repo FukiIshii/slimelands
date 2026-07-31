@@ -693,6 +693,46 @@ namespace Slimelands.Cards
             return stack;
         }
 
+        /// <summary>
+        /// 盤面上から指定カードをamount枚探して取り除く(ガチャのコスト消費などに使う)。
+        /// amount枚に満たない場合は何も変更せずfalseを返す(全額支払えない限り消費しない)。
+        /// </summary>
+        public bool TryConsumeCards(CardData data, int amount)
+        {
+            if (data == null || amount <= 0)
+            {
+                return true;
+            }
+
+            var matches = new List<CardController>();
+            foreach (CardController card in FindObjectsByType<CardController>(FindObjectsInactive.Exclude))
+            {
+                // ParentStack == nullは合成完了直後などでRemove済み(Destroy()はフレーム末まで遅延する)の
+                // カードを指すため、二重に消費対象としてマッチしないよう除外する。
+                if (card.Data == data && card.ParentStack != null)
+                {
+                    matches.Add(card);
+                    if (matches.Count >= amount)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (matches.Count < amount)
+            {
+                return false;
+            }
+
+            foreach (CardController card in matches)
+            {
+                card.ParentStack?.Remove(card);
+                Destroy(card.gameObject);
+            }
+
+            return true;
+        }
+
         private CardController CreateLooseCard(CardData data)
         {
             CardController card = Instantiate(cardPrefab, Vector3.zero, Quaternion.identity, cardParent);

@@ -31,3 +31,4 @@ MonoBehaviour:
   monthlyFoodConsumption: 8
   sellResource: {fileID: 11400000, guid: fa1d9b8bd6c2f1547b49811ac295bdf4, type: 2}
   sellAmount: 1
+  gachaWeight: 20

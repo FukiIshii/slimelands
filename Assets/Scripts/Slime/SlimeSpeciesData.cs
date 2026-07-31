@@ -34,6 +34,11 @@ namespace Slimelands.Slime
         [Tooltip("売却時に得られるsellResourceの枚数。")]
         [SerializeField] private int sellAmount = 1;
 
+        [Header("ガチャ(仮の値。排出率のバランスは未調整)")]
+        [Tooltip("ガチャでの排出重み。値が大きいほど排出されやすい(低レア)。0以下はガチャの対象外になる。" +
+            "例: コモン=100, レア=20, 激レア=3 のように種族間の相対値でレア度を表現する。")]
+        [SerializeField] private int gachaWeight = 10;
+
         public string SpeciesName => speciesName;
         public SlimeType Type => slimeType;
         public SlimeStats BaseStats => baseStats;
@@ -43,6 +48,7 @@ namespace Slimelands.Slime
         public int MonthlyFoodConsumption => monthlyFoodConsumption;
         public ResourceCardData SellResource => sellResource;
         public int SellAmount => sellAmount;
+        public int GachaWeight => gachaWeight;
 
         /// <summary>指定レベル時点での、個体差(個体値)を含まない種族ベースのステータス。</summary>
         public SlimeStats CalculateBaseStatsAtLevel(int level)
