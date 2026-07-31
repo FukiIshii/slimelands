@@ -1,0 +1,58 @@
+using UnityEngine;
+using Slimelands.Cards;
+
+namespace Slimelands.Village
+{
+    /// <summary>
+    /// ガチャを引くための最小限のUI(IMGUIのボタン1つ)。
+    /// ロジック側の動作確認を優先するための仮UIで、見た目の作り込みは行わない。
+    /// </summary>
+    public class GachaUI : MonoBehaviour
+    {
+        [SerializeField] private GachaManager gachaManager;
+
+        private string lastResultMessage = string.Empty;
+
+        private void OnEnable()
+        {
+            if (gachaManager != null)
+            {
+                gachaManager.OnGachaDrawn += HandleGachaDrawn;
+                gachaManager.OnGachaFailed += HandleGachaFailed;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (gachaManager != null)
+            {
+                gachaManager.OnGachaDrawn -= HandleGachaDrawn;
+                gachaManager.OnGachaFailed -= HandleGachaFailed;
+            }
+        }
+
+        private void HandleGachaDrawn(SlimeCardData drawn)
+        {
+            lastResultMessage = drawn != null ? $"{drawn.CardName} が出た!" : string.Empty;
+        }
+
+        private void HandleGachaFailed(string reason)
+        {
+            lastResultMessage = $"ガチャ失敗: {reason}";
+        }
+
+        private void OnGUI()
+        {
+            GUI.Box(new Rect(10f, 150f, 220f, 90f), string.Empty);
+            GUILayout.BeginArea(new Rect(20f, 156f, 200f, 78f));
+
+            if (GUILayout.Button("ガチャを引く", GUILayout.Height(32f)))
+            {
+                gachaManager?.TryDrawGacha();
+            }
+
+            GUILayout.Label(lastResultMessage);
+            GUILayout.EndArea();
+        }
+    }
+}

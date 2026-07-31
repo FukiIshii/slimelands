@@ -2136,6 +2136,7 @@ GameObject:
   - component: {fileID: 761239022}
   - component: {fileID: 761239021}
   - component: {fileID: 761239026}
+  - component: {fileID: 761239027}
   m_Layer: 0
   m_Name: VillageManagers
   m_TagString: Untagged
@@ -2232,6 +2233,19 @@ MonoBehaviour:
   spawnPosition: {x: 6, y: -3, z: 0}
   costResource: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   costAmount: 10
+--- !u!114 &761239027
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 761239020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c62c1a4d66d08e48a57729efaaf53ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Village.GachaUI
+  gachaManager: {fileID: 761239026}
 --- !u!1 &822602462
 GameObject:
   m_ObjectHideFlags: 0
