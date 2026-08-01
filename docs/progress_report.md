@@ -280,3 +280,37 @@
 ## コミット(追記分)
 
 10. `feat: パーティー編成UIを実装`
+
+---
+
+# 追記: 名簿連携バグの修正(2026-08-02)
+
+ユーザーから「パーティー編成UIでクリックしても追加できない」と報告があり、調査したところ実装漏れが見つかった。
+
+## 原因
+
+`VillageSlimeRoster`(村の在籍スライム名簿)に個体(`SlimeIndividual`)を登録する経路が、**どこからも一度も呼ばれていなかった**。ガチャ・合成・配合・進化でスライムカードを生成しても、それが「パーティー編成できる個体」として名簿に反映される仕組みが存在せず、`PartyFormationUI`の在籍スライム一覧は常に空になっていた(前回のテストは全てRunCommandから`roster.AddSlime()`を直接呼んで疑似的に検証していたため、この抜けに気づけていなかった)。
+
+## 実装した内容
+
+- `CardController.BoundIndividual`(新規): カード1枚ごとの個体(`SlimeIndividual`)を保持するプロパティ。`SlimeCardData`は種族を指すだけの共有アセットのため、個体差(レベル・HP等)はカード側で別途持つ必要がある。
+- `CardBoard.CreateLooseCard`(修正): カード生成のたびに、`data`が`SlimeCardData`であれば新しい`SlimeIndividual`を作成し、`VillageSlimeRoster.AddSlime`で名簿に登録、`CardController.BindSlimeIndividual`でカードと紐付ける。`CreateLooseCard`は`SpawnStack`(ガチャ・初期配置)と`OnCraftCompleted`の結果カード生成(合成・配合・進化)の両方が通る唯一の生成経路のため、ここ一箇所の修正で全ての入手経路に対応できた。
+- `VillageSlimeRoster.RemoveSlime`(新規): `TrySell`(売却・資源化)とは別に、配合・進化でカードごと消費される個体を資源を生成せずに名簿から除く。
+- `CardBoard.OnCraftCompleted`(修正): 消費される素材カードに`BoundIndividual`が設定されていれば(=スライムが消費される場合)、破棄する前に`RemoveSlime`を呼ぶ。
+
+## テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **ガチャ経由**: `GachaManager.TryDrawGacha()`で引いたスライムが、名簿人数を1増やすことを確認。
+- **直接生成経由**: `CardBoard.SpawnStack`でスライムカードを生成した場合も名簿人数が増え、生成されたカードの`BoundIndividual`が名簿に含まれることを確認。
+- **配合による消費・置き換え**: スライム+ファイヤースライムのスタックを配合レシピ(`Recipe_Slime_FireSlime_MagmaSlime`)で完了させ、消費された親2体が名簿から除去され、新しく生成されたマグマスライムが名簿に追加される(名簿の人数差が-2+1=-1)ことを確認。
+- **PartyFormationUIとの連携**: 上記でカード経済から生成された個体を`roster.Slimes`から取得し、`PartyFormationUI.TogglePartyMember`で実際に選択できることを確認(エンドツーエンドの疎通確認)。
+- コンパイルエラー・警告なしを確認。
+
+## 後で確認が必要な点
+
+1. **既存の(この修正より前に配置された)テスト用カード**: シーンに元々置かれていたテスト用の「スライム」「採石場+スライム」「伐採場+スライム」等は、この修正が入る前に配置されたため`BoundIndividual`もなく名簿にも未登録。実際にプレイヤーが操作するのは今後生成されるカードのみなので実用上の影響はないが、既存のテスト用カードは編成対象として表示されない点に留意。
+2. **売却(`TrySell`)との整合性**: 今回`RemoveSlime`(非売却除去)を追加したが、`VillageSlimeRoster.TrySell`はカード(盤面)側の削除を伴わない(名簿から個体を消すだけで、対応するカードが盤面に残ったままになる可能性がある)。カードを売る操作とスライムを売る操作の経路が現状分かれているため、両者の整合性は要確認。
+
+## コミット(追記分)
+
+11. `fix: スライムカード生成/消費と村の名簿(VillageSlimeRoster)を連携させる`
