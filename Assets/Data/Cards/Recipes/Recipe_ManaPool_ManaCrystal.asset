@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 023589ecca635e140a91cc5ca70251dc, type: 3}
+  m_Name: Recipe_ManaPool_ManaCrystal
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.CardRecipeData
+  recipeType: 0
+  ingredients:
+  - mode: 0
+    specificCard: {fileID: 11400000, guid: 6d8f993117a45524dbccb800c81a7925, type: 2}
+    category: 0
+    isConsumed: 0
+  result: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
+  resultCount: 1
+  craftDuration: 60
+  foodStockAmount: 0

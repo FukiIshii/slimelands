@@ -10,8 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7412d8f93197b184d90edc592cd1a1d0, type: 3}
-  m_Name: ManaOre
+  m_Name: ManaCrystal
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.ResourceCardData
-  cardName: "\u30DE\u30CA\u9271\u77F3"
-  icon: {fileID: 21300000, guid: a9dbeab6e6dc5eb488a3f4a41466ef8c, type: 3}
+  cardName: "\u30DE\u30CA\u30AF\u30EA\u30B9\u30BF\u30EB"
+  icon: {fileID: 21300000, guid: 74be9d2f112449f4a996092430f75d15, type: 3}
   description: 

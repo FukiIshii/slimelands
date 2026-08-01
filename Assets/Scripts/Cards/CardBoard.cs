@@ -81,6 +81,17 @@ namespace Slimelands.Cards
             CreatePlacementAreaOutline();
         }
 
+        // 「必要人数0で常時稼働」の生産(例: マナだまり)はプレイヤーの操作を必要としないため、
+        // シーン開始時点で既にレシピと一致しているスタックがあれば、ここで自動的に合成を開始する
+        // (ドラッグ&ドロップで一度触るまで動き出さない、という不自然な挙動を避ける)。
+        private void Start()
+        {
+            foreach (CardStack stack in FindObjectsByType<CardStack>(FindObjectsInactive.Exclude))
+            {
+                TryStartCraftIfMatches(stack);
+            }
+        }
+
         /// <summary>配置可能範囲(placementAreaMin〜placementAreaMax)を示す枠線をLineRendererで生成する。ゲーム内(Game view)でも常に見える。</summary>
         private void CreatePlacementAreaOutline()
         {
