@@ -36,8 +36,8 @@ namespace Slimelands.Dungeon
         public event Action OnDungeonFailed;
 
         /// <summary>
-        /// ダンジョンへの突入。partyは気絶していない個体のみが実際に参加する。
-        /// affinity/balanceを省略した場合はInspectorで設定したデフォルト値を使う。
+        /// ダンジョンへの突入。partyはHPが最大HPの50%以上に回復している個体(CanJoinParty)のみが
+        /// 実際に参加する。affinity/balanceを省略した場合はInspectorで設定したデフォルト値を使う。
         /// </summary>
         public void StartDungeon(DungeonData dungeon, IReadOnlyList<SlimeIndividual> party,
             TypeAffinityData affinity = null, BattleBalanceData balance = null)
@@ -60,9 +60,9 @@ namespace Slimelands.Dungeon
                     continue;
                 }
 
-                if (individual.IsFainted)
+                if (!individual.CanJoinParty)
                 {
-                    Log($"{individual.Species.SpeciesName}は気絶中のため編成から除外されました。");
+                    Log($"{individual.Species.SpeciesName}はHPが最大の50%未満のため編成から除外されました。");
                     continue;
                 }
 

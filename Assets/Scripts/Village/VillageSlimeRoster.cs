@@ -23,6 +23,24 @@ namespace Slimelands.Village
 
         public IReadOnlyList<SlimeIndividual> Slimes => slimes;
 
+        /// <summary>
+        /// 次のダンジョンに編成可能な(HPが最大HPの50%以上に回復している)個体のみを返す。
+        /// パーティー編成UIは未実装だが、実装時はここから選択候補を取得する想定。
+        /// </summary>
+        public IReadOnlyList<SlimeIndividual> GetPartyEligibleSlimes()
+        {
+            var eligible = new List<SlimeIndividual>();
+            foreach (SlimeIndividual slime in slimes)
+            {
+                if (slime.CanJoinParty)
+                {
+                    eligible.Add(slime);
+                }
+            }
+
+            return eligible;
+        }
+
         /// <summary>名簿にスライムが追加/削除されるたびに呼ばれる。</summary>
         public event Action OnRosterChanged;
 

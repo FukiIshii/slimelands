@@ -18,9 +18,13 @@ namespace Slimelands.Slime
         [SerializeField] private int exp;
         [SerializeField] private SlimeIndividualValues individualValues;
         [SerializeField] private List<SlimeSkillData> learnedSkills = new();
-        [Tooltip("-1は未初期化(=満タン扱い)を表す。ダンジョンでの気絶はHP0の状態としてここに保持され、" +
-            "回復するまで次のダンジョンに編成できない(気絶=死亡ではないため個体自体は破棄しない)。")]
+        [Tooltip("-1は未初期化(=満タン扱い)を表す。ダンジョンでの気絶(戦闘不能)はHP0の状態として" +
+            "ここに保持される(気絶=死亡ではないため個体自体は破棄しない)。専用の状態フラグは持たず、" +
+            "常にこの実数値から気絶・編成可否を算出する。")]
         [SerializeField] private int currentHp = -1;
+
+        /// <summary>パーティー編成に必要な最大HP比率。この値未満の間は次のダンジョンに編成できない。</summary>
+        private const float PartyEligibleHpRatio = 0.5f;
 
         public SlimeSpeciesData Species => species;
         public int Level => level;
@@ -31,8 +35,14 @@ namespace Slimelands.Slime
         /// <summary>現在のHP。未初期化(-1)の場合は満タン(CalculateCurrentStats().maxHp)を返す。</summary>
         public int CurrentHp => currentHp < 0 ? CalculateCurrentStats().maxHp : Mathf.Min(currentHp, CalculateCurrentStats().maxHp);
 
-        /// <summary>HPが0(気絶状態)かどうか。気絶中はダンジョンに編成できない。</summary>
+        /// <summary>HPが0(戦闘不能=気絶)かどうか。戦闘中の行動可否判定に使う(編成可否とは別)。</summary>
         public bool IsFainted => CurrentHp <= 0;
+
+        /// <summary>
+        /// 次のダンジョンに編成できるか(HPが最大HPの50%以上かどうか)。
+        /// 「気絶」という専用フラグではなく、常にHPの実数値から判定する。
+        /// </summary>
+        public bool CanJoinParty => CurrentHp >= CalculateCurrentStats().maxHp * PartyEligibleHpRatio;
 
         public SlimeIndividual(SlimeSpeciesData species, int level = 1)
         {
