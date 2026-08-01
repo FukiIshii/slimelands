@@ -13,5 +13,7 @@ namespace Slimelands.Slime
         Wind,
         Light,
         Dark,
+        // 既存アセットのシリアライズ値(整数)を壊さないよう、新しい属性は必ず末尾に追加すること。
+        Grass,
     }
 }
