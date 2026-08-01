@@ -244,3 +244,39 @@
 ## コミット(追記分)
 
 9. `fix: 気絶の扱いをHP実数値判定のみに統一し、編成可否をHP50%基準に変更`
+
+---
+
+# 追記: パーティー編成UI(2026-08-02)
+
+前回までは「パーティー編成UIはまだ存在しない(ロジック側の`CanJoinParty`/`GetPartyEligibleSlimes`のみ実装済み)」という状態だったため、実際にプレイヤーがダンジョンへ出発できるUIを実装した。
+
+## 実装した内容
+
+- `PartyFormationUI`(IMGUI、`Slimelands.Dungeon`名前空間): 村の在籍スライム(`VillageSlimeRoster`)からパーティーを編成し、選択したダンジョンへ`DungeonRunController.StartDungeon`を呼んで出発するUI。
+  - 村パート・ダンジョンパートどちらの内部実装にも触れず、双方の公開APIのみを使う「橋渡し役」として実装(CLAUDE.mdの疎結合ルールに従う)。
+  - ダンジョン選択(`availableDungeons`リストから選ぶ、現状は`TestDungeon`のみ登録)。
+  - 在籍スライム一覧をチェックボックス形式で表示し、タップで編成に追加/除外。HPが50%未満(`CanJoinParty=false`)の個体は選択不可(グレーアウト)にした。
+  - 「出発」ボタンでダンジョンへ出発。ダンジョン未選択または0体の場合はボタンを無効化。
+  - 選択状態の操作(`SelectDungeon`/`TogglePartyMember`/`TryDepart`)は全て公開メソッドとして切り出してあり、OnGUIのボタンからもコードからも同じ経路で呼べる(タップ操作そのものはシミュレートできないが、ロジックは公開APIから直接テスト可能にした)。
+  - 戦闘中(`WaitingForEncounter`/`InBattle`)はパネルを自動的に隠し、`DungeonHudDisplay`と画面が競合しないようにした。
+- `DungeonManagers`に追加し、`VillageManagers`(roster)・`TestDungeon`と結線。
+
+## テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- 何も選択していない状態での`TryDepart()`が`False`を返すことを確認。
+- HP不足(50%未満)の個体を`TogglePartyMember`しても追加されない(`False`を返し、選択数が増えない)ことを確認。
+- 健康な個体2体を追加→選択数2、片方を再度トグルすると解除→選択数1、に正しく増減することを確認。
+- ダンジョンを選択後、`TryDepart()`が`True`を返し、`DungeonRunController.State`が`WaitingForEncounter`に遷移し、選択パーティーがクリアされることを確認。
+- コンパイルエラー・警告なしを確認。
+- **未実施**: 実際のタップ/クリック操作(マウス操作のシミュレーションができないため)。UIのレイアウト・見た目の確認、ボタンの実クリックはユーザー側でのPlay Mode手動テストが必要。
+
+## 後で確認が必要な点
+
+1. **ダンジョン一覧の管理方法**: 現状`availableDungeons`はInspectorで手動登録するリスト(`GachaPoolData`と同様の設計)。ダンジョンが増えた際の登録方法・章仕立て(ワールドマップ等)は未検討。
+2. **パーティー人数の厳密なチェック**: 現在は1体以上選択されていれば出発可能(必要体数ちょうどでなくても出発でき、`DungeonRunController`側で警告ログのみ)。必要体数ちょうどを強制すべきかは要検討。
+3. **見た目**: IMGUIによる最小限の実装。他のUI同様、本番の見た目は未着手。
+
+## コミット(追記分)
+
+10. `feat: パーティー編成UIを実装`
