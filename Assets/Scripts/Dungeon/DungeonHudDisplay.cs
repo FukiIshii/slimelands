@@ -1,0 +1,98 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Slimelands.Dungeon
+{
+    /// <summary>
+    /// ダンジョン進行を確認するための最小限のUI(IMGUIのテキストログ+ボタン)。
+    /// 見た目の作り込みは行わず、ロジックの動作確認を優先する。
+    /// </summary>
+    public class DungeonHudDisplay : MonoBehaviour
+    {
+        [SerializeField] private DungeonRunController controller;
+        [SerializeField] private int maxLogLines = 12;
+
+        private readonly List<string> logLines = new();
+        private Vector2 scroll;
+
+        private void OnEnable()
+        {
+            if (controller != null)
+            {
+                controller.OnLog += HandleLog;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (controller != null)
+            {
+                controller.OnLog -= HandleLog;
+            }
+        }
+
+        private void HandleLog(string message)
+        {
+            logLines.Add(message);
+            while (logLines.Count > maxLogLines)
+            {
+                logLines.RemoveAt(0);
+            }
+        }
+
+        private void OnGUI()
+        {
+            if (controller == null)
+            {
+                return;
+            }
+
+            GUI.Box(new Rect(10f, 260f, 420f, 320f), string.Empty);
+            GUILayout.BeginArea(new Rect(20f, 266f, 400f, 308f));
+
+            GUILayout.Label($"状態: {controller.State}");
+
+            GUILayout.Space(4f);
+            GUILayout.Label("--- パーティー ---");
+            foreach (BattleUnit unit in controller.PlayerUnits)
+            {
+                string status = unit.IsFainted ? "気絶" : $"HP {unit.CurrentHp}/{unit.Stats.maxHp}";
+                string ultimateInfo = unit.HasUltimate
+                    ? (unit.CanActivateUltimate ? "必殺技: 発動可能" : $"必殺技: 残り{unit.UltimateCooldownRemaining:F1}秒")
+                    : string.Empty;
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{unit.DisplayName} [{status}] {ultimateInfo}", GUILayout.Width(280f));
+                if (unit.HasUltimate && GUILayout.Button("必殺技発動", GUILayout.Width(90f)))
+                {
+                    controller.TryActivateUltimate(unit);
+                }
+                GUILayout.EndHorizontal();
+            }
+
+            GUILayout.Space(4f);
+            GUILayout.Label("--- 敵 ---");
+            foreach (BattleUnit enemy in controller.AliveEnemies)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{enemy.DisplayName} HP {enemy.CurrentHp}/{enemy.Stats.maxHp}", GUILayout.Width(280f));
+                if (GUILayout.Button("ターゲット指定", GUILayout.Width(90f)))
+                {
+                    controller.SetTarget(enemy);
+                }
+                GUILayout.EndHorizontal();
+            }
+
+            GUILayout.Space(4f);
+            GUILayout.Label("--- ログ ---");
+            scroll = GUILayout.BeginScrollView(scroll, GUILayout.Height(120f));
+            foreach (string line in logLines)
+            {
+                GUILayout.Label(line);
+            }
+            GUILayout.EndScrollView();
+
+            GUILayout.EndArea();
+        }
+    }
+}

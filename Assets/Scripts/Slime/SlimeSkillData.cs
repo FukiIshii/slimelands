@@ -13,10 +13,13 @@ namespace Slimelands.Slime
         [SerializeField, TextArea] private string description;
         [SerializeField] private bool isUltimate;
         [SerializeField] private int power;
+        [Tooltip("isUltimate=trueの場合のみ意味を持つ。発動後、次に発動可能になるまでのクールタイム(秒)。仮値、要調整。")]
+        [SerializeField] private float cooldownSeconds = 10f;
 
         public string SkillName => skillName;
         public string Description => description;
         public bool IsUltimate => isUltimate;
         public int Power => power;
+        public float CooldownSeconds => cooldownSeconds;
     }
 }
