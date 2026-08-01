@@ -212,4 +212,35 @@
 5. `feat: タイプ相性表とダメージ計算への組み込みを実装`
 6. `feat: DungeonData(ダンジョン定義)を実装`
 7. `feat: 最小限のダンジョン戦闘ループを実装`
-8. `docs: GDD.mdのタイプ相性・ダンジョン仕様を更新`(次のコミットで実施)
+8. `docs: GDD.mdのタイプ相性・ダンジョン仕様を更新`
+
+---
+
+# 追記: 気絶の扱いの見直し(HP実数値判定への統一)(2026-08-02)
+
+## 実装した内容
+
+前提確認: 実装済みの`IsFainted`(`SlimeIndividual`/`BattleUnit`共通)は元々`CurrentHp <= 0`から算出する派生プロパティであり、専用の状態フラグ(bool型の`isFainted`のようなシリアライズ済みフィールド)は存在しなかった。そのため「フラグを削除する」作業自体は不要だったが、**編成可否の判定に`IsFainted`(HP0基準)を流用していた点が今回の仕様(HP50%基準)とズレていた**ため、これを分離・修正した。
+
+- `SlimeIndividual.CanJoinParty`(新規): `現在HP >= 最大HP × 50%`で判定する派生プロパティ。専用フラグは使わず、常にHPの実数値から算出する(依頼の方針通り)。閾値50%は`PartyEligibleHpRatio`定数として管理。
+- `SlimeIndividual.IsFainted`(既存、変更なし): `HP <= 0`。戦闘中の行動可否(戦闘不能)判定用として維持。「気絶=戦闘不能」と「編成可否」は別の概念として明確に分離した。
+- `DungeonRunController.StartDungeon`: パーティー参加の除外条件を`individual.IsFainted`から`!individual.CanJoinParty`に変更。ログメッセージも「気絶中のため除外」→「HPが最大の50%未満のため除外」に修正。
+- `VillageSlimeRoster.GetPartyEligibleSlimes`(新規): 在籍する個体のうち`CanJoinParty`がtrueのものだけを返す。パーティー編成UI自体はまだ存在しないため、将来そのUIを実装する際にここから選択候補を取得する想定(「ロジック側」の受け皿として用意)。
+
+## テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **閾値の境界値確認**: 最大HP45の個体で、ちょうど50%(23/45)→`CanJoinParty=True`、1少ない49%未満(22/45)→`CanJoinParty=False`、HP0→`CanJoinParty=False`かつ`IsFainted=True`、満タン→両方期待通り、を確認。
+- **StartDungeonでの除外**: HP50%未満の個体1体+満タンの個体1体でダンジョンに突入し、`PlayerUnits.Count=1`(HP不足の個体が正しく除外される)ことを確認。
+- **VillageSlimeRoster.GetPartyEligibleSlimes**: 在籍2体(HP不足1体+満タン1体)のうち1体だけが返ることを確認。
+- **既存の戦闘ロジックへの回帰確認**: 通常のダンジョンクリアが引き続き正常に動作すること(`IsFainted`ベースの戦闘不能・全滅判定には手を加えていないため)を確認。
+- コンパイルエラー・警告なしを確認。
+
+## 後で確認が必要な点(仮の値・未決定のもの)
+
+1. **HP回復速度・回復手段**: 「HPが50%以上に回復するまで編成不可」という条件自体は実装したが、回復のトリガー(時間経過による自然回復か、神殿のような施設が必要か、回復速度はどれくらいか)はGDD上未決定・未実装のまま。`SlimeIndividual.Heal(amount)`は用意してあるが、呼び出し元は存在しない。
+2. **パーティー編成UI**: 本実装は「ロジック側」(`CanJoinParty`/`GetPartyEligibleSlimes`)のみで、実際にプレイヤーがパーティーを選ぶ画面(HP不足の個体をグレーアウトして選択不可にする等)はまだ存在しない。
+3. **50%という閾値**: 依頼で明示された値のためそのまま採用したが、定数化(`PartyEligibleHpRatio`)してあるので調整は容易。
+
+## コミット(追記分)
+
+9. `fix: 気絶の扱いをHP実数値判定のみに統一し、編成可否をHP50%基準に変更`
