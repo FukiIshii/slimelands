@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a07d7b4fbad81f8448f0c9e35400205b, type: 3}
+  m_Name: MagmaSlime
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Slime.SlimeSpeciesData
+  speciesName: "\u30DE\u30B0\u30DE\u30B9\u30E9\u30A4\u30E0"
+  slimeType: 1
+  baseStats:
+    maxHp: 45
+    attack: 14
+    defense: 8
+    speed: 8
+  statsGrowthPerLevel:
+    maxHp: 6
+    attack: 3
+    defense: 2
+    speed: 2
+  learnableSkills:
+  - {fileID: 11400000, guid: c0251b54b684f9247b554769319a674b, type: 2}
+  - {fileID: 11400000, guid: 5d16dc61abeca30498282f21d9d4737e, type: 2}
+  maxSkillSlots: 4
+  monthlyFoodConsumption: 12
+  sellResource: {fileID: 11400000, guid: d8645d5fabcc68542ae74386584a3abe, type: 2}
+  sellAmount: 1
+  gachaWeight: 0
