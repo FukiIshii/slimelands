@@ -1,4 +1,5 @@
 using UnityEngine;
+using Slimelands.Slime;
 
 namespace Slimelands.Cards
 {
@@ -16,6 +17,18 @@ namespace Slimelands.Cards
 
         public CardData Data => data;
         public CardStack ParentStack { get; private set; }
+
+        /// <summary>
+        /// このカードがスライムカードの場合、対応する個体(SlimeIndividual)。
+        /// SlimeCardDataは種族を指すだけの共有アセットのため、カード1枚ごとの個体差
+        /// (レベル・HP等)はこちらで別途保持する。スライム以外のカードでは常にnull。
+        /// </summary>
+        public SlimeIndividual BoundIndividual { get; private set; }
+
+        public void BindSlimeIndividual(SlimeIndividual individual)
+        {
+            BoundIndividual = individual;
+        }
 
         public SpriteRenderer SpriteRenderer =>
             cachedSpriteRenderer != null ? cachedSpriteRenderer : (cachedSpriteRenderer = GetComponent<SpriteRenderer>());

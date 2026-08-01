@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Slimelands.Slime;
 using Slimelands.Village;
 
 namespace Slimelands.Cards
@@ -23,6 +24,8 @@ namespace Slimelands.Cards
         [SerializeField] private Sprite craftProgressFillSprite;
         [Tooltip("foodStockAmountを持つレシピが完了したときに加算する食料ストック。")]
         [SerializeField] private FoodStockManager foodStockManager;
+        [Tooltip("スライムカードが生成/消費されるたびに、対応する個体(SlimeIndividual)を登録/除去する村の名簿。")]
+        [SerializeField] private VillageSlimeRoster villageSlimeRoster;
 
         [Header("配置可能範囲")]
         [Tooltip("カードを置ける範囲の左下(最小)座標。")]
@@ -346,6 +349,14 @@ namespace Slimelands.Cards
 
             foreach (CardController ingredient in consumed)
             {
+                // 配合・進化などでスライムカードごと消費される場合、対応する個体も
+                // 村の名簿(VillageSlimeRoster)から取り除く(新しい上位種の個体として
+                // 結果カード側で改めて登録されるため、消費元は残さない)。
+                if (ingredient.BoundIndividual != null)
+                {
+                    villageSlimeRoster?.RemoveSlime(ingredient.BoundIndividual);
+                }
+
                 stack.Remove(ingredient);
             }
 
@@ -748,6 +759,17 @@ namespace Slimelands.Cards
         {
             CardController card = Instantiate(cardPrefab, Vector3.zero, Quaternion.identity, cardParent);
             card.Initialize(data);
+
+            if (data is SlimeCardData slimeCardData && slimeCardData.Species != null)
+            {
+                // SlimeCardDataは種族を指すだけの共有アセットなので、カードが生成されるたびに
+                // 個体差(SlimeIndividual)を新規に作り、村の名簿(VillageSlimeRoster)へ登録する。
+                // ガチャ・合成・配合・進化、いずれの経路でもこのメソッドを通るため一箇所で完結する。
+                var individual = new SlimeIndividual(slimeCardData.Species);
+                card.BindSlimeIndividual(individual);
+                villageSlimeRoster?.AddSlime(individual);
+            }
+
             return card;
         }
 
