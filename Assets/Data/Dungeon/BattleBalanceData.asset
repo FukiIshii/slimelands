@@ -14,3 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.BattleBalanceData
   normalAttackInterval: 1.5
   normalAttackPower: 10
+  wanderSpeed: 1.2
+  wanderArriveThreshold: 0.15
+  wanderPauseMin: 0.3
+  wanderPauseMax: 1.5
+  meleeAttackRange: 4
+  meleeHitDelay: 0.25
