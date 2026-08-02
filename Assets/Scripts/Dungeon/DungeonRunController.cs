@@ -326,10 +326,19 @@ namespace Slimelands.Dungeon
                 unit.NormalAttackTimer -= dt;
                 if (unit.NormalAttackTimer <= 0f)
                 {
-                    unit.NormalAttackTimer = balanceData.NormalAttackInterval;
                     BattleUnit target = GetCurrentTarget();
-                    if (target != null)
+                    if (target == null)
                     {
+                        unit.NormalAttackTimer = balanceData.NormalAttackInterval;
+                    }
+                    else if (IsMeleeOutOfRange(unit, target))
+                    {
+                        // 近接タイプが射程外: 攻撃は発動せず接近を続ける(TickMovementが追尾する)。
+                        // タイマーはリセットしない=射程に入った瞬間に即座に攻撃できるようにする。
+                    }
+                    else
+                    {
+                        unit.NormalAttackTimer = balanceData.NormalAttackInterval;
                         PerformNormalAttack(unit, target);
                     }
                 }
@@ -346,12 +355,21 @@ namespace Slimelands.Dungeon
                 enemy.NormalAttackTimer -= dt;
                 if (enemy.NormalAttackTimer <= 0f)
                 {
-                    enemy.NormalAttackTimer = balanceData.NormalAttackInterval;
                     BattleUnit target = PickAlivePlayerUnit();
-                    if (target != null)
+                    if (target == null)
                     {
-                        PerformNormalAttack(enemy, target);
+                        enemy.NormalAttackTimer = balanceData.NormalAttackInterval;
+                        continue;
                     }
+
+                    if (IsMeleeOutOfRange(enemy, target))
+                    {
+                        // 近接タイプが射程外: 攻撃は発動せず接近を続ける(TickMovementが追尾する)。
+                        continue;
+                    }
+
+                    enemy.NormalAttackTimer = balanceData.NormalAttackInterval;
+                    PerformNormalAttack(enemy, target);
                 }
             }
 
@@ -388,6 +406,13 @@ namespace Slimelands.Dungeon
             }
 
             return null;
+        }
+
+        /// <summary>近接タイプの攻撃者がtargetに対して射程(MeleeAttackRange)外にいるかどうか。遠距離タイプは常にfalse。</summary>
+        private bool IsMeleeOutOfRange(BattleUnit attacker, BattleUnit target)
+        {
+            return attacker.AttackType == SlimeAttackType.Melee
+                && Vector2.Distance(attacker.Position, target.Position) > balanceData.MeleeAttackRange;
         }
 
         private void PerformNormalAttack(BattleUnit attacker, BattleUnit target)
@@ -561,21 +586,45 @@ namespace Slimelands.Dungeon
         private void TickMovement(float dt)
         {
             Rect bounds = GetMovementBounds();
+
+            BattleUnit playerAttackTarget = aliveEnemies.Count > 0 ? GetCurrentTarget() : null;
             foreach (BattleUnit unit in playerUnits)
             {
                 if (!unit.IsFainted)
                 {
-                    TickWander(unit, bounds, dt);
+                    TickUnitMovement(unit, playerAttackTarget, bounds, dt);
                 }
             }
 
+            BattleUnit enemyAttackTarget = PickAlivePlayerUnit();
             foreach (BattleUnit unit in aliveEnemies)
             {
                 if (!unit.IsFainted)
                 {
-                    TickWander(unit, bounds, dt);
+                    TickUnitMovement(unit, enemyAttackTarget, bounds, dt);
                 }
             }
+        }
+
+        /// <summary>
+        /// 近接タイプが攻撃対象を持ち、かつ射程(MeleeAttackRange)外にいる場合は、対象へ向かって
+        /// まっすぐ接近(追尾)する(徘徊目標を対象の位置で上書きする)。射程内に入った、対象がいない、
+        /// または遠距離タイプの場合は通常の徘徊(TickWander)を行う。
+        /// </summary>
+        private void TickUnitMovement(BattleUnit unit, BattleUnit attackTarget, Rect bounds, float dt)
+        {
+            if (attackTarget != null && IsMeleeOutOfRange(unit, attackTarget))
+            {
+                unit.WanderTarget = attackTarget.Position;
+                unit.WanderPauseTimer = 0f;
+
+                Vector2 toTarget = unit.WanderTarget - unit.Position;
+                Vector2 step = toTarget.normalized * (balanceData.WanderSpeed * dt);
+                unit.Position = step.sqrMagnitude >= toTarget.sqrMagnitude ? unit.WanderTarget : unit.Position + step;
+                return;
+            }
+
+            TickWander(unit, bounds, dt);
         }
 
         private void TickWander(BattleUnit unit, Rect bounds, float dt)
