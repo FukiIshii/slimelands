@@ -984,6 +984,7 @@ GameObject:
   - component: {fileID: 360021976}
   - component: {fileID: 360021975}
   - component: {fileID: 360021978}
+  - component: {fileID: 360021979}
   m_Layer: 0
   m_Name: DungeonManagers
   m_TagString: Untagged
@@ -1050,6 +1051,19 @@ MonoBehaviour:
   dungeonController: {fileID: 360021976}
   availableDungeons:
   - {fileID: 11400000, guid: 25517110a43c8c048b3a9de47272fc00, type: 2}
+--- !u!114 &360021979
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 360021974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfbb58d7a75eedb47a8e44ab960658f3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonBattleView
+  controller: {fileID: 360021976}
 --- !u!1 &423878184
 GameObject:
   m_ObjectHideFlags: 0

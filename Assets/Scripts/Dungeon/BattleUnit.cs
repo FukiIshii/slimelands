@@ -12,6 +12,8 @@ namespace Slimelands.Dungeon
     {
         public string DisplayName { get; }
         public SlimeType Type { get; }
+        public SlimeAttackType AttackType { get; }
+        public SlimeSpeciesData Species { get; }
         public SlimeStats Stats { get; }
         public bool IsPlayerSide { get; }
         public SlimeIndividual SourceIndividual { get; }
@@ -25,11 +27,14 @@ namespace Slimelands.Dungeon
         public bool HasUltimate => UltimateSkill != null;
         public bool CanActivateUltimate => HasUltimate && !IsFainted && UltimateCooldownRemaining <= 0f;
 
-        public BattleUnit(string displayName, SlimeType type, SlimeStats stats, bool isPlayerSide,
-            SlimeIndividual sourceIndividual, SlimeSkillData ultimateSkill, int startingHp)
+        public BattleUnit(string displayName, SlimeType type, SlimeAttackType attackType, SlimeSpeciesData species,
+            SlimeStats stats, bool isPlayerSide, SlimeIndividual sourceIndividual, SlimeSkillData ultimateSkill,
+            int startingHp)
         {
             DisplayName = displayName;
             Type = type;
+            AttackType = attackType;
+            Species = species;
             Stats = stats;
             IsPlayerSide = isPlayerSide;
             SourceIndividual = sourceIndividual;

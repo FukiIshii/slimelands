@@ -36,6 +36,16 @@ namespace Slimelands.Dungeon
         public event Action OnDungeonFailed;
 
         /// <summary>
+        /// 以下は見た目(スプライト表示・エフェクト)側がロジックに反応するための通知イベント。
+        /// ダメージ計算・ターゲティング・クールタイムなど戦闘ロジック自体には影響しない、追加の通知専用。
+        /// </summary>
+        public event Action<IReadOnlyList<BattleUnit>> OnPartySpawned;
+        public event Action<BattleUnit> OnEnemySpawned;
+        public event Action<BattleUnit, BattleUnit, int> OnNormalAttackPerformed;
+        public event Action<BattleUnit, BattleUnit, int> OnUltimateActivated;
+        public event Action<BattleUnit> OnUnitFainted;
+
+        /// <summary>
         /// ダンジョンへの突入。partyはHPが最大HPの50%以上に回復している個体(CanJoinParty)のみが
         /// 実際に参加する。affinity/balanceを省略した場合はInspectorで設定したデフォルト値を使う。
         /// </summary>
@@ -77,8 +87,9 @@ namespace Slimelands.Dungeon
                 }
 
                 SlimeStats stats = individual.CalculateCurrentStats();
-                playerUnits.Add(new BattleUnit(individual.Species.SpeciesName, individual.Species.Type, stats,
-                    true, individual, ultimate, individual.CurrentHp));
+                playerUnits.Add(new BattleUnit(individual.Species.SpeciesName, individual.Species.Type,
+                    individual.Species.AttackType, individual.Species, stats, true, individual, ultimate,
+                    individual.CurrentHp));
             }
 
             if (playerUnits.Count == 0)
@@ -99,6 +110,7 @@ namespace Slimelands.Dungeon
             encounterTimer = Mathf.Max(0.01f, dungeon.EncounterInterval);
             State = DungeonState.WaitingForEncounter;
             Log($"{dungeon.DungeonName}に突入!(パーティー{playerUnits.Count}体)");
+            OnPartySpawned?.Invoke(playerUnits);
         }
 
         /// <summary>指定した敵にターゲットを固定する。固定中は自動ターゲットに切り替わらない。</summary>
@@ -147,6 +159,7 @@ namespace Slimelands.Dungeon
             target.ApplyDamage(damage);
             unit.UltimateCooldownRemaining = unit.UltimateSkill.CooldownSeconds;
             Log($"{unit.DisplayName}の必殺技「{unit.UltimateSkill.SkillName}」!{target.DisplayName}に{damage}ダメージ");
+            OnUltimateActivated?.Invoke(unit, target, damage);
             HandleIfFainted(target);
             return true;
         }
@@ -180,13 +193,15 @@ namespace Slimelands.Dungeon
 
             SlimeSpeciesData species = remainingEnemies.Dequeue();
             SlimeStats stats = species.CalculateBaseStatsAtLevel(dungeonData.EnemyLevel);
-            var enemyUnit = new BattleUnit(species.SpeciesName, species.Type, stats, false, null, null, stats.maxHp);
+            var enemyUnit = new BattleUnit(species.SpeciesName, species.Type, species.AttackType, species, stats,
+                false, null, null, stats.maxHp);
 
             aliveEnemies.Clear();
             aliveEnemies.Add(enemyUnit);
             lockedTarget = null;
             State = DungeonState.InBattle;
             Log($"{species.SpeciesName}が現れた!");
+            OnEnemySpawned?.Invoke(enemyUnit);
         }
 
         private void TickBattle(float dt)
@@ -276,6 +291,7 @@ namespace Slimelands.Dungeon
                 balanceData.NormalAttackPower, attacker.Type, target.Type, affinityData);
             target.ApplyDamage(damage);
             Log($"{attacker.DisplayName}の通常攻撃!{target.DisplayName}に{damage}ダメージ");
+            OnNormalAttackPerformed?.Invoke(attacker, target, damage);
             HandleIfFainted(target);
         }
 
@@ -287,6 +303,7 @@ namespace Slimelands.Dungeon
             }
 
             Log($"{target.DisplayName}は気絶した!");
+            OnUnitFainted?.Invoke(target);
 
             if (target == lockedTarget)
             {

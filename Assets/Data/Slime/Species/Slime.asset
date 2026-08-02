@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Slime.SlimeSpeciesData
   speciesName: "\u30B9\u30E9\u30A4\u30E0"
   slimeType: 0
+  attackType: 0
+  battleSprite: {fileID: 21300000, guid: 7c3a934ce5978cd4faae0a005e630c57, type: 3}
   baseStats:
     maxHp: 20
     attack: 5

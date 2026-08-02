@@ -14,6 +14,10 @@ namespace Slimelands.Slime
         [Header("基本情報")]
         [SerializeField] private string speciesName;
         [SerializeField] private SlimeType slimeType;
+        [Tooltip("基本攻撃の方式(GDD確定仕様)。近接=突進、遠距離=スライム弾。ダンジョン戦闘の見た目にも使う。")]
+        [SerializeField] private SlimeAttackType attackType = SlimeAttackType.Melee;
+        [Tooltip("ダンジョン戦闘中に表示するスプライト。未設定の場合はタイプに応じたプレースホルダー形状で代替する。")]
+        [SerializeField] private Sprite battleSprite;
 
         [Header("基本ステータス(Lv1時点)")]
         [SerializeField] private SlimeStats baseStats;
@@ -41,6 +45,8 @@ namespace Slimelands.Slime
 
         public string SpeciesName => speciesName;
         public SlimeType Type => slimeType;
+        public SlimeAttackType AttackType => attackType;
+        public Sprite BattleSprite => battleSprite;
         public SlimeStats BaseStats => baseStats;
         public SlimeStats StatsGrowthPerLevel => statsGrowthPerLevel;
         public IReadOnlyList<SlimeSkillData> LearnableSkills => learnableSkills;
