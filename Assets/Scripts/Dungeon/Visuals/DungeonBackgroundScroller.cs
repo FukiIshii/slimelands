@@ -3,9 +3,10 @@ using UnityEngine;
 namespace Slimelands.Dungeon
 {
     /// <summary>
-    /// ダンジョン専用画面の背景を、左から右へ常に一定速度でスクロールさせる。
-    /// タイルを複数枚並べてシームレスにループさせる方式(専用シェーダー/マテリアルは使わない、
-    /// 既存のRuntimeSpriteFactoryと同じくプレースホルダー優先の実装)。
+    /// ダンジョン専用画面の背景を常に一定速度でスクロールさせ、パーティーが右方向へ
+    /// 進んでいく感覚を演出する(背景タイル自体は右から左へ流れ、右端から出現して
+    /// 左端で消える)。タイルを複数枚並べてシームレスにループさせる方式(専用シェーダー/
+    /// マテリアルは使わない、既存のRuntimeSpriteFactoryと同じくプレースホルダー優先の実装)。
     /// スクロールはDungeonRunControllerの戦闘状態(WaitingForEncounter/InBattle)を一切参照せず、
     /// このコンポーネントが有効な間は常に進行し続ける(戦闘ロジックと完全に独立)。
     /// </summary>
@@ -14,7 +15,7 @@ namespace Slimelands.Dungeon
         private const int TileCount = 3;
 
         [SerializeField] private DungeonRunController controller;
-        [Tooltip("スクロール速度(ワールド単位/秒)。左から右へ移動する。")]
+        [Tooltip("スクロール速度(ワールド単位/秒)。値が大きいほどパーティーが右へ進む速度が速く見える。")]
         [SerializeField] private float scrollSpeed = 2f;
         [Tooltip("背景タイル1枚分の幅(ワールド単位)。カメラの表示幅より広めに設定する。")]
         [SerializeField] private float tileWidth = 20f;
@@ -136,10 +137,12 @@ namespace Slimelands.Dungeon
             float totalWidth = tileWidth * TileCount;
             for (int i = 0; i < tiles.Length; i++)
             {
-                float x = -totalWidth * 0.5f + i * tileWidth + scrollOffset;
-                if (x > totalWidth * 0.5f)
+                // scrollOffsetが増えるほどタイルは左へ移動し、左端を過ぎたら右端側へ
+                // ラップさせる(右から出現して左へ抜けていく = 右方向へ進んでいる感覚)。
+                float x = -totalWidth * 0.5f + i * tileWidth - scrollOffset;
+                if (x < -totalWidth * 0.5f)
                 {
-                    x -= totalWidth;
+                    x += totalWidth;
                 }
 
                 tiles[i].transform.localPosition = new Vector3(x, 0f, 0f);
