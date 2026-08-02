@@ -22,6 +22,34 @@ namespace Slimelands.Dungeon
         [SerializeField] private DungeonRunController controller;
 
         private readonly Dictionary<BattleUnit, BattleUnitView> views = new();
+        private Transform visualsRoot;
+
+        /// <summary>
+        /// 生成した見た目(スライム・発射物)を全てぶら下げる専用コンテナ。画面切り替え側は
+        /// これをまとめてSetActiveするだけで、ダンジョン戦闘の見た目一式を表示/非表示できる。
+        /// Awake()に依存すると、Edit Mode上のスクリプト操作(ドメインリロード後など)で
+        /// 未初期化のまま参照される事故につながるため、遅延初期化で自己修復させる。
+        /// </summary>
+        public GameObject VisualsRoot => EnsureVisualsRoot().gameObject;
+
+        private Transform EnsureVisualsRoot()
+        {
+            if (visualsRoot == null)
+            {
+                // Edit Mode上での操作やPlay Mode開始直後など、フィールドが未初期化な状態で
+                // 呼ばれても、既にシーンに存在する同名の子を再利用して重複生成を防ぐ。
+                visualsRoot = transform.Find("BattleVisuals");
+            }
+
+            if (visualsRoot == null)
+            {
+                var root = new GameObject("BattleVisuals");
+                root.transform.SetParent(transform, false);
+                visualsRoot = root.transform;
+            }
+
+            return visualsRoot;
+        }
 
         private void OnEnable()
         {
@@ -109,6 +137,7 @@ namespace Slimelands.Dungeon
             else
             {
                 var projectileGo = new GameObject("BattleProjectile", typeof(SpriteRenderer), typeof(BattleProjectile));
+                projectileGo.transform.SetParent(EnsureVisualsRoot(), false);
                 BattleProjectile projectile = projectileGo.GetComponent<BattleProjectile>();
                 float travelDuration = isUltimate ? 0.35f : 0.25f;
                 Vector3 arrivalPos = targetPos;
@@ -120,7 +149,7 @@ namespace Slimelands.Dungeon
         private void CreateView(BattleUnit unit, Vector3 position)
         {
             var go = new GameObject($"BattleUnitView_{unit.DisplayName}", typeof(BattleUnitView));
-            go.transform.SetParent(transform, false);
+            go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
             view.Bind(unit, position);
             views[unit] = view;

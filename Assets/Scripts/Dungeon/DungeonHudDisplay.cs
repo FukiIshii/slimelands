@@ -10,6 +10,8 @@ namespace Slimelands.Dungeon
     public class DungeonHudDisplay : MonoBehaviour
     {
         [SerializeField] private DungeonRunController controller;
+        [Tooltip("クリア/失敗後に「村に戻る」ボタンから画面切り替えを呼ぶための参照。未設定でも動作する(ボタンが出ないだけ)。")]
+        [SerializeField] private GameScreenController screenController;
         [SerializeField] private int maxLogLines = 12;
 
         private readonly List<string> logLines = new();
@@ -51,6 +53,13 @@ namespace Slimelands.Dungeon
             GUILayout.BeginArea(new Rect(20f, 266f, 400f, 308f));
 
             GUILayout.Label($"状態: {controller.State}");
+
+            bool showReturnButton = screenController != null &&
+                (controller.State == DungeonState.Cleared || controller.State == DungeonState.Failed);
+            if (showReturnButton && GUILayout.Button("村に戻る", GUILayout.Width(100f)))
+            {
+                screenController.ReturnToVillage();
+            }
 
             GUILayout.Space(4f);
             GUILayout.Label("--- パーティー ---");
