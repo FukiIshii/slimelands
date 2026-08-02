@@ -1043,3 +1043,61 @@ Play Modeでレベル20パーティーによる`TestDungeon`の通しクリア�
 ### 残課題
 
 なし。
+
+---
+
+## 追記: ダンジョンクリア後にプレイヤーの見た目が消えてしまう不具合を修正
+
+### 経緯
+
+ユーザーから「ダンジョンにおいて、敵をせん滅した後、自分のキャラが消えずに残るようにして」との
+報告があった。
+
+### 原因
+
+`DungeonBattleView`が`OnDungeonCleared`・`OnDungeonFailed`のどちらにも同じ`ClearAllViews`
+(プレイヤー・敵の見た目を全て破棄する)を購読していたため、ダンジョンをクリアした瞬間に
+敵だけでなくプレイヤー側のスライムの見た目まで消えてしまっていた。
+
+### 修正内容
+
+- `OnDungeonCleared`の購読先を`ClearAllViews`から`ClearEnemyViews`(敵側のみ破棄する、既存の
+  ウェーブ切り替え時にも使われているメソッド)に変更。クリア後はプレイヤー側の見た目のみが
+  画面に残り続けるようにした(村に戻る操作をするまで表示されたまま。次のダンジョン出発時は
+  `HandlePartySpawned`内の`ClearAllViews`で改めて綺麗にクリアされる)。
+- `OnDungeonFailed`(パーティー全滅)は今回の要望の対象外のため、従来通り`ClearAllViews`
+  (敵味方とも見た目を消す)のままとした。
+- `docs/GDD.md`に、クリア時はプレイヤー側の見た目が残り、失敗時は従来通り敵味方とも消える旨を追記。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- `TestDungeon`をState=Clearedまで進行させ、`controller.PlayerUnits.Count`(ロジック層、常に
+  正しい)が3のままであること、および敵側の見た目が0件(`ClearEnemyViews`が正しく機能している)
+  であることを確認した。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 重要な副次的発見(テスト手法上のアーティファクト、実際の不具合ではない)
+
+上記のテスト中、同一Play Modeセッション内で`Unity_RunCommand`を複数回実行すると、実行するたびに
+残存する`BattleUnitView`のGameObject数が3の倍数で増えていく現象(3→6→9…)を観測した。
+調査の結果、以下の2つが組み合わさったテストツール固有のアーティファクトと判明した:
+
+1. `Unity_RunCommand`は実行のたびにC#コードを動的コンパイルしており、これが既にアクティブな
+   MonoBehaviourに対して、対応する`OnDisable`を伴わない余分な`OnEnable`を発生させている
+   らしく、`DungeonBattleView`のイベント購読(`controller.OnPartySpawned += HandlePartySpawned`
+   等)が呼び出しのたびに1つずつ多重登録されてしまう。
+2. `Destroy()`はUnityの実際のフレーム境界でしか実オブジェクトの削除を反映しないが、
+   `SendMessage`による疑似フレーム送り(コルーチンを使わないポンプ技法)は実フレームを
+   進行させないため、`ClearAllViews`等が呼んだ`Destroy()`が実行中ずっと反映されず、
+   「破棄予定だが見た目上は残ったまま」のGameObjectが蓄積して見えていた。
+
+`controller.PlayerUnits.Count`(ロジック層の実データ)は常に正しい値(3)を維持しており、
+実際のゲームロジックにはこの多重登録の影響はない(村パート等、通常のプレイでは
+`Unity_RunCommand`のような動的スクリプト実行が発生しないため、この現象自体が起こらない)。
+ただし、**今後同様のテストで「Viewの数が想定より多い」という結果が出た場合は、まずこの
+アーティファクトを疑うこと**(Play Modeを一度Stopし、単一のRunCommand呼び出しのみで
+再検証するか、`controller.PlayerUnits.Count`のようなロジック層の値で判断するとよい)。
+
+### 残課題
+
+なし。

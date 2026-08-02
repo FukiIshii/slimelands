@@ -55,6 +55,8 @@ namespace Slimelands.Dungeon
                 return;
             }
 
+            // クリア時は敵のみ消し、プレイヤー側は村に戻るまで画面に残す(全滅させて姿を消したくないため)。
+            // 失敗時(パーティー全滅)はこれまで通り全ユニットの見た目を消す。
             controller.OnPartySpawned += HandlePartySpawned;
             controller.OnEnemyWaveSpawned += HandleEnemyWaveSpawned;
             controller.OnNormalAttackPerformed += HandleNormalAttack;
@@ -62,7 +64,7 @@ namespace Slimelands.Dungeon
             controller.OnNormalAttackResolved += HandleNormalAttackResolved;
             controller.OnUltimateResolved += HandleUltimateResolved;
             controller.OnUnitFainted += HandleUnitFainted;
-            controller.OnDungeonCleared += ClearAllViews;
+            controller.OnDungeonCleared += ClearEnemyViews;
             controller.OnDungeonFailed += ClearAllViews;
         }
 
@@ -80,7 +82,7 @@ namespace Slimelands.Dungeon
             controller.OnNormalAttackResolved -= HandleNormalAttackResolved;
             controller.OnUltimateResolved -= HandleUltimateResolved;
             controller.OnUnitFainted -= HandleUnitFainted;
-            controller.OnDungeonCleared -= ClearAllViews;
+            controller.OnDungeonCleared -= ClearEnemyViews;
             controller.OnDungeonFailed -= ClearAllViews;
         }
 
