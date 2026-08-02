@@ -22,6 +22,8 @@ namespace Slimelands.Dungeon
 
         private const float RollSpeedDegreesPerSecond = 220f;
         private const float MeleeDashDuration = 0.18f;
+        private const float IdleHopPeriod = 0.55f;
+        private const float IdleHopHeight = 0.16f;
         private const float FaintFadeDuration = 0.35f;
         private const float HpBarWidth = 0.9f;
         private const float HpBarHeight = 0.14f;
@@ -40,6 +42,7 @@ namespace Slimelands.Dungeon
         private Vector3 meleeDashTarget;
         private MeleeAnimPhase meleePhase = MeleeAnimPhase.Idle;
         private float meleeAnimTimer;
+        private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
 
@@ -79,6 +82,7 @@ namespace Slimelands.Dungeon
             homePosition = worldHomePosition;
             transform.position = worldHomePosition;
             meleePhase = MeleeAnimPhase.Idle;
+            idleHopTimer = 0f;
             isFaintedVisual = false;
             faintTimer = 0f;
             visual.localRotation = Quaternion.identity;
@@ -105,6 +109,11 @@ namespace Slimelands.Dungeon
             {
                 return;
             }
+
+            // 待機中ホップの分だけ位置・スケールがずれている場合があるため、突進開始時に基準へ戻す
+            // (ホップと突進の軌道が混ざって位置がスナップするのを防ぐ)。
+            transform.position = homePosition;
+            visual.localScale = Vector3.one;
 
             float reach = isUltimate ? 0.7f : 0.5f;
             meleeDashTarget = Vector3.Lerp(homePosition, targetWorldPosition, reach);
@@ -142,11 +151,29 @@ namespace Slimelands.Dungeon
             {
                 visual.Rotate(Vector3.forward, -RollSpeedDegreesPerSecond * Time.deltaTime, Space.Self);
             }
+            else if (meleePhase == MeleeAnimPhase.Idle)
+            {
+                TickIdleHop();
+            }
 
             if (meleePhase != MeleeAnimPhase.Idle)
             {
                 TickMeleeAnim();
             }
+        }
+
+        /// <summary>
+        /// 近距離タイプの待機中ループモーション。攻撃時の突進とは独立しており、
+        /// 敵味方を問わず常にホップし続ける(GDD「常に動き続けている」方針に合わせる)。
+        /// </summary>
+        private void TickIdleHop()
+        {
+            idleHopTimer += Time.deltaTime;
+            float phase = (idleHopTimer % IdleHopPeriod) / IdleHopPeriod;
+            float hopCurve = Mathf.Sin(phase * Mathf.PI); // 0→1→0を繰り返す、常に0以上の連続ループ
+
+            transform.position = homePosition + Vector3.up * (hopCurve * IdleHopHeight);
+            visual.localScale = new Vector3(1f - hopCurve * 0.12f, 1f + hopCurve * 0.18f, 1f);
         }
 
         private void TickMeleeAnim()
