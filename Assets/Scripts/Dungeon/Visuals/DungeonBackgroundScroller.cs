@@ -109,13 +109,13 @@ namespace Slimelands.Dungeon
                 }
                 else
                 {
-                    // 専用の背景スプライトが指定されている場合は、タイル幅/高さに収まるよう
-                    // 均一でない拡大率で引き伸ばす(プレースホルダー段階の簡易対応、要改善)。
+                    // 専用の背景スプライトが指定されている場合は、絵柄が歪まないよう縦横同じ倍率で
+                    // タイル幅(スクロールのループ単位)に合わせて引き伸ばす。結果としてタイルの
+                    // 実際の高さはtileHeightと一致しないことがあるが、カメラの表示範囲を覆っていれば
+                    // 問題ないため許容する(縦は多少はみ出す分には支障がない)。
                     Vector2 nativeSize = resolved.bounds.size;
-                    tile.transform.localScale = new Vector3(
-                        tileWidth / Mathf.Max(0.0001f, nativeSize.x),
-                        tileHeight / Mathf.Max(0.0001f, nativeSize.y),
-                        1f);
+                    float uniformScale = tileWidth / Mathf.Max(0.0001f, nativeSize.x);
+                    tile.transform.localScale = new Vector3(uniformScale, uniformScale, 1f);
                 }
             }
 

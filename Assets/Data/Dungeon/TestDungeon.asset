@@ -28,4 +28,4 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 0a5313a299c2a0b409416e5be2a80cd8, type: 2}
     spawnCondition: 0
     waitSeconds: 3
-  backgroundSprite: {fileID: 0}
+  backgroundSprite: {fileID: 21300000, guid: 0a93a2d44a3c16f44b58430a5767c86c, type: 3}
