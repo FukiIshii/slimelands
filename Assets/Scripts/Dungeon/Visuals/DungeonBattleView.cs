@@ -11,9 +11,9 @@ namespace Slimelands.Dungeon
     /// </summary>
     public class DungeonBattleView : MonoBehaviour
     {
-        [Tooltip("プレイヤー・敵とも自由に動き回る中央帯の幅(ワールド単位)。")]
+        [Tooltip("プレイヤー・敵とも自由に動き回る帯の幅(ワールド単位)。")]
         [SerializeField] private float movementBandWidth = 11f;
-        [Tooltip("中央帯の高さ(ワールド単位)。")]
+        [Tooltip("帯の高さ(ワールド単位)。背景画像の水平中央線(床と奥の境界線)から下方向へこの高さ分だけ帯を確保する。")]
         [SerializeField] private float movementBandHeight = 3f;
 
         private static readonly Color PlayerVfxColor = new(0.9f, 0.9f, 0.9f);
@@ -160,13 +160,18 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// プレイヤー・敵とも共通で自由に動き回れる、画面中央の帯(ワールド座標のRect)。
+        /// プレイヤー・敵とも共通で自由に動き回れる帯(ワールド座標のRect)。
+        /// 背景スプライトはこのコンポーネントと同じ位置(transform.position.y)を水平中央線として
+        /// 上下対称に配置されるため(DungeonBackgroundScroller参照)、その中央線は「床」と
+        /// 「奥の壁・天井」の境界線に相当する。行動範囲を中央線から下(床側)のみに限定することで、
+        /// 画像の下半分(床)でのみ敵味方が行動するようにする。
         /// </summary>
         private Rect GetMovementBounds()
         {
+            float floorTopY = transform.position.y;
             return new Rect(
                 transform.position.x - movementBandWidth * 0.5f,
-                transform.position.y - movementBandHeight * 0.5f,
+                floorTopY - movementBandHeight,
                 movementBandWidth,
                 movementBandHeight);
         }

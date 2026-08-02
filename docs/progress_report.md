@@ -736,3 +736,41 @@
 ### 残課題
 
 なし。
+
+---
+
+## 追記: 行動範囲を背景画像の下半分(床)のみに限定
+
+### 経緯
+
+背景に実アート(`Wallpaper_dungeon`)を設定した状態で見た目を確認したユーザーから、
+「背景画像のうち、床である下半分のみで敵味方が行動するようにしてほしい」との指摘があった。
+従来の行動帯(`DungeonBattleView.GetMovementBounds`)は`transform.position.y`を中心に
+上下対称(`±movementBandHeight*0.5`)に配置されており、画像の水平中央線(床と奥の壁・天井の
+境界線に相当)をまたいで上側にもキャラクターがはみ出す配置になっていた。
+
+### 修正内容
+
+- `DungeonBattleView.GetMovementBounds()`を、`transform.position.y`(背景スプライトが
+  上下対称に配置される基準線=画像の水平中央線)を帯の**上端**とし、そこから`movementBandHeight`
+  分だけ下方向にのみ帯を確保するよう変更した(従来は上端=中心+半分、下端=中心-半分だったのを、
+  上端=中心、下端=中心-高さ、に変更)。
+  - `DungeonBackgroundScroller`は背景タイルを常に自身のtransform位置を中心に上下対称に配置する
+    実装のため、`DungeonBattleView`と`DungeonBackgroundScroller`が同じ位置(`DungeonManagers`の
+    transform)に配置されている前提で、Camera/Sprite実サイズを一切参照せずに済む形にした
+    (背景アートのアスペクト比が変わっても、境界線の位置(y=0)自体は変わらないため)。
+- ロジック側(`BattleUnitView`の徘徊・攻撃モーション等)への変更は一切なし。渡される
+  `Rect movementBounds`の値が変わるのみ。
+- `docs/GDD.md`の該当記述を、「画面中央の帯」→「背景画像の下半分(床)の帯」に修正した。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- `TestDungeon`で実際に`StartDungeon`を呼び、パーティー・敵の`BattleUnitView`を300回分の
+  `Update`ポンプ(徘徊・ホップ/ロールアニメーション込み)で動かした上で、全ユニットの
+  `CurrentPosition.y`をサンプリングし、範囲が`-2.998〜-2.642`(常に0以下)であることを確認。
+  水平中央線(y=0)を一度も超えないことを確認した。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+なし。
