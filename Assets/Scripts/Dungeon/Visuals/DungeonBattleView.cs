@@ -11,9 +11,10 @@ namespace Slimelands.Dungeon
     /// </summary>
     public class DungeonBattleView : MonoBehaviour
     {
-        private const float RowSpacing = 1.6f;
-        private const float PlayerRowY = -2.4f;
-        private const float EnemyRowY = 2.4f;
+        [Tooltip("プレイヤー・敵とも自由に動き回る中央帯の幅(ワールド単位)。")]
+        [SerializeField] private float movementBandWidth = 11f;
+        [Tooltip("中央帯の高さ(ワールド単位)。")]
+        [SerializeField] private float movementBandHeight = 3f;
 
         private static readonly Color PlayerVfxColor = new(0.9f, 0.9f, 0.9f);
         private static readonly Color EnemyVfxColor = new(0.9f, 0.5f, 0.3f);
@@ -59,7 +60,7 @@ namespace Slimelands.Dungeon
             }
 
             controller.OnPartySpawned += HandlePartySpawned;
-            controller.OnEnemySpawned += HandleEnemySpawned;
+            controller.OnEnemyWaveSpawned += HandleEnemyWaveSpawned;
             controller.OnNormalAttackPerformed += HandleNormalAttack;
             controller.OnUltimateActivated += HandleUltimateActivated;
             controller.OnUnitFainted += HandleUnitFainted;
@@ -75,7 +76,7 @@ namespace Slimelands.Dungeon
             }
 
             controller.OnPartySpawned -= HandlePartySpawned;
-            controller.OnEnemySpawned -= HandleEnemySpawned;
+            controller.OnEnemyWaveSpawned -= HandleEnemyWaveSpawned;
             controller.OnNormalAttackPerformed -= HandleNormalAttack;
             controller.OnUltimateActivated -= HandleUltimateActivated;
             controller.OnUnitFainted -= HandleUnitFainted;
@@ -86,16 +87,19 @@ namespace Slimelands.Dungeon
         private void HandlePartySpawned(IReadOnlyList<BattleUnit> party)
         {
             ClearAllViews();
-            for (int i = 0; i < party.Count; i++)
+            foreach (BattleUnit unit in party)
             {
-                CreateView(party[i], GetSlotPosition(i, party.Count, PlayerRowY));
+                CreateView(unit);
             }
         }
 
-        private void HandleEnemySpawned(BattleUnit enemy)
+        private void HandleEnemyWaveSpawned(IReadOnlyList<BattleUnit> enemies)
         {
             ClearEnemyViews();
-            CreateView(enemy, GetSlotPosition(0, 1, EnemyRowY));
+            foreach (BattleUnit unit in enemies)
+            {
+                CreateView(unit);
+            }
         }
 
         private void HandleNormalAttack(BattleUnit attacker, BattleUnit target, int damage)
@@ -124,15 +128,15 @@ namespace Slimelands.Dungeon
             }
 
             Vector3 targetPos = views.TryGetValue(target, out BattleUnitView targetView) && targetView != null
-                ? targetView.HomePosition
-                : attackerView.HomePosition;
+                ? targetView.CurrentPosition
+                : attackerView.CurrentPosition;
 
             Color vfxColor = isUltimate ? UltimateVfxColor : (attacker.IsPlayerSide ? PlayerVfxColor : EnemyVfxColor);
 
             if (attacker.AttackType == SlimeAttackType.Melee)
             {
                 attackerView.PlayAttackMotion(targetPos, isUltimate);
-                BattleVfx.SpawnBurst(attackerView.HomePosition, vfxColor);
+                BattleVfx.SpawnBurst(attackerView.CurrentPosition, vfxColor);
             }
             else
             {
@@ -141,25 +145,30 @@ namespace Slimelands.Dungeon
                 BattleProjectile projectile = projectileGo.GetComponent<BattleProjectile>();
                 float travelDuration = isUltimate ? 0.35f : 0.25f;
                 Vector3 arrivalPos = targetPos;
-                projectile.Launch(attackerView.HomePosition, targetPos, travelDuration, vfxColor,
+                projectile.Launch(attackerView.CurrentPosition, targetPos, travelDuration, vfxColor,
                     () => BattleVfx.SpawnBurst(arrivalPos, vfxColor));
             }
         }
 
-        private void CreateView(BattleUnit unit, Vector3 position)
+        private void CreateView(BattleUnit unit)
         {
             var go = new GameObject($"BattleUnitView_{unit.DisplayName}", typeof(BattleUnitView));
             go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
-            view.Bind(unit, position);
+            view.Bind(unit, GetMovementBounds());
             views[unit] = view;
         }
 
-        private Vector3 GetSlotPosition(int index, int count, float rowY)
+        /// <summary>
+        /// プレイヤー・敵とも共通で自由に動き回れる、画面中央の帯(ワールド座標のRect)。
+        /// </summary>
+        private Rect GetMovementBounds()
         {
-            float totalWidth = (count - 1) * RowSpacing;
-            float x = transform.position.x - totalWidth * 0.5f + index * RowSpacing;
-            return new Vector3(x, transform.position.y + rowY, transform.position.z);
+            return new Rect(
+                transform.position.x - movementBandWidth * 0.5f,
+                transform.position.y - movementBandHeight * 0.5f,
+                movementBandWidth,
+                movementBandHeight);
         }
 
         private void ClearAllViews()

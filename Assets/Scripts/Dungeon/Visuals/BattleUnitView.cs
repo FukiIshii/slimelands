@@ -25,6 +25,10 @@ namespace Slimelands.Dungeon
         private const float IdleHopPeriod = 0.55f;
         private const float IdleHopHeight = 0.16f;
         private const float FaintFadeDuration = 0.35f;
+        private const float WanderSpeed = 1.2f;
+        private const float WanderArriveThreshold = 0.15f;
+        private const float WanderPauseMin = 0.3f;
+        private const float WanderPauseMax = 1.5f;
         private const float HpBarWidth = 0.9f;
         private const float HpBarHeight = 0.14f;
         private const float HpBarYOffset = 0.75f;
@@ -46,7 +50,12 @@ namespace Slimelands.Dungeon
         private bool isFaintedVisual;
         private float faintTimer;
 
-        public Vector3 HomePosition => homePosition;
+        private Rect movementBounds;
+        private Vector3 wanderTarget;
+        private float wanderPauseTimer;
+
+        /// <summary>現在の基準位置(徘徊で常に移動する)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
+        public Vector3 CurrentPosition => homePosition;
         public bool IsPlayingAttackMotion => meleePhase != MeleeAnimPhase.Idle;
 
         private void Awake()
@@ -74,13 +83,20 @@ namespace Slimelands.Dungeon
             hpBarFillRenderer.sortingOrder = 21;
         }
 
-        /// <summary>この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。</summary>
-        public void Bind(BattleUnit unit, Vector3 worldHomePosition)
+        /// <summary>
+        /// この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。
+        /// movementBoundsは自由に動き回れる範囲(画面中央の帯、ワールド座標)。
+        /// 初期位置はこの範囲内からランダムに選ぶ。
+        /// </summary>
+        public void Bind(BattleUnit unit, Rect bounds)
         {
             boundUnit = unit;
             attackType = unit.AttackType;
-            homePosition = worldHomePosition;
-            transform.position = worldHomePosition;
+            movementBounds = bounds;
+            homePosition = PickRandomPointInBounds();
+            wanderTarget = homePosition;
+            wanderPauseTimer = Random.Range(WanderPauseMin, WanderPauseMax);
+            transform.position = homePosition;
             meleePhase = MeleeAnimPhase.Idle;
             idleHopTimer = 0f;
             isFaintedVisual = false;
@@ -147,24 +163,63 @@ namespace Slimelands.Dungeon
                 return;
             }
 
+            if (meleePhase != MeleeAnimPhase.Idle)
+            {
+                // 突進中は徘徊を止め、突進アニメーションのみ進行させる(軌道が混ざらないようにする)。
+                TickMeleeAnim();
+                return;
+            }
+
+            // 待機中(徘徊)は移動(TickWander)とその場アニメーション(ホップ/回転)を両方進める。
+            TickWander();
+            transform.position = homePosition;
+
             if (attackType == SlimeAttackType.Ranged)
             {
                 visual.Rotate(Vector3.forward, -RollSpeedDegreesPerSecond * Time.deltaTime, Space.Self);
             }
-            else if (meleePhase == MeleeAnimPhase.Idle)
+            else
             {
                 TickIdleHop();
             }
+        }
 
-            if (meleePhase != MeleeAnimPhase.Idle)
+        /// <summary>
+        /// 画面中央の帯(movementBounds)の中を、ランダムな目標点に向かって歩き続ける徘徊ロジック。
+        /// 到達すると少し静止してから次の目標点を選び直す。可動範囲は必ずmovementBounds内に収まる。
+        /// </summary>
+        private void TickWander()
+        {
+            Vector3 toTarget = wanderTarget - homePosition;
+            float distance = toTarget.magnitude;
+
+            if (distance <= WanderArriveThreshold)
             {
-                TickMeleeAnim();
+                wanderPauseTimer -= Time.deltaTime;
+                if (wanderPauseTimer <= 0f)
+                {
+                    wanderTarget = PickRandomPointInBounds();
+                    wanderPauseTimer = Random.Range(WanderPauseMin, WanderPauseMax);
+                }
+
+                return;
             }
+
+            Vector3 step = toTarget.normalized * (WanderSpeed * Time.deltaTime);
+            homePosition = step.sqrMagnitude >= toTarget.sqrMagnitude ? wanderTarget : homePosition + step;
+        }
+
+        private Vector3 PickRandomPointInBounds()
+        {
+            float x = Random.Range(movementBounds.xMin, movementBounds.xMax);
+            float y = Random.Range(movementBounds.yMin, movementBounds.yMax);
+            return new Vector3(x, y, 0f);
         }
 
         /// <summary>
         /// 近距離タイプの待機中ループモーション。攻撃時の突進とは独立しており、
         /// 敵味方を問わず常にホップし続ける(GDD「常に動き続けている」方針に合わせる)。
+        /// 徘徊(TickWander)で更新されたhomePositionからの相対オフセットとして重ねて再生する。
         /// </summary>
         private void TickIdleHop()
         {

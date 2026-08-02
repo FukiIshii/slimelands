@@ -554,3 +554,111 @@
 ## コミット(追記分)
 
 14. `feat: 近距離タイプの待機中ホップループを実装`
+
+---
+
+# 追記: ウェーブ単位のダンジョン構造+背景スクロール演出(2026-08-03)
+
+## パート1: DungeonDataのウェーブ構造化(破壊的変更)
+
+### 実装した内容
+
+- `WaveSpawnCondition`(新規enum): `WaitForTime`(待機時間後に出現)/ `ImmediateAfterPrevious`
+  (直前ウェーブの全滅直後に待機なしで即座に出現)。
+- `EncounterWaveData`(新規、`[Serializable]`なクラス。`TypeAffinityEntry`/`CardIngredient`と同じ、
+  ScriptableObject化はせずリスト要素として持たせる方式): `enemySpecies`(`List<SlimeSpeciesData>`、
+  複数指定で同時出現)、`spawnCondition`、`waitSeconds`。
+- `DungeonData`: `enemySpecies`/`encounterInterval`を廃止し、`waves`(`List<EncounterWaveData>`)に置き換え。
+  あわせて背景演出用の`backgroundSprite`(パート2で使用)を追加。
+- `TestDungeon.asset`を新構造に移行: 旧データ(スライム→スライム→ファイヤースライム、
+  encounterInterval=3秒)と同じ挙動になるよう、3ウェーブ(各1体、全てWaitForTime・待機3秒)として再構成。
+- `DungeonRunController`: `remainingEnemies`(`Queue<SlimeSpeciesData>`)を`remainingWaves`
+  (`Queue<EncounterWaveData>`)に置き換え。`SpawnNextEncounter`を`SpawnNextWave`に書き換え、
+  ウェーブ内の`enemySpecies`全てを同時に`BattleUnit`化して`aliveEnemies`に追加するようにした。
+  新設の`ProceedToNextWave`が、次ウェーブの`spawnCondition`を見て「待機時間を設定して
+  `WaitingForEncounter`へ」/「`SpawnNextWave`を即座に呼ぶ」を振り分ける。この振り分けは
+  ダンジョン開始時(初回ウェーブ)・敵全滅時(次ウェーブへの遷移時)の両方から共通で呼ばれる。
+  空(`enemySpecies`が全て未設定)のウェーブは戦闘不能になるためログを出してスキップする
+  防御的処理も追加した。
+- 通知イベント`OnEnemySpawned(BattleUnit)`を`OnEnemyWaveSpawned(IReadOnlyList<BattleUnit>)`に変更
+  (複数体同時出現に対応するための破壊的変更)。あわせて、背景演出用に`OnDungeonStarted(DungeonData)`
+  (ダンジョン開始が成立した瞬間、そのダンジョン定義とともに発火)を新設した。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **既存ダンジョンの回帰確認**: 新構造の`TestDungeon`でパーティーを出発させ、3ウェーブを通しで
+  クリアまで進行できること(`State`が最終的に`Cleared`になること)を確認。
+- **複数体同時出現**: スライム2体を1ウェーブにまとめたダンジョンで出発させ、`OnEnemyWaveSpawned`が
+  `enemies.Count=2`で発火し、`AliveEnemies.Count=2`になる(2体が同時に戦場へ現れる)ことを確認。
+- **ImmediateAfterPrevious**: 上記ウェーブ(WaitForTime)の直後に、`ImmediateAfterPrevious`を
+  指定した2ウェーブ目(ファイヤースライム1体)を設定し、1ウェーブ目全滅の直後(待機時間を挟まず)
+  に2ウェーブ目が出現することを確認(`OnEnemyWaveSpawned`の発火回数・内容が`[2, 1]`の順で
+  記録されることを確認)。
+
+## パート2: 背景スクロール演出とキャラクターの自由移動
+
+### 実装した内容
+
+- `DungeonBackgroundScroller`(新規、`Assets/Scripts/Dungeon/Visuals/`): 背景タイルを3枚並べて
+  左から右へ常に一定速度(仮値2 units/秒)でスクロールさせ、右端まで進んだタイルを列の先頭へ
+  巻き戻すことでシームレスにループさせる。専用シェーダー/マテリアルは使わず、
+  `RuntimeSpriteFactory`で生成した単色スプライトをタイルサイズまで引き伸ばすプレースホルダー実装。
+  `DungeonData.BackgroundSprite`が設定されていればそれを(非均等倍率で)タイルサイズに合わせて
+  引き伸ばして使う。`DungeonRunController.OnDungeonStarted`を購読し、ダンジョン開始のたびに
+  背景を差し替える。
+  - **戦闘状態から完全に独立**: `Update()`内のスクロール処理は`DungeonState`を一切参照しないため、
+    `WaitingForEncounter`/`InBattle`のどちらでも(そもそも敵の有無に関わらず)止まらず進行し続ける。
+  - `DungeonBattleView`の`VisualsRoot`と同じ設計判断として、背景タイル一式は専用の子コンテナ
+    (`BackgroundTiles`、`Root`として公開)にまとめ、`DungeonBackgroundScroller`本体は常時
+    `enabled`のままにしてある。理由: 本体を無効化すると`OnDisable`で`OnDungeonStarted`の購読が
+    外れてしまい、次にダンジョンへ出発した瞬間(村画面から再度ダンジョン画面へ切り替わるのと
+    ほぼ同時に発火する)にイベントを取りこぼして背景が更新されない不具合になるため
+    (`DungeonBattleView`のVisualsRootで踏んだのと同種の罠を先回りして回避した)。
+- **キャラクターの自由移動(徘徊)**: `BattleUnitView`の`homePosition`を「固定の待機位置」から
+  「常に動き続ける現在の基準位置」に意味を変更した。`TickWander`が画面中央の共有帯
+  (`DungeonBattleView`が計算する`Rect`、既定 幅11×高さ3、プレイヤー・敵で分けず共通)の中から
+  ランダムな目標点を選び、そこへ向かって一定速度(仮値1.2 units/秒)で移動→到達したら
+  少し静止→再度ランダムな目標点を選ぶ、を繰り返す。移動中も既存のホップ(近距離)/回転(遠距離)
+  ループはそのまま重ねて再生されるため、「近距離タイプは移動中もホップし続け、遠距離タイプは
+  転がりながら移動する」という見た目になる。攻撃時の突進モーション中は徘徊を一時停止し、
+  突進が終わった位置から徘徊を再開する(軌道が混ざらないようにするため)。
+  - `DungeonBattleView`はプレイヤー行/敵行のような固定レイアウト(`GetSlotPosition`等)を廃止し、
+    生成時に共有の`Rect`(可動範囲)だけを`BattleUnitView.Bind`へ渡すようにした。初期位置も
+    その範囲内からランダムに選ぶ。
+  - `BattleUnitView.HomePosition`(公開プロパティ)は`CurrentPosition`に改名した(意味が
+    「固定スポット」から「現在位置」に変わったため)。`DungeonBattleView`の攻撃演出
+    (突進先・発射物の発着点)もこちらを参照するよう追従させた。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **背景タイル生成**: `DungeonBackgroundScroller.Root`配下に3枚のタイルが生成されていることを確認
+  (Edit Mode上のRunCommandからの直後の確認では`Awake()`未実行のため0枚だったが、これは既知の
+  Edit Mode特有の遅延であり、Play Mode開始後は正しく3枚生成されることを確認した)。
+- **戦闘状態に関わらないスクロール**: ダンジョン出発直後(`WaitingForEncounter`中、まだ敵が
+  出現していない状態)でも背景タイルのX座標が時間経過とともに動き続けていることを確認。
+- **徘徊範囲の制限**: 近距離1体+遠距離1体を400フレーム分シミュレートし、`CurrentPosition`の
+  X/Y座標が想定した可動範囲(`DungeonManagers`中心、幅11×高さ3の帯)を一度も超えないことを確認。
+- コンパイルエラー・実行時エラー・警告なしを確認(複数回のPlay Mode通し実行を通じて)。
+- **未実施**: 実際の画面を目視しての、背景スクロールの速度感・キャラクターの徘徊の自然さの確認
+  (振る舞いのロジックは確認済みだが、見た目の印象はプレースホルダー品質のため要確認)。
+  ユーザー側でのPlay Mode手動確認を推奨する。
+
+## 後で確認が必要な点
+
+1. **ウェーブのバランス**: 待機時間・同時出現数・ImmediateAfterPreviousの使いどころは
+   `TestDungeon`をそのまま移行しただけで、実際のダンジョン設計としての調整は未検討。
+2. **背景スプライトの非均等拡大**: `DungeonData.BackgroundSprite`を設定した場合、タイル幅/高さに
+   合わせて縦横別々の倍率で引き伸ばすため、専用アートを用意した際に絵柄が歪む可能性がある。
+   本番のアートを用意する際はタイル比率に合わせた画像を作るか、引き伸ばし方法の見直しが必要。
+3. **スクロール速度・徘徊速度・可動範囲のサイズ**: いずれも仮値(スクロール2/秒、徘徊1.2/秒、
+   帯11×3)。実際の画面で見た印象での調整が必要。
+4. **徘徊がプレイヤー/敵で領域を分けていない**: 依頼の「画面中央の帯」を単一の共有領域として
+   実装したため、プレイヤーと敵のスプライトが互いの領域に入り込んで重なる場合がある
+   (仕様として意図した挙動だが、視認性の観点で見直しが必要になる可能性がある)。
+5. **遠距離弾の着弾位置**: `BattleProjectile`は発射時点のターゲット位置へ直進するのみで、
+   飛行中にターゲットが徘徊で移動してもホーミングはしない(仕様の簡略化、着弾までの時間が
+   0.25〜0.35秒と短いため実用上の影響は小さいと判断)。
+
+## コミット(追記分)
+
+15. `feat: ダンジョンをウェーブ単位の構造に変更し、背景スクロールとキャラクターの自由移動を実装`

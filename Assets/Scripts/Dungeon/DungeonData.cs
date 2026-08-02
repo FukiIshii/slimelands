@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Slimelands.Slime;
@@ -5,8 +6,29 @@ using Slimelands.Slime;
 namespace Slimelands.Dungeon
 {
     /// <summary>
+    /// 1回分のウェーブ(遭遇)の定義。複数体の敵が同時に出現するウェーブも表現できる。
+    /// </summary>
+    [Serializable]
+    public class EncounterWaveData
+    {
+        [Tooltip("このウェーブで同時に出現する敵の種族(複数体を指定すると同時出現になる)。")]
+        [SerializeField] private List<SlimeSpeciesData> enemySpecies = new();
+        [Tooltip("出現条件。WaitForTime=waitSeconds待ってから出現、" +
+            "ImmediateAfterPrevious=直前のウェーブを全滅させた直後に待機なしで即座に出現。")]
+        [SerializeField] private WaveSpawnCondition spawnCondition = WaveSpawnCondition.WaitForTime;
+        [Tooltip("spawnConditionがWaitForTimeの場合のみ使用する待機時間(秒)。")]
+        [SerializeField] private float waitSeconds = 3f;
+
+        public IReadOnlyList<SlimeSpeciesData> EnemySpecies => enemySpecies;
+        public WaveSpawnCondition SpawnCondition => spawnCondition;
+        public float WaitSeconds => waitSeconds;
+    }
+
+    /// <summary>
     /// ダンジョン1種類の定義。敵キャラは新しいデータ構造を作らず、既存のSlimeSpeciesDataを
     /// そのまま流用する(プレイヤーが入手できるのと同じ種族データ)。
+    /// 出現はウェーブ単位(EncounterWaveData)で管理し、ウェーブごとに複数体の同時出現・
+    /// 出現条件(時間待ち/前ウェーブ全滅直後)を個別に指定できる。
     /// </summary>
     [CreateAssetMenu(fileName = "NewDungeon", menuName = "Slimelands/Dungeon/Dungeon Data", order = 61)]
     public class DungeonData : ScriptableObject
@@ -14,17 +36,17 @@ namespace Slimelands.Dungeon
         [SerializeField] private string dungeonName;
         [Tooltip("このダンジョンに挑むために必要なパーティーの体数。")]
         [SerializeField] private int requiredPartySize = 3;
-        [Tooltip("出現する敵の種族。リストの順番通りに1体ずつ遭遇する(仮の進行ロジック)。")]
-        [SerializeField] private List<SlimeSpeciesData> enemySpecies = new();
         [Tooltip("出現する敵のレベル(このダンジョンでは一律)。仮値、要調整。")]
         [SerializeField] private int enemyLevel = 1;
-        [Tooltip("次の敵と遭遇するまでの間隔(秒)。マップ移動の見た目を簡略化した仮のロジック。")]
-        [SerializeField] private float encounterInterval = 3f;
+        [Tooltip("出現するウェーブのリスト。先頭から順に進行する。")]
+        [SerializeField] private List<EncounterWaveData> waves = new();
+        [Tooltip("ダンジョン専用画面の背景スクロールに使うスプライト。未設定ならプレースホルダー(単色)を使う。")]
+        [SerializeField] private Sprite backgroundSprite;
 
         public string DungeonName => dungeonName;
         public int RequiredPartySize => requiredPartySize;
-        public IReadOnlyList<SlimeSpeciesData> EnemySpecies => enemySpecies;
         public int EnemyLevel => enemyLevel;
-        public float EncounterInterval => encounterInterval;
+        public IReadOnlyList<EncounterWaveData> Waves => waves;
+        public Sprite BackgroundSprite => backgroundSprite;
     }
 }

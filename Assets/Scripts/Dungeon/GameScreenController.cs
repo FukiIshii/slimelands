@@ -29,6 +29,8 @@ namespace Slimelands.Dungeon
         [SerializeField] private Behaviour dungeonHudDisplay;
         [Tooltip("DungeonBattleViewが生成するスプライト・エフェクト一式のコンテナ。")]
         [SerializeField] private GameObject dungeonBattleVisualsRoot;
+        [Tooltip("DungeonBackgroundScrollerが生成する背景タイル一式のコンテナ。")]
+        [SerializeField] private GameObject dungeonBackgroundRoot;
 
         public bool IsDungeonScreenActive { get; private set; }
 
@@ -80,6 +82,7 @@ namespace Slimelands.Dungeon
 
             SetEnabledSafe(dungeonHudDisplay, IsDungeonScreenActive);
             SetActiveSafe(dungeonBattleVisualsRoot, IsDungeonScreenActive);
+            SetActiveSafe(dungeonBackgroundRoot, IsDungeonScreenActive);
         }
 
         private static void SetActiveSafe(GameObject go, bool active)

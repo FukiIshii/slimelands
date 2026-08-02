@@ -22,7 +22,7 @@ namespace Slimelands.Dungeon
 
         private readonly List<BattleUnit> playerUnits = new();
         private readonly List<BattleUnit> aliveEnemies = new();
-        private Queue<SlimeSpeciesData> remainingEnemies = new();
+        private Queue<EncounterWaveData> remainingWaves = new();
         private BattleUnit lockedTarget;
         private float encounterTimer;
 
@@ -39,8 +39,10 @@ namespace Slimelands.Dungeon
         /// 以下は見た目(スプライト表示・エフェクト)側がロジックに反応するための通知イベント。
         /// ダメージ計算・ターゲティング・クールタイムなど戦闘ロジック自体には影響しない、追加の通知専用。
         /// </summary>
+        /// <summary>ダンジョンへの突入が成立した瞬間に、そのダンジョン定義とともに発火する(背景差し替え等に使用)。</summary>
+        public event Action<DungeonData> OnDungeonStarted;
         public event Action<IReadOnlyList<BattleUnit>> OnPartySpawned;
-        public event Action<BattleUnit> OnEnemySpawned;
+        public event Action<IReadOnlyList<BattleUnit>> OnEnemyWaveSpawned;
         public event Action<BattleUnit, BattleUnit, int> OnNormalAttackPerformed;
         public event Action<BattleUnit, BattleUnit, int> OnUltimateActivated;
         public event Action<BattleUnit> OnUnitFainted;
@@ -104,13 +106,13 @@ namespace Slimelands.Dungeon
                 Log($"必要体数({dungeon.RequiredPartySize})に満たないパーティー({playerUnits.Count}体)ですが進行します。");
             }
 
-            remainingEnemies = new Queue<SlimeSpeciesData>(dungeon.EnemySpecies);
+            remainingWaves = new Queue<EncounterWaveData>(dungeon.Waves);
             aliveEnemies.Clear();
             lockedTarget = null;
-            encounterTimer = Mathf.Max(0.01f, dungeon.EncounterInterval);
-            State = DungeonState.WaitingForEncounter;
             Log($"{dungeon.DungeonName}に突入!(パーティー{playerUnits.Count}体)");
+            OnDungeonStarted?.Invoke(dungeon);
             OnPartySpawned?.Invoke(playerUnits);
+            ProceedToNextWave();
         }
 
         /// <summary>指定した敵にターゲットを固定する。固定中は自動ターゲットに切り替わらない。</summary>
@@ -173,7 +175,7 @@ namespace Slimelands.Dungeon
                     encounterTimer -= dt;
                     if (encounterTimer <= 0f)
                     {
-                        SpawnNextEncounter();
+                        SpawnNextWave();
                     }
                     break;
 
@@ -183,25 +185,70 @@ namespace Slimelands.Dungeon
             }
         }
 
-        private void SpawnNextEncounter()
+        /// <summary>
+        /// 残りウェーブの有無と、次のウェーブの出現条件に応じて進行する。
+        /// WaitForTime: 待機時間を設定してWaitingForEncounterへ。
+        /// ImmediateAfterPrevious: 待機なしで即座に次のウェーブを出現させる。
+        /// 残りウェーブが無ければダンジョンクリアとする。
+        /// </summary>
+        private void ProceedToNextWave()
         {
-            if (remainingEnemies.Count == 0)
+            if (remainingWaves.Count == 0)
             {
                 CompleteDungeon(cleared: true);
                 return;
             }
 
-            SlimeSpeciesData species = remainingEnemies.Dequeue();
-            SlimeStats stats = species.CalculateBaseStatsAtLevel(dungeonData.EnemyLevel);
-            var enemyUnit = new BattleUnit(species.SpeciesName, species.Type, species.AttackType, species, stats,
-                false, null, null, stats.maxHp);
+            EncounterWaveData nextWave = remainingWaves.Peek();
+            if (nextWave.SpawnCondition == WaveSpawnCondition.ImmediateAfterPrevious)
+            {
+                SpawnNextWave();
+            }
+            else
+            {
+                encounterTimer = Mathf.Max(0f, nextWave.WaitSeconds);
+                State = DungeonState.WaitingForEncounter;
+            }
+        }
 
+        private void SpawnNextWave()
+        {
+            if (remainingWaves.Count == 0)
+            {
+                CompleteDungeon(cleared: true);
+                return;
+            }
+
+            EncounterWaveData wave = remainingWaves.Dequeue();
             aliveEnemies.Clear();
-            aliveEnemies.Add(enemyUnit);
             lockedTarget = null;
+
+            var spawned = new List<BattleUnit>();
+            foreach (SlimeSpeciesData species in wave.EnemySpecies)
+            {
+                if (species == null)
+                {
+                    continue;
+                }
+
+                SlimeStats stats = species.CalculateBaseStatsAtLevel(dungeonData.EnemyLevel);
+                var enemyUnit = new BattleUnit(species.SpeciesName, species.Type, species.AttackType, species, stats,
+                    false, null, null, stats.maxHp);
+                aliveEnemies.Add(enemyUnit);
+                spawned.Add(enemyUnit);
+                Log($"{species.SpeciesName}が現れた!");
+            }
+
+            if (spawned.Count == 0)
+            {
+                // enemySpeciesが空/未設定のウェーブ(データ不備)は戦闘不能になるためスキップする。
+                Log("ウェーブに有効な敵が設定されていないため、スキップします。");
+                ProceedToNextWave();
+                return;
+            }
+
             State = DungeonState.InBattle;
-            Log($"{species.SpeciesName}が現れた!");
-            OnEnemySpawned?.Invoke(enemyUnit);
+            OnEnemyWaveSpawned?.Invoke(spawned);
         }
 
         private void TickBattle(float dt)
@@ -315,9 +362,8 @@ namespace Slimelands.Dungeon
                 aliveEnemies.Remove(target);
                 if (aliveEnemies.Count == 0 && State == DungeonState.InBattle)
                 {
-                    encounterTimer = Mathf.Max(0.01f, dungeonData.EncounterInterval);
-                    State = DungeonState.WaitingForEncounter;
                     Log("敵を倒した!");
+                    ProceedToNextWave();
                 }
             }
         }
