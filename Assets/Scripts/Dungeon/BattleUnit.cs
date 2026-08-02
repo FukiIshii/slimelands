@@ -23,6 +23,15 @@ namespace Slimelands.Dungeon
         public float NormalAttackTimer { get; set; }
         public float UltimateCooldownRemaining { get; set; }
 
+        /// <summary>
+        /// 戦闘中の実座標(ワールド単位)。DungeonRunControllerが徘徊シミュレーションで毎フレーム更新する。
+        /// 見た目(BattleUnitView)はこの座標をそのまま描画の基準位置として使い、ホップ/転がり/突進などの
+        /// 見た目のみのオフセットをその上に重ねる。近接攻撃の距離判定(命中/ミス)にも使用する。
+        /// </summary>
+        public Vector2 Position { get; set; }
+        public Vector2 WanderTarget { get; set; }
+        public float WanderPauseTimer { get; set; }
+
         public bool IsFainted => CurrentHp <= 0;
         public bool HasUltimate => UltimateSkill != null;
         public bool CanActivateUltimate => HasUltimate && !IsFainted && UltimateCooldownRemaining <= 0f;

@@ -6,7 +6,8 @@ namespace Slimelands.Dungeon
     /// <summary>
     /// 戦闘中の1体(BattleUnit)の見た目を担当する。ダメージ計算・ターゲティング等の戦闘ロジックには
     /// 一切触れず、DungeonRunControllerが発火する通知イベントを受けてDungeonBattleViewから呼ばれる
-    /// 純粋な演出コンポーネント。
+    /// 純粋な演出コンポーネント。徘徊による実座標(BattleUnit.Position)はロジック側が管理しており、
+    /// このクラスは毎フレームそれを読み取って描画するだけで、自前ではシミュレーションしない。
     /// このツール実行環境ではPlay Mode中にUnityのコルーチン/フレームが自動進行しないため、
     /// アニメーションはコルーチンを使わずUpdate()内の経過時間加算のみで駆動する
     /// (GameObject.SendMessage("Update", ...)による疑似フレーム送りでテスト可能にするため)。
@@ -21,14 +22,10 @@ namespace Slimelands.Dungeon
         }
 
         private const float RollSpeedDegreesPerSecond = 220f;
-        private const float MeleeDashDuration = 0.18f;
+        private const float MeleeDashBackDuration = 0.12f;
         private const float IdleHopPeriod = 0.55f;
         private const float IdleHopHeight = 0.16f;
         private const float FaintFadeDuration = 0.35f;
-        private const float WanderSpeed = 1.2f;
-        private const float WanderArriveThreshold = 0.15f;
-        private const float WanderPauseMin = 0.3f;
-        private const float WanderPauseMax = 1.5f;
         private const float HpBarWidth = 0.9f;
         private const float HpBarHeight = 0.14f;
         private const float HpBarYOffset = 0.75f;
@@ -46,15 +43,12 @@ namespace Slimelands.Dungeon
         private Vector3 meleeDashTarget;
         private MeleeAnimPhase meleePhase = MeleeAnimPhase.Idle;
         private float meleeAnimTimer;
+        private float meleeDashOutDuration = 0.18f;
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
 
-        private Rect movementBounds;
-        private Vector3 wanderTarget;
-        private float wanderPauseTimer;
-
-        /// <summary>現在の基準位置(徘徊で常に移動する)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
+        /// <summary>現在の基準位置(ロジック側のBattleUnit.Positionをそのまま反映)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
         public Vector3 CurrentPosition => homePosition;
         public bool IsPlayingAttackMotion => meleePhase != MeleeAnimPhase.Idle;
 
@@ -83,22 +77,12 @@ namespace Slimelands.Dungeon
             hpBarFillRenderer.sortingOrder = 21;
         }
 
-        /// <summary>
-        /// この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。
-        /// movementBoundsは自由に動き回れる範囲(画面中央の帯、ワールド座標)。
-        /// spawnPositionを省略した場合、初期位置はこの範囲内からランダムに選ぶ(通常の即時出現)。
-        /// spawnPositionを指定した場合は、その位置(通常は範囲外)を起点とし、最初の徘徊目標を
-        /// 範囲内に設定する。これにより既存のTickWanderがそのまま「歩いて登場する」入場モーション
-        /// として機能する(敵の画面外からの登場演出に使用)。
-        /// </summary>
-        public void Bind(BattleUnit unit, Rect bounds, Vector3? spawnPosition = null)
+        /// <summary>この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。初期位置はunit.Positionをそのまま使う。</summary>
+        public void Bind(BattleUnit unit)
         {
             boundUnit = unit;
             attackType = unit.AttackType;
-            movementBounds = bounds;
-            homePosition = spawnPosition ?? PickRandomPointInBounds();
-            wanderTarget = spawnPosition.HasValue ? PickRandomPointInBounds() : homePosition;
-            wanderPauseTimer = Random.Range(WanderPauseMin, WanderPauseMax);
+            homePosition = new Vector3(unit.Position.x, unit.Position.y, 0f);
             transform.position = homePosition;
             meleePhase = MeleeAnimPhase.Idle;
             idleHopTimer = 0f;
@@ -121,8 +105,13 @@ namespace Slimelands.Dungeon
             RefreshHpBar();
         }
 
-        /// <summary>近接タイプの通常攻撃/必殺技モーション(ターゲットへ跳ねて突進し、戻ってくる)を再生する。</summary>
-        public void PlayAttackMotion(Vector3 targetWorldPosition, bool isUltimate = false)
+        /// <summary>
+        /// 近接タイプの通常攻撃/必殺技モーション(ターゲットへ跳ねて突進し、戻ってくる)を再生する。
+        /// approachDurationは接近(DashOut)フェーズの所要時間で、ロジック側の命中判定タイミング
+        /// (DungeonRunController.MeleeHitDelay)と一致させることで、実際にダメージが発生する瞬間と
+        /// 視覚的に接触する瞬間を同期させる。
+        /// </summary>
+        public void PlayAttackMotion(Vector3 targetWorldPosition, bool isUltimate, float approachDuration)
         {
             if (attackType != SlimeAttackType.Melee || isFaintedVisual)
             {
@@ -136,6 +125,7 @@ namespace Slimelands.Dungeon
 
             float reach = isUltimate ? 0.7f : 0.5f;
             meleeDashTarget = Vector3.Lerp(homePosition, targetWorldPosition, reach);
+            meleeDashOutDuration = Mathf.Max(0.01f, approachDuration);
             meleePhase = MeleeAnimPhase.DashOut;
             meleeAnimTimer = 0f;
         }
@@ -168,13 +158,15 @@ namespace Slimelands.Dungeon
 
             if (meleePhase != MeleeAnimPhase.Idle)
             {
-                // 突進中は徘徊を止め、突進アニメーションのみ進行させる(軌道が混ざらないようにする)。
+                // 突進中はロジック側の座標追従を止め、突進アニメーションのみ進行させる
+                // (軌道が混ざらないようにする。ロジック側の徘徊自体は裏で進み続けており、
+                // 突進が終わった次のIdleフレームで最新のBattleUnit.Positionに追いつく)。
                 TickMeleeAnim();
                 return;
             }
 
-            // 待機中(徘徊)は移動(TickWander)とその場アニメーション(ホップ/回転)を両方進める。
-            TickWander();
+            // 待機中は、ロジック側が徘徊シミュレーションで更新したBattleUnit.Positionをそのまま反映する。
+            homePosition = new Vector3(boundUnit.Position.x, boundUnit.Position.y, 0f);
             transform.position = homePosition;
 
             if (attackType == SlimeAttackType.Ranged)
@@ -188,41 +180,9 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 画面中央の帯(movementBounds)の中を、ランダムな目標点に向かって歩き続ける徘徊ロジック。
-        /// 到達すると少し静止してから次の目標点を選び直す。可動範囲は必ずmovementBounds内に収まる。
-        /// </summary>
-        private void TickWander()
-        {
-            Vector3 toTarget = wanderTarget - homePosition;
-            float distance = toTarget.magnitude;
-
-            if (distance <= WanderArriveThreshold)
-            {
-                wanderPauseTimer -= Time.deltaTime;
-                if (wanderPauseTimer <= 0f)
-                {
-                    wanderTarget = PickRandomPointInBounds();
-                    wanderPauseTimer = Random.Range(WanderPauseMin, WanderPauseMax);
-                }
-
-                return;
-            }
-
-            Vector3 step = toTarget.normalized * (WanderSpeed * Time.deltaTime);
-            homePosition = step.sqrMagnitude >= toTarget.sqrMagnitude ? wanderTarget : homePosition + step;
-        }
-
-        private Vector3 PickRandomPointInBounds()
-        {
-            float x = Random.Range(movementBounds.xMin, movementBounds.xMax);
-            float y = Random.Range(movementBounds.yMin, movementBounds.yMax);
-            return new Vector3(x, y, 0f);
-        }
-
-        /// <summary>
         /// 近距離タイプの待機中ループモーション。攻撃時の突進とは独立しており、
         /// 敵味方を問わず常にホップし続ける(GDD「常に動き続けている」方針に合わせる)。
-        /// 徘徊(TickWander)で更新されたhomePositionからの相対オフセットとして重ねて再生する。
+        /// ロジック側の徘徊で更新されたhomePositionからの相対オフセットとして重ねて再生する。
         /// </summary>
         private void TickIdleHop()
         {
@@ -236,12 +196,11 @@ namespace Slimelands.Dungeon
 
         private void TickMeleeAnim()
         {
-            const float half = MeleeDashDuration * 0.5f;
             meleeAnimTimer += Time.deltaTime;
-            float p = Mathf.Clamp01(meleeAnimTimer / half);
 
             if (meleePhase == MeleeAnimPhase.DashOut)
             {
+                float p = Mathf.Clamp01(meleeAnimTimer / meleeDashOutDuration);
                 transform.position = Vector3.Lerp(homePosition, meleeDashTarget, p);
                 visual.localScale = Vector3.Lerp(Vector3.one, new Vector3(1.3f, 0.7f, 1f), p);
                 if (p >= 1f)
@@ -252,6 +211,7 @@ namespace Slimelands.Dungeon
             }
             else
             {
+                float p = Mathf.Clamp01(meleeAnimTimer / MeleeDashBackDuration);
                 transform.position = Vector3.Lerp(meleeDashTarget, homePosition, p);
                 visual.localScale = Vector3.Lerp(new Vector3(1.3f, 0.7f, 1f), Vector3.one, p);
                 if (p >= 1f)

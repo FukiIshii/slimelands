@@ -7,21 +7,11 @@ namespace Slimelands.Dungeon
     /// <summary>
     /// DungeonRunControllerの通知イベントを購読し、スプライト表示・攻撃エフェクトを統括する
     /// 見た目専用のコンポーネント。戦闘ロジック(ダメージ計算・ターゲティング・クールタイム等)には
-    /// 一切書き込まない、完全に反応的(リアクティブ)な演出レイヤー。
+    /// 一切書き込まない、完全に反応的(リアクティブ)な演出レイヤー。行動帯・実座標(BattleUnit.Position)
+    /// はDungeonRunController側が一元管理しており、このクラスはそれを読み取って描画するだけ。
     /// </summary>
     public class DungeonBattleView : MonoBehaviour
     {
-        [Tooltip("プレイヤー・敵とも自由に動き回る帯の幅(ワールド単位)。")]
-        [SerializeField] private float movementBandWidth = 11f;
-        [Tooltip("帯の高さ(ワールド単位)。背景画像の水平中央線(床と奥の境界線)から下方向へこの高さ分だけ帯を確保する。")]
-        [SerializeField] private float movementBandHeight = 3f;
-
-        [Header("敵の登場演出")]
-        [Tooltip("敵が画面外のどちら側から歩いて登場するか。ダンジョン/演出方針に応じて製作者が調整する。")]
-        [SerializeField] private EnemyEntranceSide enemyEntranceSide = EnemyEntranceSide.Right;
-        [Tooltip("登場開始位置を行動帯の端からどれだけ外側(画面外方向)に離すか(ワールド単位)。")]
-        [SerializeField] private float enemyEntranceMargin = 5f;
-
         private static readonly Color PlayerVfxColor = new(0.9f, 0.9f, 0.9f);
         private static readonly Color EnemyVfxColor = new(0.9f, 0.5f, 0.3f);
         private static readonly Color UltimateVfxColor = new(1f, 0.85f, 0.2f);
@@ -69,6 +59,8 @@ namespace Slimelands.Dungeon
             controller.OnEnemyWaveSpawned += HandleEnemyWaveSpawned;
             controller.OnNormalAttackPerformed += HandleNormalAttack;
             controller.OnUltimateActivated += HandleUltimateActivated;
+            controller.OnNormalAttackResolved += HandleNormalAttackResolved;
+            controller.OnUltimateResolved += HandleUltimateResolved;
             controller.OnUnitFainted += HandleUnitFainted;
             controller.OnDungeonCleared += ClearAllViews;
             controller.OnDungeonFailed += ClearAllViews;
@@ -85,6 +77,8 @@ namespace Slimelands.Dungeon
             controller.OnEnemyWaveSpawned -= HandleEnemyWaveSpawned;
             controller.OnNormalAttackPerformed -= HandleNormalAttack;
             controller.OnUltimateActivated -= HandleUltimateActivated;
+            controller.OnNormalAttackResolved -= HandleNormalAttackResolved;
+            controller.OnUltimateResolved -= HandleUltimateResolved;
             controller.OnUnitFainted -= HandleUnitFainted;
             controller.OnDungeonCleared -= ClearAllViews;
             controller.OnDungeonFailed -= ClearAllViews;
@@ -95,7 +89,7 @@ namespace Slimelands.Dungeon
             ClearAllViews();
             foreach (BattleUnit unit in party)
             {
-                CreateView(unit, useEntrance: false);
+                CreateView(unit);
             }
         }
 
@@ -104,18 +98,28 @@ namespace Slimelands.Dungeon
             ClearEnemyViews();
             foreach (BattleUnit unit in enemies)
             {
-                CreateView(unit, useEntrance: true);
+                CreateView(unit);
             }
         }
 
         private void HandleNormalAttack(BattleUnit attacker, BattleUnit target, int damage)
         {
-            PlayAttackVisual(attacker, target, isUltimate: false);
+            BeginAttackVisual(attacker, target, isUltimate: false);
         }
 
         private void HandleUltimateActivated(BattleUnit attacker, BattleUnit target, int damage)
         {
-            PlayAttackVisual(attacker, target, isUltimate: true);
+            BeginAttackVisual(attacker, target, isUltimate: true);
+        }
+
+        private void HandleNormalAttackResolved(BattleUnit attacker, BattleUnit target, int damage)
+        {
+            ResolveMeleeAttackVisual(attacker, target, damage, isUltimate: false);
+        }
+
+        private void HandleUltimateResolved(BattleUnit attacker, BattleUnit target, int damage)
+        {
+            ResolveMeleeAttackVisual(attacker, target, damage, isUltimate: true);
         }
 
         private void HandleUnitFainted(BattleUnit unit)
@@ -126,7 +130,13 @@ namespace Slimelands.Dungeon
             }
         }
 
-        private void PlayAttackVisual(BattleUnit attacker, BattleUnit target, bool isUltimate)
+        /// <summary>
+        /// 攻撃の「開始」演出。近接タイプは対象へ向けて接近(突進)モーションを再生するのみで、
+        /// ヒットエフェクトはここでは出さない(ロジック側のOnNormalAttackResolved/OnUltimateResolvedで
+        /// 決着した瞬間に出す)。遠距離タイプは従来通り、発射から着弾までを1本の弾で完結させる
+        /// (ロジック側は距離によるミス判定をしないため、開始と決着が実質同時)。
+        /// </summary>
+        private void BeginAttackVisual(BattleUnit attacker, BattleUnit target, bool isUltimate)
         {
             if (!views.TryGetValue(attacker, out BattleUnitView attackerView) || attackerView == null)
             {
@@ -137,15 +147,14 @@ namespace Slimelands.Dungeon
                 ? targetView.CurrentPosition
                 : attackerView.CurrentPosition;
 
-            Color vfxColor = isUltimate ? UltimateVfxColor : (attacker.IsPlayerSide ? PlayerVfxColor : EnemyVfxColor);
-
             if (attacker.AttackType == SlimeAttackType.Melee)
             {
-                attackerView.PlayAttackMotion(targetPos, isUltimate);
-                BattleVfx.SpawnBurst(attackerView.CurrentPosition, vfxColor);
+                float approachDuration = controller != null ? controller.MeleeHitDelay : 0.18f;
+                attackerView.PlayAttackMotion(targetPos, isUltimate, approachDuration);
             }
             else
             {
+                Color vfxColor = isUltimate ? UltimateVfxColor : (attacker.IsPlayerSide ? PlayerVfxColor : EnemyVfxColor);
                 var projectileGo = new GameObject("BattleProjectile", typeof(SpriteRenderer), typeof(BattleProjectile));
                 projectileGo.transform.SetParent(EnsureVisualsRoot(), false);
                 BattleProjectile projectile = projectileGo.GetComponent<BattleProjectile>();
@@ -157,46 +166,33 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// useEntrance=trueの場合、敵を行動帯の外側(enemyEntranceSideで指定した側)に配置し、
-        /// 最初の徘徊目標を帯内に設定することで、既存の徘徊ロジック(TickWander)をそのまま
-        /// 「歩いて登場する」入場モーションとして流用する。
+        /// 近接攻撃の決着演出。damageが0(距離が届かずミス)の場合はヒットエフェクトを出さない。
+        /// ヒット時は対象の現在位置にエフェクトを出す(接触した瞬間を表現するため)。
         /// </summary>
-        private void CreateView(BattleUnit unit, bool useEntrance)
+        private void ResolveMeleeAttackVisual(BattleUnit attacker, BattleUnit target, int damage, bool isUltimate)
+        {
+            if (damage <= 0)
+            {
+                return;
+            }
+
+            Vector3 vfxPosition = views.TryGetValue(target, out BattleUnitView targetView) && targetView != null
+                ? targetView.CurrentPosition
+                : (views.TryGetValue(attacker, out BattleUnitView attackerView) && attackerView != null
+                    ? attackerView.CurrentPosition
+                    : Vector3.zero);
+
+            Color vfxColor = isUltimate ? UltimateVfxColor : (attacker.IsPlayerSide ? PlayerVfxColor : EnemyVfxColor);
+            BattleVfx.SpawnBurst(vfxPosition, vfxColor);
+        }
+
+        private void CreateView(BattleUnit unit)
         {
             var go = new GameObject($"BattleUnitView_{unit.DisplayName}", typeof(BattleUnitView));
             go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
-            Rect bounds = GetMovementBounds();
-            Vector3? spawnPosition = useEntrance ? GetEnemyEntrancePosition(bounds) : (Vector3?)null;
-            view.Bind(unit, bounds, spawnPosition);
+            view.Bind(unit);
             views[unit] = view;
-        }
-
-        /// <summary>行動帯の右端または左端(enemyEntranceSide)から、外側にenemyEntranceMargin分離れた地点。</summary>
-        private Vector3 GetEnemyEntrancePosition(Rect bounds)
-        {
-            float x = enemyEntranceSide == EnemyEntranceSide.Right
-                ? bounds.xMax + enemyEntranceMargin
-                : bounds.xMin - enemyEntranceMargin;
-            float y = Random.Range(bounds.yMin, bounds.yMax);
-            return new Vector3(x, y, 0f);
-        }
-
-        /// <summary>
-        /// プレイヤー・敵とも共通で自由に動き回れる帯(ワールド座標のRect)。
-        /// 背景スプライトはこのコンポーネントと同じ位置(transform.position.y)を水平中央線として
-        /// 上下対称に配置されるため(DungeonBackgroundScroller参照)、その中央線は「床」と
-        /// 「奥の壁・天井」の境界線に相当する。行動範囲を中央線から下(床側)のみに限定することで、
-        /// 画像の下半分(床)でのみ敵味方が行動するようにする。
-        /// </summary>
-        private Rect GetMovementBounds()
-        {
-            float floorTopY = transform.position.y;
-            return new Rect(
-                transform.position.x - movementBandWidth * 0.5f,
-                floorTopY - movementBandHeight,
-                movementBandWidth,
-                movementBandHeight);
         }
 
         private void ClearAllViews()

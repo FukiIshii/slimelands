@@ -816,3 +816,76 @@
 ### 残課題
 
 なし。
+
+---
+
+## 追記: 近接攻撃を「接近→命中/ミス判定→ダメージ」の流れに変更(座標のロジック層一本化)
+
+### 経緯
+
+ユーザーから「近接攻撃タイプは敵に接近し、攻撃を実行する。それがヒットした場合にダメージを与える」
+という仕様の指摘があった。ユーザーへの確認の結果、要望は以下の2点と判明した:
+1. 演出タイミングの同期: 従来はダメージが即座にロジック側で適用され、その後で近接の突進演出が
+   再生されていたため、HPバーが突進(接触)より先に減る見た目のズレがあった。
+2. 距離に基づく命中/ミス: 自由に徘徊するようになった(前回追記)結果、攻撃者と対象が不自然に
+   離れた位置にいても必ず命中する状態だったため、実際の距離が離れすぎている場合は攻撃が
+   届かない(ミスする)ようにしたい。
+
+実装方針についてユーザーに確認したところ、「座標をロジック層に一本化する」方針(推奨案)が
+選ばれた。従来はBattleUnitView側が独自に徘徊(TickWander)をシミュレートしており、
+DungeonRunController(ロジック層)はどのユニットがどこにいるかを一切知らなかった。
+
+### 実装内容
+
+- **BattleUnit**(`BattleUnit.cs`)に`Position`(Vector2)・`WanderTarget`・`WanderPauseTimer`を追加。
+  実座標をロジック層で保持するようにした。
+- **BattleBalanceData**に徘徊関連(`wanderSpeed`/`wanderArriveThreshold`/`wanderPauseMin`/
+  `wanderPauseMax`)と近接攻撃関連(`meleeAttackRange`=命中に必要な最大距離、デフォルト6/
+  `meleeHitDelay`=接近開始からダメージ決着までの遅延、デフォルト0.25秒)をInspectorで
+  調整可能な項目として追加(CLAUDE.mdのバランス値非ハードコードのルールに従う)。
+- **DungeonRunController**:
+  - 徘徊シミュレーション(`TickMovement`/`TickWander`)をBattleUnitViewから移設し、毎フレーム
+    (WaitingForEncounter/InBattleとも)全ユニットの`Position`を更新するようにした。
+  - 行動帯(`movementBandWidth`/`Height`)・敵の登場演出設定(`enemyEntranceSide`/
+    `enemyEntranceMargin`)もDungeonBattleViewから移設(ロジック層が座標の起点を持つため)。
+  - パーティー出発時・敵ウェーブ出現時に、各ユニットの初期`Position`(プレイヤーは帯内ランダム、
+    敵は帯外の登場位置)を設定するようにした。
+  - 近接攻撃(通常攻撃・必殺技とも)は`BeginMeleeAttack`で攻撃者/対象の`Position`間の距離を
+    `MeleeAttackRange`と比較し、超えていればダメージ0(ミス)として扱う。命中/ミスいずれの
+    場合も即座にダメージを適用せず、`PendingMeleeHit`として`MeleeHitDelay`秒分キューに積み、
+    `TickPendingMeleeHits`で毎フレーム消化して実際に決着(ダメージ反映・気絶判定)させる。
+  - イベントを「攻撃開始」(`OnNormalAttackPerformed`/`OnUltimateActivated`、接近/発射モーションの
+    合図)と「決着」(新設の`OnNormalAttackResolved`/`OnUltimateResolved`、ヒットVFX・気絶判定の
+    合図)に分離した。遠距離攻撃は従来通り即決着のため、Resolved系イベントは発火しない。
+- **BattleUnitView**: 自前の徘徊シミュレーション(TickWander/PickRandomPointInBounds等)を削除し、
+  待機中は毎フレーム`BattleUnit.Position`をそのまま基準位置として反映するだけの純粋な描画役に
+  変更。突進(接近)モーションの所要時間(DashOutフェーズ)を、ロジック側の`MeleeHitDelay`と
+  一致する値をDungeonBattleView経由で受け取って使うようにし(`PlayAttackMotion`に
+  `approachDuration`引数を追加)、視覚的な接触タイミングと実際のダメージ発生タイミングを一致させた。
+- **DungeonBattleView**: `BeginAttackVisual`(攻撃開始、接近/発射モーションのみ)と
+  `ResolveMeleeAttackVisual`(近接の決着、ヒットVFXをdamage>0の場合のみ対象の現在位置に表示)に
+  処理を分割。行動帯・敵登場位置の計算はDungeonRunControllerに一本化されたため削除し、
+  `CreateView`は`unit.Position`をそのまま使う`BattleUnitView.Bind(unit)`を呼ぶだけに簡素化した。
+- `docs/GDD.md`の「攻撃・必殺技の仕様」に、近接攻撃の距離ミス・タイミング同期の仕様を追記した。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **タイミング同期**: 攻撃者・対象を近距離(命中確実)に配置し、`OnNormalAttackPerformed`
+  (攻撃開始)から`OnNormalAttackResolved`(決着)までの実測遅延が約0.26秒(バランス値
+  `meleeHitDelay=0.25`とほぼ一致)であり、その間`enemy.CurrentHp`が変化しないこと
+  (決着の瞬間に初めてHPが減ること)を確認した。
+- **距離ミス判定**: 攻撃者・対象を`meleeAttackRange`(デフォルト6)を大きく超える距離
+  (40ユニット)に配置し、`OnNormalAttackResolved`のdamageが0、`enemy.CurrentHp`が
+  変化しないこと(ミスが成立すること)を確認した。
+- **全体回帰**: レベル20パーティーで`TestDungeon`をState=Clearedまで進行させ(606回の
+  Updateポンプ)、正常にクリアできることを確認。同時に全ユニットの`CurrentPosition.y`が
+  常に0以下(行動帯=床の範囲内)に収まっていることも確認した(前回追記の回帰確認を兼ねる)。
+- **敵の登場演出の回帰**: 座標をロジック層に一本化した後も、敵の出現直後の`Position.x`が
+  `10.5`(帯の右端5.5+余白5)であることを確認し、既存の入場演出が壊れていないことを確認した。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- 遠距離攻撃には距離ミス・タイミング同期の仕組みを適用していない(今回のユーザー要望が
+  近接タイプに限定されていたため、スコープ外とした)。将来的に遠距離攻撃にも同様の仕組みが
+  必要になった場合は、別途要望を確認の上で実装する。
