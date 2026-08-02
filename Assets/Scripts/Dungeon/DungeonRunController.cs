@@ -607,24 +607,62 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 近接タイプが攻撃対象を持ち、かつ射程(MeleeAttackRange)外にいる場合は、対象へ向かって
-        /// まっすぐ接近(追尾)する(徘徊目標を対象の位置で上書きする)。射程内に入った、対象がいない、
-        /// または遠距離タイプの場合は通常の徘徊(TickWander)を行う。
+        /// 攻撃対象(敵)がいる間、近接タイプは対象へ接近(追尾)し、遠距離タイプは対象から離れる
+        /// (後退)。いずれもCombatMovementSpeed(通常の徘徊速度より速く動けるよう個別に調整可能)を
+        /// 使う。近接タイプが既に射程内に入った場合や、対象がいない場合は通常の徘徊(TickWander)を行う。
         /// </summary>
         private void TickUnitMovement(BattleUnit unit, BattleUnit attackTarget, Rect bounds, float dt)
         {
-            if (attackTarget != null && IsMeleeOutOfRange(unit, attackTarget))
+            if (attackTarget != null)
             {
-                unit.WanderTarget = attackTarget.Position;
-                unit.WanderPauseTimer = 0f;
-
-                Vector2 toTarget = unit.WanderTarget - unit.Position;
-                Vector2 step = toTarget.normalized * (balanceData.WanderSpeed * dt);
-                unit.Position = step.sqrMagnitude >= toTarget.sqrMagnitude ? unit.WanderTarget : unit.Position + step;
-                return;
+                if (unit.AttackType == SlimeAttackType.Melee)
+                {
+                    if (IsMeleeOutOfRange(unit, attackTarget))
+                    {
+                        ChaseTarget(unit, attackTarget, dt);
+                        return;
+                    }
+                }
+                else
+                {
+                    RetreatFromTarget(unit, attackTarget, bounds, dt);
+                    return;
+                }
             }
 
             TickWander(unit, bounds, dt);
+        }
+
+        /// <summary>近接タイプが射程外の対象へまっすぐ接近する(徘徊目標を対象の位置で上書きする)。</summary>
+        private void ChaseTarget(BattleUnit unit, BattleUnit target, float dt)
+        {
+            unit.WanderTarget = target.Position;
+            unit.WanderPauseTimer = 0f;
+
+            Vector2 toTarget = unit.WanderTarget - unit.Position;
+            Vector2 step = toTarget.normalized * (balanceData.CombatMovementSpeed * dt);
+            unit.Position = step.sqrMagnitude >= toTarget.sqrMagnitude ? unit.WanderTarget : unit.Position + step;
+        }
+
+        /// <summary>遠距離タイプが対象から離れる方向へ後退する(行動帯の外へは出ないようクランプする)。</summary>
+        private void RetreatFromTarget(BattleUnit unit, BattleUnit target, Rect bounds, float dt)
+        {
+            Vector2 away = unit.Position - target.Position;
+            if (away.sqrMagnitude < 0.0001f)
+            {
+                // 完全に重なっている場合は帯の中心から見た自分の側(なければ右方向)を仮の後退方向にする。
+                away = unit.Position - bounds.center;
+                if (away.sqrMagnitude < 0.0001f)
+                {
+                    away = Vector2.right;
+                }
+            }
+
+            Vector2 step = away.normalized * (balanceData.CombatMovementSpeed * dt);
+            Vector2 newPosition = unit.Position + step;
+            newPosition.x = Mathf.Clamp(newPosition.x, bounds.xMin, bounds.xMax);
+            newPosition.y = Mathf.Clamp(newPosition.y, bounds.yMin, bounds.yMax);
+            unit.Position = newPosition;
         }
 
         private void TickWander(BattleUnit unit, Rect bounds, float dt)

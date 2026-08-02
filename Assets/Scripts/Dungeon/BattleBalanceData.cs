@@ -24,6 +24,12 @@ namespace Slimelands.Dungeon
         [Tooltip("徘徊目標に到達してから次の目標を選ぶまでの静止時間(最大)。")]
         [SerializeField] private float wanderPauseMax = 1.5f;
 
+        [Header("交戦中の移動速度(仮値、要調整)")]
+        [Tooltip("攻撃対象となる敵がいるときの移動速度(ワールド単位/秒)。近接タイプの接近(追尾)・" +
+                 "遠距離タイプの後退(離脱)で使う。通常の徘徊速度(WanderSpeed)とは別に、" +
+                 "戦闘時は素早く動けるよう個別に調整できるようにしてある。")]
+        [SerializeField] private float combatMovementSpeed = 2.5f;
+
         [Header("近接攻撃(仮値、要調整)")]
         [Tooltip("近接攻撃(通常攻撃・必殺技とも)が実際に届く最大距離。攻撃者と対象の実座標の距離が" +
                  "これを超える場合、接近が間に合わず攻撃は命中しない(ダメージ0)。")]
@@ -38,6 +44,7 @@ namespace Slimelands.Dungeon
         public float WanderArriveThreshold => wanderArriveThreshold;
         public float WanderPauseMin => wanderPauseMin;
         public float WanderPauseMax => wanderPauseMax;
+        public float CombatMovementSpeed => combatMovementSpeed;
         public float MeleeAttackRange => meleeAttackRange;
         public float MeleeHitDelay => meleeHitDelay;
     }
