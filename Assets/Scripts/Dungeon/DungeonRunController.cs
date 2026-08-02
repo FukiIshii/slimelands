@@ -610,10 +610,15 @@ namespace Slimelands.Dungeon
         /// 攻撃対象(敵)がいる間、近接タイプは対象へ接近(追尾)し、遠距離タイプは対象から離れる
         /// (後退)。いずれもCombatMovementSpeed(通常の徘徊速度より速く動けるよう個別に調整可能)を
         /// 使う。近接タイプが既に射程内に入った場合や、対象がいない場合は通常の徘徊(TickWander)を行う。
+        /// また、行動帯にまだ入っていないユニット(敵の登場演出中で帯の外を起点位置にしている最中)は
+        /// この交戦時の移動には切り替えない。特に遠距離タイプのRetreatFromTargetは座標を帯の内側へ
+        /// クランプするため、登場直後にいきなり適用すると帯の端まで一瞬で座標が飛んでしまい、
+        /// 「画面外から歩いて登場する」演出が壊れてしまう。帯に入るまでは従来通りTickWander
+        /// (登場時に設定した徘徊目標=帯内のランダムな点へ向かう動き)に任せる。
         /// </summary>
         private void TickUnitMovement(BattleUnit unit, BattleUnit attackTarget, Rect bounds, float dt)
         {
-            if (attackTarget != null)
+            if (attackTarget != null && bounds.Contains(unit.Position))
             {
                 if (unit.AttackType == SlimeAttackType.Melee)
                 {
