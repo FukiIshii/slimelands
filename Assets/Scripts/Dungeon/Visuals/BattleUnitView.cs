@@ -86,15 +86,18 @@ namespace Slimelands.Dungeon
         /// <summary>
         /// この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。
         /// movementBoundsは自由に動き回れる範囲(画面中央の帯、ワールド座標)。
-        /// 初期位置はこの範囲内からランダムに選ぶ。
+        /// spawnPositionを省略した場合、初期位置はこの範囲内からランダムに選ぶ(通常の即時出現)。
+        /// spawnPositionを指定した場合は、その位置(通常は範囲外)を起点とし、最初の徘徊目標を
+        /// 範囲内に設定する。これにより既存のTickWanderがそのまま「歩いて登場する」入場モーション
+        /// として機能する(敵の画面外からの登場演出に使用)。
         /// </summary>
-        public void Bind(BattleUnit unit, Rect bounds)
+        public void Bind(BattleUnit unit, Rect bounds, Vector3? spawnPosition = null)
         {
             boundUnit = unit;
             attackType = unit.AttackType;
             movementBounds = bounds;
-            homePosition = PickRandomPointInBounds();
-            wanderTarget = homePosition;
+            homePosition = spawnPosition ?? PickRandomPointInBounds();
+            wanderTarget = spawnPosition.HasValue ? PickRandomPointInBounds() : homePosition;
             wanderPauseTimer = Random.Range(WanderPauseMin, WanderPauseMax);
             transform.position = homePosition;
             meleePhase = MeleeAnimPhase.Idle;

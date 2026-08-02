@@ -16,6 +16,12 @@ namespace Slimelands.Dungeon
         [Tooltip("帯の高さ(ワールド単位)。背景画像の水平中央線(床と奥の境界線)から下方向へこの高さ分だけ帯を確保する。")]
         [SerializeField] private float movementBandHeight = 3f;
 
+        [Header("敵の登場演出")]
+        [Tooltip("敵が画面外のどちら側から歩いて登場するか。ダンジョン/演出方針に応じて製作者が調整する。")]
+        [SerializeField] private EnemyEntranceSide enemyEntranceSide = EnemyEntranceSide.Right;
+        [Tooltip("登場開始位置を行動帯の端からどれだけ外側(画面外方向)に離すか(ワールド単位)。")]
+        [SerializeField] private float enemyEntranceMargin = 5f;
+
         private static readonly Color PlayerVfxColor = new(0.9f, 0.9f, 0.9f);
         private static readonly Color EnemyVfxColor = new(0.9f, 0.5f, 0.3f);
         private static readonly Color UltimateVfxColor = new(1f, 0.85f, 0.2f);
@@ -89,7 +95,7 @@ namespace Slimelands.Dungeon
             ClearAllViews();
             foreach (BattleUnit unit in party)
             {
-                CreateView(unit);
+                CreateView(unit, useEntrance: false);
             }
         }
 
@@ -98,7 +104,7 @@ namespace Slimelands.Dungeon
             ClearEnemyViews();
             foreach (BattleUnit unit in enemies)
             {
-                CreateView(unit);
+                CreateView(unit, useEntrance: true);
             }
         }
 
@@ -150,13 +156,30 @@ namespace Slimelands.Dungeon
             }
         }
 
-        private void CreateView(BattleUnit unit)
+        /// <summary>
+        /// useEntrance=trueの場合、敵を行動帯の外側(enemyEntranceSideで指定した側)に配置し、
+        /// 最初の徘徊目標を帯内に設定することで、既存の徘徊ロジック(TickWander)をそのまま
+        /// 「歩いて登場する」入場モーションとして流用する。
+        /// </summary>
+        private void CreateView(BattleUnit unit, bool useEntrance)
         {
             var go = new GameObject($"BattleUnitView_{unit.DisplayName}", typeof(BattleUnitView));
             go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
-            view.Bind(unit, GetMovementBounds());
+            Rect bounds = GetMovementBounds();
+            Vector3? spawnPosition = useEntrance ? GetEnemyEntrancePosition(bounds) : (Vector3?)null;
+            view.Bind(unit, bounds, spawnPosition);
             views[unit] = view;
+        }
+
+        /// <summary>行動帯の右端または左端(enemyEntranceSide)から、外側にenemyEntranceMargin分離れた地点。</summary>
+        private Vector3 GetEnemyEntrancePosition(Rect bounds)
+        {
+            float x = enemyEntranceSide == EnemyEntranceSide.Right
+                ? bounds.xMax + enemyEntranceMargin
+                : bounds.xMin - enemyEntranceMargin;
+            float y = Random.Range(bounds.yMin, bounds.yMax);
+            return new Vector3(x, y, 0f);
         }
 
         /// <summary>

@@ -774,3 +774,45 @@
 ### 残課題
 
 なし。
+
+---
+
+## 追記: 敵を画面外(右/左、Inspector設定可能)から歩いて登場させる演出
+
+### 経緯
+
+ユーザーから「敵が基本、右側(または左側。製作者がInspectorから設定可能)から移動して登場するように
+してほしい」との指摘があった。従来は敵もプレイヤーと同じく、`BattleUnitView.Bind`で行動帯
+(`movementBounds`)内のランダムな位置に即座に出現していた。
+
+### 実装内容
+
+- `EnemyEntranceSide`(新規enum、`Right`/`Left`)を追加。
+- `DungeonBattleView`に`enemyEntranceSide`(登場する側、デフォルトRight)・
+  `enemyEntranceMargin`(行動帯の端からどれだけ画面外側に離すか、デフォルト5)をInspectorで
+  調整可能なフィールドとして追加した。
+- `DungeonBattleView.CreateView`を`useEntrance`引数付きに変更し、`HandleEnemyWaveSpawned`
+  (敵の出現)からのみ`useEntrance: true`を渡すようにした(`HandlePartySpawned`=プレイヤー側は
+  従来通り即時出現のまま、`useEntrance: false`)。
+- `useEntrance`時は`GetEnemyEntrancePosition`で行動帯の右端/左端の外側(`enemyEntranceMargin`分
+  離れた位置)を算出し、`BattleUnitView.Bind`に渡す。
+- `BattleUnitView.Bind`に`Vector3? spawnPosition`引数を追加。指定時はその位置(帯の外)を起点とし、
+  最初の徘徊目標(`wanderTarget`)を帯内のランダムな点に設定する。これにより、既存の徘徊ロジック
+  (`TickWander`)がそのまま「歩いて登場する」入場モーションとして機能し、専用のアニメーション
+  状態機械を新設する必要がなかった。近接タイプはホップしながら、遠距離タイプは転がりながら
+  入場する(既存のTickIdleHop/回転ロジックがUpdate内で並行して動くため)。
+- 戦闘ロジック(ダメージ計算・ターゲティング・クールタイム等)への変更は一切なし。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- `TestDungeon`で`StartDungeon`後、最初のウェーブ(敵)が出現するまでUpdateをポンプし、出現直後の
+  敵の`CurrentPosition`が`(10.50, y, 0)`(行動帯の`xMax=5.5`+`enemyEntranceMargin=5`と一致)で
+  あることを確認。プレイヤー3体は従来通り帯内(`x`が`-5.31`〜`4.01`程度)に即時出現していることも
+  確認した(登場演出の対象が敵のみであることの確認)。
+- 出現直後の敵に対してさらに400回`Update`をポンプし、`x`が`10.5`→`0.92`まで帯の内側方向へ
+  移動したことを確認(歩いて登場する挙動の確認)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+なし。
