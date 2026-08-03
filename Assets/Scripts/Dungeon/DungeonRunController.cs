@@ -24,6 +24,12 @@ namespace Slimelands.Dungeon
         [Tooltip("帯の高さ(ワールド単位)。このコンポーネントのtransform.position.y(背景画像の水平中央線)から下方向へこの高さ分だけ帯を確保する。")]
         [SerializeField] private float movementBandHeight = 3f;
 
+        [Header("敵不在時のプレイヤー待機(仮値、要調整)")]
+        [Tooltip("攻撃対象となる敵が1体もいない間(遭遇待ち等)、プレイヤー側スライムが徘徊目標を選ぶ" +
+                 "範囲を行動帯の中央付近に絞る幅(ワールド単位)。行動帯全体の幅より大きい値を指定した" +
+                 "場合は行動帯全体を使う(制限なし)。敵側の徘徊やプレイヤーの交戦中の移動には影響しない。")]
+        [SerializeField] private float playerIdleHoldWidth = 3f;
+
         [Header("敵の登場演出")]
         [Tooltip("敵が行動帯の外側のどちら側から歩いて登場するか。")]
         [SerializeField] private EnemyEntranceSide enemyEntranceSide = EnemyEntranceSide.Right;
@@ -872,6 +878,8 @@ namespace Slimelands.Dungeon
         /// クランプするため、登場直後にいきなり適用すると帯の端まで一瞬で座標が飛んでしまい、
         /// 「画面外から歩いて登場する」演出が壊れてしまう。帯に入るまでは従来通りTickWander
         /// (登場時に設定した徘徊目標=帯内のランダムな点へ向かう動き)に任せる。
+        /// 攻撃対象(敵)が1体もいない間、プレイヤー側は行動帯全体ではなく中央付近(GetPlayerIdleHoldBounds)
+        /// だけを徘徊範囲にし、なるべく中央周辺に留まり続けるようにする(敵側の徘徊には影響しない)。
         /// </summary>
         private void TickUnitMovement(BattleUnit unit, BattleUnit attackTarget, Rect bounds, float dt)
         {
@@ -892,7 +900,17 @@ namespace Slimelands.Dungeon
                 }
             }
 
-            TickWander(unit, bounds, dt);
+            Rect wanderBounds = attackTarget == null && unit.IsPlayerSide
+                ? GetPlayerIdleHoldBounds(bounds)
+                : bounds;
+            TickWander(unit, wanderBounds, dt);
+        }
+
+        /// <summary>行動帯の中央付近に幅を絞った矩形(playerIdleHoldWidth)。高さは行動帯全体のまま。</summary>
+        private Rect GetPlayerIdleHoldBounds(Rect bounds)
+        {
+            float width = Mathf.Min(playerIdleHoldWidth, bounds.width);
+            return new Rect(bounds.center.x - width * 0.5f, bounds.yMin, width, bounds.height);
         }
 
         /// <summary>近接タイプが射程外の対象へまっすぐ接近する(徘徊目標を対象の位置で上書きする)。</summary>
