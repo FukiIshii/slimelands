@@ -30,6 +30,13 @@ namespace Slimelands.Dungeon
                  "場合は行動帯全体を使う(制限なし)。敵側の徘徊やプレイヤーの交戦中の移動には影響しない。")]
         [SerializeField] private float playerIdleHoldWidth = 3f;
 
+        [Header("交戦中の近接ユニットの待機(仮値、要調整)")]
+        [Tooltip("攻撃対象がいる間、近接タイプが射程内に入った後の徘徊目標を選ぶ範囲を、対象の現在位置" +
+                 "付近に絞る幅(ワールド単位)。射程外の間は従来通りChaseTargetでまっすぐ接近する。" +
+                 "これにより、一度接近した近接ユニットが対象から離れた場所まで徘徊してしまうのを防ぎ、" +
+                 "常に対象の近くに留まって攻撃を続けられるようにする。遠距離タイプ(常に後退する)には影響しない。")]
+        [SerializeField] private float meleeEngageHoldWidth = 3f;
+
         [Header("敵の登場演出")]
         [Tooltip("敵が行動帯の外側のどちら側から歩いて登場するか。")]
         [SerializeField] private EnemyEntranceSide enemyEntranceSide = EnemyEntranceSide.Right;
@@ -918,9 +925,23 @@ namespace Slimelands.Dungeon
                 }
             }
 
-            Rect wanderBounds = attackTarget == null && unit.IsPlayerSide
-                ? GetPlayerIdleHoldBounds(bounds)
-                : bounds;
+            Rect wanderBounds;
+            if (attackTarget == null && unit.IsPlayerSide)
+            {
+                wanderBounds = GetPlayerIdleHoldBounds(bounds);
+            }
+            else if (attackTarget != null && unit.AttackType == SlimeAttackType.Melee)
+            {
+                // 射程内に入った近接ユニット。ここに来るのはIsMeleeOutOfRangeがfalseの場合のみ
+                // (射程外ならこの手前のChaseTargetでreturn済み)なので、対象からあまり離れない
+                // よう徘徊目標を対象の近くに絞る。
+                wanderBounds = GetEngageHoldBounds(bounds, attackTarget.Position);
+            }
+            else
+            {
+                wanderBounds = bounds;
+            }
+
             TickWander(unit, wanderBounds, dt);
         }
 
@@ -929,6 +950,14 @@ namespace Slimelands.Dungeon
         {
             float width = Mathf.Min(playerIdleHoldWidth, bounds.width);
             return new Rect(bounds.center.x - width * 0.5f, bounds.yMin, width, bounds.height);
+        }
+
+        /// <summary>対象の現在位置付近に幅を絞った矩形(meleeEngageHoldWidth)。行動帯の外へは出ないようクランプする。</summary>
+        private Rect GetEngageHoldBounds(Rect bounds, Vector2 targetPosition)
+        {
+            float width = Mathf.Min(meleeEngageHoldWidth, bounds.width);
+            float x = Mathf.Clamp(targetPosition.x - width * 0.5f, bounds.xMin, bounds.xMax - width);
+            return new Rect(x, bounds.yMin, width, bounds.height);
         }
 
         /// <summary>近接タイプが射程外の対象へまっすぐ接近する(徘徊目標を対象の位置で上書きする)。</summary>
