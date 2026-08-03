@@ -1705,11 +1705,21 @@ GDD「ダンジョン解放・進行システム」に既に確定仕様とし�
 
 - `meleeContactDistance`(=1.2)は仮値。スプライトサイズや実際の見た目に応じて今後調整が必要。
 
-## 追記: ダンジョンの縦方向の移動範囲をy=-1.3までに調整
+## 追記: ダンジョンの縦方向の移動範囲の上端をy=-1.3に調整
 
-ユーザーから「ダンジョンで縦に移動ができる範囲はy=-1.3までにして」との指定があった。
-`DungeonRunController.movementBandHeight`(行動帯の高さ、上端はコンポーネントのtransform.position.y
-=y0)を3→1.3に変更し、シーン上の`DungeonManagers`コンポーネントの値も合わせて更新・保存した。
-Play Modeで`TestDungeon`を1000回Updateポンプし、プレイヤー・敵の全ユニットのY座標が
-`[-1.245, -0.132]`の範囲(指定の[-1.3, 0]以内)に収まることを確認。通しクリアの回帰も
-問題なし(1144回のUpdateポンプで`State=Cleared`)。単純な数値調整のためGDDへの追記は不要と判断した。
+ユーザーから「ダンジョンで縦に移動ができる範囲はy=-1.3までにして」との指定があった。当初、
+これを「下端をy=-1.3にする」(`movementBandHeight`を3→1.3)と解釈して実装したが、ユーザーから
+「上端をy=-1.3にしてほしかった」と訂正があった。
+
+`GetMovementBounds()`は`transform.position.y`(=`DungeonManagers`ゲームオブジェクトの座標)を
+帯の上端として使う設計になっているため、`movementBandHeight`は元の3に戻した上で、
+`DungeonManagers`ゲームオブジェクト自体のtransform位置をY=0→Y=-1.3へ移動する形に修正した
+(X座標・Z座標は変更なし)。このゲームオブジェクトの位置を参照しているのは
+`DungeonRunController.GetMovementBounds()`のみ(背景スクロール`DungeonBackgroundScroller`は
+別ゲームオブジェクトの独立したtransformを使っており影響を受けない、HUD等のuGUI
+ScreenSpaceOverlay Canvasもtransform位置を無視するため影響を受けない)ことをコード上で確認した。
+
+Play Modeで`TestDungeon`を通しプレイし、プレイヤー・敵の全ユニットのY座標が`[-4.300, -1.401]`
+(指定通り上端がy=-1.3付近、範囲全体は[-4.3, -1.3])に収まることを確認。通しクリアの回帰も
+問題なし(1121回のUpdateポンプで`State=Cleared`、`PlayerUnits=2`維持)。単純な座標調整のため
+GDDへの追記は不要と判断した。
