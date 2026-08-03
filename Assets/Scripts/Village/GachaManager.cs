@@ -21,6 +21,12 @@ namespace Slimelands.Village
         [SerializeField] private ResourceCardData costResource;
         [SerializeField] private int costAmount = 10;
 
+        /// <summary>ガチャ1回で消費する資源カードの種類(UI側でのコスト表示に使う)。nullなら無償。</summary>
+        public ResourceCardData CostResource => costResource;
+
+        /// <summary>ガチャ1回で消費する資源カードの枚数(UI側でのコスト表示に使う)。</summary>
+        public int CostAmount => costAmount;
+
         /// <summary>ガチャの結果、実際に排出されたスライムカードを通知する。</summary>
         public event Action<SlimeCardData> OnGachaDrawn;
 

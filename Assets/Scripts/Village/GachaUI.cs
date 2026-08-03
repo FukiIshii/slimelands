@@ -43,16 +43,28 @@ namespace Slimelands.Village
 
         private void OnGUI()
         {
-            GUI.Box(new Rect(10f, 150f, 220f, 90f), string.Empty);
-            GUILayout.BeginArea(new Rect(20f, 156f, 200f, 78f));
+            GUI.Box(new Rect(10f, 150f, 220f, 108f), string.Empty);
+            GUILayout.BeginArea(new Rect(20f, 156f, 200f, 96f));
 
             if (GUILayout.Button("ガチャを引く", GUILayout.Height(32f)))
             {
                 gachaManager?.TryDrawGacha();
             }
 
+            GUILayout.Label(GetCostLabel());
             GUILayout.Label(lastResultMessage);
             GUILayout.EndArea();
+        }
+
+        /// <summary>ガチャボタンの下に表示する消費コストの説明文。GachaManager側の設定を仮値含めそのまま反映する。</summary>
+        private string GetCostLabel()
+        {
+            if (gachaManager == null || gachaManager.CostResource == null || gachaManager.CostAmount <= 0)
+            {
+                return "消費: なし";
+            }
+
+            return $"消費: {gachaManager.CostResource.CardName} {gachaManager.CostAmount}個";
         }
     }
 }
