@@ -1715,11 +1715,32 @@ GDD「ダンジョン解放・進行システム」に既に確定仕様とし�
 帯の上端として使う設計になっているため、`movementBandHeight`は元の3に戻した上で、
 `DungeonManagers`ゲームオブジェクト自体のtransform位置をY=0→Y=-1.3へ移動する形に修正した
 (X座標・Z座標は変更なし)。このゲームオブジェクトの位置を参照しているのは
-`DungeonRunController.GetMovementBounds()`のみ(背景スクロール`DungeonBackgroundScroller`は
-別ゲームオブジェクトの独立したtransformを使っており影響を受けない、HUD等のuGUI
-ScreenSpaceOverlay Canvasもtransform位置を無視するため影響を受けない)ことをコード上で確認した。
+`DungeonRunController.GetMovementBounds()`と、同じ`DungeonManagers`ゲームオブジェクトに
+乗っている`DungeonBackgroundScroller`(背景タイルは子オブジェクトのローカル座標0基準なので
+このゲームオブジェクトごと一緒に動く)であり、HUD等のuGUI ScreenSpaceOverlay Canvasは
+transform位置を無視するため影響を受けないことをコード上で確認した(※この時点では背景と
+movement boundsが同じtransformで連動する設計だと気づいておらず、後の追記で判明した)。
 
 Play Modeで`TestDungeon`を通しプレイし、プレイヤー・敵の全ユニットのY座標が`[-4.300, -1.401]`
 (指定通り上端がy=-1.3付近、範囲全体は[-4.3, -1.3])に収まることを確認。通しクリアの回帰も
 問題なし(1121回のUpdateポンプで`State=Cleared`、`PlayerUnits=2`維持)。単純な座標調整のため
 GDDへの追記は不要と判断した。
+
+## 追記: ダンジョン背景を少し上にずらし、移動範囲の上端も連動して調整
+
+ユーザーから「ダンジョンの背景をもう少し上にずらしてほしい。そして、ずらした分、移動範囲の
+上端の座標もずらしてね」との指定があった。調査したところ、`DungeonBackgroundScroller`
+(背景タイル)は`DungeonRunController`と同じ`DungeonManagers`ゲームオブジェクトに乗っており、
+背景タイルは`transform`(=`DungeonManagers`)の子として相対座標0で配置されているため、
+`DungeonManagers`自体のtransform位置を動かせば背景と移動範囲の上端(`GetMovementBounds()`が
+参照する`transform.position.y`)が自動的に連動してずれることが分かった(=このゲームオブジェクトを
+動かすだけで、背景と移動範囲上端を「同じ量だけ一緒に」ずらすというユーザーの要望をそのまま
+満たせる)。
+
+ずらす量が「もう少し」とだけでは具体的な値が分からなかったため、AskUserQuestionでワールド単位の
+オフセット量を確認したところ、「1.3だけ上へ(元の位置に戻す)」が選ばれた。`DungeonManagers`の
+transform位置をY=-1.3→0(=前回の変更を打ち消し、当初の位置)へ変更し、シーンを保存した。
+
+Play Modeで`TestDungeon`を通しプレイし、プレイヤー・敵の全ユニットのY座標が`[-3.000, 0.000]`
+(範囲[-3, 0]、上端がy=0)に戻ったことを確認。通しクリアの回帰も問題なし(1341回のUpdateポンプで
+`State=Cleared`、`PlayerUnits=2`維持)。単純な座標調整のためGDDへの追記は不要と判断した。
