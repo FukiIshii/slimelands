@@ -37,6 +37,7 @@ namespace Slimelands.Dungeon
         private readonly List<BattleUnit> playerUnits = new();
         private readonly List<BattleUnit> aliveEnemies = new();
         private readonly List<PendingMeleeHit> pendingMeleeHits = new();
+        private readonly List<ActiveSweep> activeSweeps = new();
         private Queue<EncounterWaveData> remainingWaves = new();
         private BattleUnit lockedTarget;
         private float encounterTimer;
@@ -74,6 +75,18 @@ namespace Slimelands.Dungeon
         public event Action<BattleUnit, BattleUnit, int> OnNormalAttackResolved;
         public event Action<BattleUnit, BattleUnit, int> OnUltimateResolved;
 
+        /// <summary>範囲必殺技(Circle/Line)が発動し、命中した全対象へダメージが確定した瞬間に発火する。</summary>
+        public event Action<BattleUnit, IReadOnlyList<BattleUnit>, Vector2> OnAreaUltimateActivated;
+
+        /// <summary>スイープ型必殺技(左右往復)が発動した瞬間に発火する(見た目側の帯の生成に使用)。</summary>
+        public event Action<BattleUnit, SlimeSkillData> OnSweepStarted;
+        /// <summary>スイープの現在位置(帯の中心x座標)が更新されるたびに発火する(見た目側の帯の追従に使用)。</summary>
+        public event Action<BattleUnit, float> OnSweepPositionUpdated;
+        /// <summary>スイープが対象にダメージを与えた瞬間に発火する(ヒットエフェクト用)。</summary>
+        public event Action<BattleUnit, BattleUnit, int> OnSweepHit;
+        /// <summary>スイープの持続時間が終了し消滅した瞬間に発火する。</summary>
+        public event Action<BattleUnit> OnSweepEnded;
+
         public event Action<BattleUnit> OnUnitFainted;
 
         /// <summary>
@@ -95,6 +108,7 @@ namespace Slimelands.Dungeon
 
             playerUnits.Clear();
             pendingMeleeHits.Clear();
+            activeSweeps.Clear();
             foreach (SlimeIndividual individual in party)
             {
                 if (individual == null)
@@ -194,23 +208,203 @@ namespace Slimelands.Dungeon
                 return false;
             }
 
-            unit.UltimateCooldownRemaining = unit.UltimateSkill.CooldownSeconds;
+            SlimeSkillData skill = unit.UltimateSkill;
+            unit.UltimateCooldownRemaining = skill.CooldownSeconds;
 
+            switch (skill.AreaShape)
+            {
+                case UltimateAreaShape.Circle:
+                    ActivateCircleUltimate(unit, target, skill);
+                    break;
+                case UltimateAreaShape.Line:
+                    ActivateLineUltimate(unit, target, skill);
+                    break;
+                case UltimateAreaShape.Sweep:
+                    ActivateSweepUltimate(unit, skill);
+                    break;
+                default:
+                    ActivateSingleTargetUltimate(unit, target, skill);
+                    break;
+            }
+
+            return true;
+        }
+
+        private void ActivateSingleTargetUltimate(BattleUnit unit, BattleUnit target, SlimeSkillData skill)
+        {
             if (unit.AttackType == SlimeAttackType.Melee)
             {
-                BeginMeleeAttack(unit, target, unit.UltimateSkill.Power, isUltimate: true, unit.UltimateSkill.SkillName);
+                BeginMeleeAttack(unit, target, skill.Power, isUltimate: true, skill.SkillName);
             }
             else
             {
                 int damage = BattleFormulas.CalculateDamage(unit.Stats.attack, target.Stats.defense,
-                    unit.UltimateSkill.Power, unit.Type, target.Type, affinityData);
+                    skill.Power, unit.Type, target.Type, affinityData);
                 target.ApplyDamage(damage);
-                Log($"{unit.DisplayName}の必殺技「{unit.UltimateSkill.SkillName}」!{target.DisplayName}に{damage}ダメージ");
+                Log($"{unit.DisplayName}の必殺技「{skill.SkillName}」!{target.DisplayName}に{damage}ダメージ");
                 OnUltimateActivated?.Invoke(unit, target, damage);
                 HandleIfFainted(target);
             }
+        }
 
-            return true;
+        /// <summary>指定対象(primaryTarget)の座標を中心とした円形範囲に、範囲内の対象全員へダメージを与える。</summary>
+        private void ActivateCircleUltimate(BattleUnit caster, BattleUnit primaryTarget, SlimeSkillData skill)
+        {
+            Vector2 origin = primaryTarget.Position;
+            List<BattleUnit> hits = GetUnitsInCircle(origin, skill.AreaRadius, GetOpposingUnits(caster));
+            ApplyAreaDamage(caster, hits, skill, origin);
+        }
+
+        /// <summary>発動者からprimaryTarget方向へ伸びる直線状の範囲に、範囲内の対象全員へダメージを与える。</summary>
+        private void ActivateLineUltimate(BattleUnit caster, BattleUnit primaryTarget, SlimeSkillData skill)
+        {
+            Vector2 origin = caster.Position;
+            Vector2 direction = primaryTarget.Position - caster.Position;
+            List<BattleUnit> hits = GetUnitsInLine(origin, direction, skill.AreaLength, skill.AreaRadius, GetOpposingUnits(caster));
+            ApplyAreaDamage(caster, hits, skill, origin);
+        }
+
+        private void ApplyAreaDamage(BattleUnit caster, List<BattleUnit> hits, SlimeSkillData skill, Vector2 origin)
+        {
+            if (hits.Count == 0)
+            {
+                Log($"{caster.DisplayName}の必殺技「{skill.SkillName}」!しかし範囲内に対象がいなかった。");
+                OnAreaUltimateActivated?.Invoke(caster, hits, origin);
+                return;
+            }
+
+            foreach (BattleUnit target in hits)
+            {
+                int damage = BattleFormulas.CalculateDamage(caster.Stats.attack, target.Stats.defense,
+                    skill.Power, caster.Type, target.Type, affinityData);
+                target.ApplyDamage(damage);
+                Log($"{caster.DisplayName}の必殺技「{skill.SkillName}」が{target.DisplayName}にヒット!{damage}ダメージ");
+            }
+
+            OnAreaUltimateActivated?.Invoke(caster, hits, origin);
+
+            // ダメージ適用は上のループで先に済ませ、気絶判定(aliveEnemiesの変更を伴う)は別ループで行う。
+            foreach (BattleUnit target in hits)
+            {
+                HandleIfFainted(target);
+            }
+        }
+
+        /// <summary>行動帯の左端〜右端を往復し続け、接触している間ダメージを与え続ける持続型の必殺技を開始する。</summary>
+        private void ActivateSweepUltimate(BattleUnit caster, SlimeSkillData skill)
+        {
+            activeSweeps.Add(new ActiveSweep
+            {
+                Caster = caster,
+                Skill = skill,
+                Elapsed = 0f,
+                TickTimer = 0f, // 発動直後にまず1回判定させる
+            });
+
+            Log($"{caster.DisplayName}の必殺技「{skill.SkillName}」!帯が左右に往復し始めた。");
+            OnSweepStarted?.Invoke(caster, skill);
+        }
+
+        private void TickActiveSweeps(float dt)
+        {
+            if (activeSweeps.Count == 0)
+            {
+                return;
+            }
+
+            Rect bounds = GetMovementBounds();
+
+            for (int i = activeSweeps.Count - 1; i >= 0; i--)
+            {
+                ActiveSweep sweep = activeSweeps[i];
+                sweep.Elapsed += dt;
+
+                if (sweep.Elapsed >= sweep.Skill.SweepDuration)
+                {
+                    activeSweeps.RemoveAt(i);
+                    OnSweepEnded?.Invoke(sweep.Caster);
+                    continue;
+                }
+
+                float oneWay = Mathf.Max(0.01f, sweep.Skill.SweepOneWayDuration);
+                float x = Mathf.Lerp(bounds.xMin, bounds.xMax, Mathf.PingPong(sweep.Elapsed / oneWay, 1f));
+                OnSweepPositionUpdated?.Invoke(sweep.Caster, x);
+
+                sweep.TickTimer -= dt;
+                if (sweep.TickTimer > 0f)
+                {
+                    continue;
+                }
+
+                sweep.TickTimer = Mathf.Max(0.01f, sweep.Skill.SweepTickInterval);
+
+                var hitThisTick = new List<BattleUnit>();
+                foreach (BattleUnit target in GetOpposingUnits(sweep.Caster))
+                {
+                    if (target.IsFainted || Mathf.Abs(target.Position.x - x) > sweep.Skill.AreaRadius)
+                    {
+                        continue;
+                    }
+
+                    int damage = BattleFormulas.CalculateDamage(sweep.Caster.Stats.attack, target.Stats.defense,
+                        sweep.Skill.Power, sweep.Caster.Type, target.Type, affinityData);
+                    target.ApplyDamage(damage);
+                    Log($"{sweep.Caster.DisplayName}の必殺技「{sweep.Skill.SkillName}」が{target.DisplayName}に{damage}ダメージ!");
+                    OnSweepHit?.Invoke(sweep.Caster, target, damage);
+                    hitThisTick.Add(target);
+                }
+
+                foreach (BattleUnit target in hitThisTick)
+                {
+                    HandleIfFainted(target);
+                }
+            }
+        }
+
+        /// <summary>casterから見た敵対勢力(プレイヤー側なら生存する敵、敵側ならプレイヤー全員)。</summary>
+        private IReadOnlyList<BattleUnit> GetOpposingUnits(BattleUnit caster)
+        {
+            return caster.IsPlayerSide ? (IReadOnlyList<BattleUnit>)aliveEnemies : playerUnits;
+        }
+
+        private static List<BattleUnit> GetUnitsInCircle(Vector2 center, float radius, IReadOnlyList<BattleUnit> candidates)
+        {
+            var hits = new List<BattleUnit>();
+            foreach (BattleUnit unit in candidates)
+            {
+                if (!unit.IsFainted && Vector2.Distance(unit.Position, center) <= radius)
+                {
+                    hits.Add(unit);
+                }
+            }
+
+            return hits;
+        }
+
+        private static List<BattleUnit> GetUnitsInLine(Vector2 origin, Vector2 direction, float length, float halfWidth,
+            IReadOnlyList<BattleUnit> candidates)
+        {
+            Vector2 dir = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector2.right;
+            Vector2 end = origin + dir * length;
+
+            var hits = new List<BattleUnit>();
+            foreach (BattleUnit unit in candidates)
+            {
+                if (!unit.IsFainted && DistancePointToSegment(unit.Position, origin, end) <= halfWidth)
+                {
+                    hits.Add(unit);
+                }
+            }
+
+            return hits;
+        }
+
+        private static float DistancePointToSegment(Vector2 point, Vector2 a, Vector2 b)
+        {
+            Vector2 ab = b - a;
+            float t = ab.sqrMagnitude > 0.0001f ? Mathf.Clamp01(Vector2.Dot(point - a, ab) / ab.sqrMagnitude) : 0f;
+            Vector2 closest = a + ab * t;
+            return Vector2.Distance(point, closest);
         }
 
         private void Update()
@@ -230,6 +424,7 @@ namespace Slimelands.Dungeon
                 case DungeonState.InBattle:
                     TickMovement(dt);
                     TickPendingMeleeHits(dt);
+                    TickActiveSweeps(dt);
                     TickBattle(dt);
                     break;
             }
@@ -725,6 +920,14 @@ namespace Slimelands.Dungeon
             public bool IsUltimate;
             public string SkillName;
             public float RemainingTime;
+        }
+
+        private class ActiveSweep
+        {
+            public BattleUnit Caster;
+            public SlimeSkillData Skill;
+            public float Elapsed;
+            public float TickTimer;
         }
     }
 }

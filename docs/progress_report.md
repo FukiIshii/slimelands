@@ -1101,3 +1101,80 @@ Play Modeでレベル20パーティーによる`TestDungeon`の通しクリア�
 ### 残課題
 
 なし。
+
+---
+
+## 追記: 必殺技の範囲攻撃(円形/直線/左右スイープ)を実装
+
+### 経緯
+
+ユーザーから「必殺技で範囲攻撃を実装したいが、現状のシステム(単体対象のみ)だと難しそう。
+コライダーで実装できないか」との相談があった。検討の結果、以下の理由からコライダー
+(Physics2D)は使わず、既存の`BattleUnit.Position`同士の幾何計算で範囲判定する方針にした:
+
+- このプロジェクトの検証手法(Play Mode + RunCommand + `SendMessage("Update", ...)`による
+  疑似フレーム送り)はUnityの実フレームを進行させないため、Physics2Dの衝突判定ステップ自体が
+  進行しない。コライダーの`OnTriggerEnter2D`等を使うと、この手法では自動検証ができなくなる。
+- 単純な円形・直線範囲であれば、コライダーを使っても`Vector2.Distance`や点と線分の距離計算と
+  結果は変わらない。
+- ロジック層(`BattleUnit`)はMonoBehaviourではない純粋なC#クラスであり、コライダーを使うには
+  見た目側(View)のColliderに判定を依存させることになり、既存の「ロジックはViewに依存しない」
+  設計方針が崩れる。
+
+さらにユーザーから「左右スイープでは接触している間ダメージが入り続けるようにしたい(頻度は
+調整可能に)」との追加要望があった。
+
+### 実装内容
+
+- **`UltimateAreaShape`**(新規enum、`Assets/Scripts/Slime/`): `SingleTarget`/`Circle`/`Line`/
+  `Sweep`の4種類。
+- **`SlimeSkillData`**に範囲攻撃用フィールドを追加(全て仮値、Inspectorで調整可能):
+  `areaShape`、`areaRadius`(Circle=半径/Line=半幅/Sweep=帯の半幅)、`areaLength`(Line専用の長さ)、
+  `sweepDuration`(Sweepの合計持続時間)、`sweepOneWayDuration`(Sweepの片道所要時間)、
+  `sweepTickInterval`(Sweepの接触中ダメージ間隔)。
+- **`DungeonRunController.TryActivateUltimate`**を`skill.AreaShape`で分岐するよう変更:
+  - `SingleTarget`: 従来通りの単体対象処理(`ActivateSingleTargetUltimate`に切り出し、
+    近接は接近モーション同期の`BeginMeleeAttack`、遠距離は即時ダメージ)。
+  - `Circle`: 対象(`GetCurrentTarget`)の座標を中心に`GetUnitsInCircle`(距離判定)で命中対象を
+    収集し、`ApplyAreaDamage`で全員にダメージを適用。
+  - `Line`: 発動者から対象方向への線分を`GetUnitsInLine`(点と線分の距離判定、
+    `DistancePointToSegment`)で命中対象を収集し、同じく`ApplyAreaDamage`で適用。
+  - `Sweep`: `ActivateSweepUltimate`で`activeSweeps`リストに持続効果を登録し、
+    `TickActiveSweeps`(`Update`のInBattle分岐から毎フレーム呼び出し)で、`Mathf.PingPong`を
+    使い行動帯の左端〜右端を往復する現在位置を計算、`sweepTickInterval`ごとに現在位置とのx距離が
+    `areaRadius`以内の対象全員にダメージを与える(接触し続けていれば毎ティック継続してダメージが
+    入る)。`sweepDuration`経過で自動終了する。
+  - 対象探索は`GetOpposingUnits`(発動者がプレイヤー側なら`aliveEnemies`、敵側なら`playerUnits`)
+    で汎用化しており、将来敵側が必殺技を使うようになっても同じロジックを流用できる。
+- 見た目側への新規通知イベントを追加(このタスクでは演出は未実装、次のステップ用):
+  `OnAreaUltimateActivated`(Circle/Line決着時)、`OnSweepStarted`/`OnSweepPositionUpdated`/
+  `OnSweepHit`/`OnSweepEnded`(Sweepの開始・現在位置・ヒット・終了)。
+- `docs/GDD.md`の「攻撃・必殺技の仕様」に、範囲形状の仕組み(コライダー不使用の理由込み)を追記。
+  必殺技の具体的なパターン数・中身は引き続き「今後詰める論点」の対象のままとし、今回実装したのは
+  仕組み(データ構造・判定ロジック)のみであることを明記した。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **Circle**: 3体の敵(距離0・距離1・距離10)に対し半径3の円形必殺技を発動し、距離0・距離1の
+  敵のみダメージを受け、距離10の敵は無傷であることを確認。
+- **Line**: 半幅1・長さ6の直線必殺技に対し、線上(対象自身)・線からの垂直距離0.5(範囲内)・
+  垂直距離2(範囲外)の3体で、範囲内の2体のみダメージを受けることを確認。
+- **Sweep**: 帯の通り道にとどまり続ける敵に対し、`sweepDuration=2秒`・`sweepTickInterval=0.3秒`
+  の設定で`OnSweepHit`が7回発火(接触中に継続してダメージが入ること)し、`sweepDuration`経過後に
+  `OnSweepEnded`が発火する(自動終了)ことを確認。範囲外に置いた敵は無傷のままであることも確認。
+- 3ケースとも、`ScriptableObject.CreateInstance`+`SerializedObject`でテスト用の`DungeonData`
+  (複数体ウェーブ)・`SlimeSkillData`(範囲設定)をその場で構築し、`BattleUnit`を直接
+  合成して`TryActivateUltimate`に渡す形でテストした(村パートの育成システムを経由せず、
+  戦闘ロジック単体を検証できることを確認)。
+- レベル30パーティーで`TestDungeon`(SingleTarget必殺技のみ使用)を通しクリアできることを
+  再確認(回帰確認)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- Circle/Line/Sweepいずれも見た目側の演出(VFX・帯の可視化等)は未実装。追加したイベント
+  (`OnAreaUltimateActivated`等)を`DungeonBattleView`側で購読して演出を実装する必要がある。
+- 敵側(プレイヤーを攻撃する側)が必殺技を使うAIは現状未実装のまま(`GetOpposingUnits`は
+  汎用化済みなので、実装時はロジック側の追加変更は不要な想定)。
+- 具体的な必殺技のパターン数・中身(どのスライム種族がどの形状の必殺技を持つか等)は未決定
+  (GDDの「今後詰める論点」を参照)。
