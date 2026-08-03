@@ -1976,3 +1976,28 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
 - 水晶のアイコンはFireCrystalアイコンの仮流用。専用アートは未作成。
 - レベルアップ時にmaxHp等が増加しても、現在HPは自動回復しない(既存の`Heal`ベースの回復モデルを
   踏襲。今回変更なし)。
+
+## カード説明UIにスライムのレベル・経験値バー表示を追加
+
+### 変更内容
+
+- `CardBoard.OnCardSelected`の通知型を`CardData`から`CardController`に変更(個体データ
+  `BoundIndividual`を参照できるようにするため)。購読側は`CardDescriptionUI`のみで、他に影響なし。
+- `CardDescriptionUI`: 選択したカードがスライム(`BoundIndividual != null`)の場合、名前・説明に加えて
+  「Lv.X」と経験値バー(現在値/レベルアップに必要な合計値、`EXP 現在値/必要量`ラベル付き)を表示する。
+  スライム以外のカードでは従来通り名前・説明のみ。
+
+### テストした内容(Play Mode、Input Systemでのマウス操作シミュレーション)
+
+- スライムカードを盤面にスポーンし、`AddExp`でLv.2・Exp=30(ExpPerLevel=100)の状態にした上でクリック。
+  一時的なデバッグログ経由で`HandleCardSelected`が`Lv.2 Exp=30/100`を正しく受け取ることを確認後、
+  デバッグログは削除。
+- コンパイルエラー・警告なしを確認。
+
+### テスト手法上の補足
+
+このセッションでは一時的にPlay Modeが一時停止(`IsPaused=true`)状態になっており、その状態だと
+`Mouse.current.leftButton.wasPressedThisFrame`がキュー投入後に`InputSystem.Update()`を呼んでも
+常に`false`のままだった(実フレームが進行しないため)。`Unity_ManageEditor`の`Pause`アクションで
+再開したところ、同じ手順で正しく`wasPressedThisFrame=true`となった。マウス入力シミュレーションを
+使ったテストが反応しない場合は、まずPlay Modeが一時停止していないか確認するとよい。

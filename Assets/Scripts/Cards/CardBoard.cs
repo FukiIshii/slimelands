@@ -69,7 +69,7 @@ namespace Slimelands.Cards
         /// カードをクリック(ドラッグ開始のプレス)したときに、そのカードのデータを通知する。
         /// 何もない場所をクリックした場合はnullを通知する(説明表示UI側の選択解除に使う)。
         /// </summary>
-        public event System.Action<CardData> OnCardSelected;
+        public event System.Action<CardController> OnCardSelected;
 
         private void Awake()
         {
@@ -181,7 +181,7 @@ namespace Slimelands.Cards
         private void TryBeginDrag(Vector3 pointerWorldPosition)
         {
             CardController clickedCard = FindTopCardAt(pointerWorldPosition, null);
-            OnCardSelected?.Invoke(clickedCard != null ? clickedCard.Data : null);
+            OnCardSelected?.Invoke(clickedCard);
 
             if (clickedCard == null)
             {
