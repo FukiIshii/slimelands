@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9feddea8c1499940b688de7f0dc58f0, type: 3}
+  m_Name: ForestDungeon
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonData
+  dungeonName: "\u68EE\u30C0\u30F3\u30B8\u30E7\u30F3"
+  requiredPartySize: 1
+  enemyLevel: 1
+  waves:
+  - enemySpecies:
+    - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
+    spawnCondition: 0
+    waitSeconds: 2
+  backgroundSprite: {fileID: 4756453826054163064, guid: 3d5a48d1fb952b94f920764cd26d1334, type: 3}
+  parentDungeons: []
+  dropRewards:
+  - resource: {fileID: 11400000, guid: 8b3fa6634a87b0c4d9cd35177699568a, type: 2}
+    amount: 5

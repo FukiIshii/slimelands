@@ -2001,3 +2001,40 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
 常に`false`のままだった(実フレームが進行しないため)。`Unity_ManageEditor`の`Pause`アクションで
 再開したところ、同じ手順で正しく`wasPressedThisFrame=true`となった。マウス入力シミュレーションを
 使ったテストが反応しない場合は、まずPlay Modeが一時停止していないか確認するとよい。
+
+## 森ダンジョンをテストダンジョンの手前に追加
+
+### 変更内容
+
+- `Assets/Data/Dungeon/ForestDungeon.asset`(新規、`DungeonData`)を追加し、ダンジョンツリーの新たな
+  ルート(`parentDungeons`未設定=最初から解放済み)とした。
+  - `requiredPartySize=1`、`enemyLevel=1`(いずれも仮値)、ウェーブは基本種スライム1体のみの1ウェーブ
+    (テストダンジョンより明確に易しい導入用ダンジョンとして設定)。
+  - `backgroundSprite`にはユーザーが用意していた`Assets/Picture/Wallpaper_forest.png`(森ステージ用に
+    温存されていた背景)を割り当てた。
+  - `dropRewards`は仮でWood×5(森らしい素材として)。
+- `TestDungeon.asset`の`parentDungeons`を空→`[ForestDungeon]`に変更し、森ダンジョンをクリアしないと
+  テストダンジョンが解放されないようにした(既存のテストダンジョン支流A/B・合流点はテストダンジョンの
+  子孫のままなので、ツリー全体が1段深くなる形)。
+- `PartyFormationUI.availableDungeons`(ダンジョンのマスターリスト)の先頭に森ダンジョンを追加。
+
+### テストした内容(Play Mode)
+
+- `DungeonProgressManager`経由で階層(depth)と解放状態を確認: 森ダンジョン=depth0/UnlockedNotCleared、
+  テストダンジョン=depth1/Locked(以下の支流・合流点もそれぞれ1段深くなり、すべてLocked)。
+- `DungeonRunController.StartDungeon`を直接呼び出し、森ダンジョンを実際にクリアするところまで
+  Updateポンプでシミュレーションし、クリア後にテストダンジョンが`UnlockedNotCleared`に変わることを確認。
+
+### テスト手法上の新たな発見
+
+近接攻撃の射程判定(`IsMeleeTargetInRange`)は数学的な距離比較ではなく、`BattleUnitHurtbox`
+(`BattleUnitView`と同じGameObject上のコライダー)に対する`Physics2D.OverlapCircleAll`で行っている。
+`BattleUnitView`はコメントで明記されている通り、このツール実行環境で実フレームが自動進行しないことを
+前提に「`SendMessage("Update", ...)`で明示的に駆動されること」を想定した設計になっている。
+`DungeonRunController.Update()`だけをポンプしてBattleUnitViewをポンプし忘れると、ロジック側の座標
+(`BattleUnit.Position`)は正しく進行するのに、見た目側(コライダー位置)がスポーン時点のまま固まり、
+特に登場演出で画面外から歩いてくる敵側のhurtboxが実際の位置と大きくズレる。その結果「プレイヤー側だけ
+攻撃が一切発動しない(常に射程外と判定される)のに、敵側は攻撃してくる(たまたま元々近い位置にいたため
+ズレが問題にならなかった)」という非対称な現象が発生した。`DungeonRunController.Update()`と併せて
+シーン内の全`BattleUnitView`に対しても`SendMessage("Update", ...)`をポンプすることで解消した。
+今後、戦闘を絡めたヘッドレステストを書く際は両方を必ずポンプすること。

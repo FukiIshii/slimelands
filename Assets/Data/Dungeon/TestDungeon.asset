@@ -35,7 +35,8 @@ MonoBehaviour:
     spawnCondition: 0
     waitSeconds: 3
   backgroundSprite: {fileID: 21300000, guid: 0a93a2d44a3c16f44b58430a5767c86c, type: 3}
-  parentDungeons: []
+  parentDungeons:
+  - {fileID: 11400000, guid: 5b9b3ac5df24dde44933268afc3a657b, type: 2}
   dropRewards:
   - resource: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
     amount: 10

@@ -1100,6 +1100,7 @@ MonoBehaviour:
   roster: {fileID: 761239023}
   dungeonController: {fileID: 360021976}
   availableDungeons:
+  - {fileID: 11400000, guid: 5b9b3ac5df24dde44933268afc3a657b, type: 2}
   - {fileID: 11400000, guid: 25517110a43c8c048b3a9de47272fc00, type: 2}
   - {fileID: 11400000, guid: 912c86d86deab9a4280db018c13c6cc8, type: 2}
   - {fileID: 11400000, guid: 9c2b1faf6c764f74391964163f59abc7, type: 2}
