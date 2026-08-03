@@ -1,10 +1,25 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Slimelands.Cards;
 using Slimelands.Slime;
 
 namespace Slimelands.Dungeon
 {
+    /// <summary>
+    /// ダンジョンクリア時にドロップする資源カード1種類分の定義(カード種類×個数)。
+    /// </summary>
+    [Serializable]
+    public class DungeonDropEntry
+    {
+        [SerializeField] private ResourceCardData resource;
+        [Tooltip("クリア時に確定でドロップする枚数。")]
+        [SerializeField] private int amount = 1;
+
+        public ResourceCardData Resource => resource;
+        public int Amount => amount;
+    }
+
     /// <summary>
     /// 1回分のウェーブ(遭遇)の定義。複数体の敵が同時に出現するウェーブも表現できる。
     /// </summary>
@@ -47,11 +62,16 @@ namespace Slimelands.Dungeon
             "クリアして初めて解放される合流ノードになる。空(未設定)の場合は最初から解放済みとして扱う。")]
         [SerializeField] private DungeonData[] parentDungeons;
 
+        [Tooltip("ダンジョンクリア時に確定でドロップする資源カード(種類と個数)。マナクリスタルを除く" +
+            "配合・進化・制作用の素材はここで定義する想定(GDD「ダンジョン解放・進行システム」参照)。")]
+        [SerializeField] private List<DungeonDropEntry> dropRewards = new();
+
         public string DungeonName => dungeonName;
         public int RequiredPartySize => requiredPartySize;
         public int EnemyLevel => enemyLevel;
         public IReadOnlyList<EncounterWaveData> Waves => waves;
         public Sprite BackgroundSprite => backgroundSprite;
         public IReadOnlyList<DungeonData> ParentDungeons => parentDungeons;
+        public IReadOnlyList<DungeonDropEntry> DropRewards => dropRewards;
     }
 }

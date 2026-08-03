@@ -1775,3 +1775,72 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
 `"消費: マナクリスタル 10個"`という文言になることを確認した(IMGUIの`OnGUI`はゲームビューへの
 直接描画のためスクリーンショットでの見た目確認はできず、既存の他IMGUI画面のテスト方針と同様、
 表示元データの値を公開APIから検証する形で確認した)。コンパイルエラー・警告なしを確認。
+
+## 追記: 「ガチャクリスタル」カードを導入し、ガチャの消費先をこれに切り替え
+
+ユーザーから「ガチャクリスタルというカードを導入してガチャではそれを消費するようにして」との
+指示があった。入手方法の指定がなかったため、AskUserQuestionで確認したところ「ダンジョン産素材
+として入手」が選ばれた。これは現状未実装だった「ダンジョンクリアで素材がドロップする」仕組み
+(GDD記載済みだが仕組みが存在しなかった)を新設する必要がある、想定より大きめの変更だった。
+
+### 実装内容
+
+- **`Assets/Data/Cards/Resource/GachaCrystal.asset`**(新規): `ResourceCardData`。カード名
+  「ガチャクリスタル」。アイコンは専用アートが未作成のため、仮でManaCrystalのアイコンを流用
+  (要差し替え)。
+- **`DungeonData`**(`Assets/Scripts/Dungeon/DungeonData.cs`): ダンジョンクリア時の確定ドロップを
+  表す`DungeonDropEntry`(資源カード+個数)クラスと、そのリスト`dropRewards`
+  (`DropRewards`公開プロパティ)を追加。将来的に他のダンジョン産素材(ファイアクリスタル等)にも
+  流用できる汎用的な形にした(GachaCrystal専用にハードコードしない、CLAUDE.mdのデータ駆動方針に従う)。
+- **`DungeonRewardHandler`**(`Assets/Scripts/Dungeon/DungeonRewardHandler.cs`、新規): 
+  `DungeonRunController.OnDungeonCleared`を購読し、`CurrentDungeon.DropRewards`の内容を
+  `CardBoard.SpawnStack`で盤面に実際に出現させる橋渡し役。`PartyFormationUI`と同じ「両者の
+  内部実装に依存せず公開APIだけを呼ぶ」パターンを踏襲し、`DungeonRunController`自体は
+  `CardBoard`を直接参照しない(村・ダンジョンの疎結合を維持、CLAUDE.mdルール1)。
+- **シーン**: `DungeonManagers`ゲームオブジェクトに`DungeonRewardHandler`を追加し、
+  `dungeonController`/`cardBoard`を配線。`TestDungeon.asset`の`dropRewards`にガチャクリスタル
+  ×10(仮値)を設定(検証用)。`GachaManager.costResource`を`ManaCrystal`→`GachaCrystal`へ変更
+  (`costAmount`は10のまま据え置き)。マナクリスタルは今後もレベルアップ専用として残す。
+- **`docs/GDD.md`**: 「ゲームループ」「スライムの入手方法」「リソース」「ダンジョン解放・進行
+  システム」の該当箇所を、ガチャの消費先がガチャクリスタルに変わったこと、ダンジョンドロップの
+  仕組み(`DungeonData.DropRewards`/`DungeonRewardHandler`)が実装済みであることに合わせて更新。
+
+### テストで踏んだ問題と学び
+
+- **`CardBoard`の表示ルートは村画面でのみアクティブ**: `GameScreenController.ApplyVisibility()`が
+  `cardBoardCardsRoot`を村画面(`GameScreen.Village`)のときだけ`SetActive(true)`にする実装のため、
+  ダンジョンクリア直後(まだダンジョン戦闘画面のまま)に生成したカードは`activeInHierarchy=false`
+  になり、`FindObjectsByType<CardController>(FindObjectsInactive.Exclude)`で検出できず
+  「ドロップが機能していない」ように見えて詰まった。`stack.PeekTop().gameObject.activeInHierarchy`
+  を直接確認して原因を特定。これはバグではなく、実際のプレイフロー通り
+  `GameScreenController.ReturnToVillage()`(村に戻るボタン相当)を呼べば該当ゲームオブジェクトの
+  祖先が再度アクティブになり正しく数えられるようになった(子オブジェクト自身の`activeSelf`は
+  常にtrueのままのため)。以後のダンジョン関連テストでは、盤面上のカードを数える前に
+  必ず村画面へ戻る操作を挟む必要がある。
+- **同一Play Modeセッション内での繰り返しテストによるカード数の蓄積**: 上記の問題を切り分ける
+  過程で複数回`CardBoard.SpawnStack`を直接呼んで検証したため、後続のテストで村に戻った瞬間に
+  過去の検証分も含めて一気にカウントされ、期待値とズレた(22枚など)。既知の「同一セッション内の
+  繰り返し呼び出しでの蓄積」パターン(過去の追記にも記載)が今回も再発したため、最終確認は
+  Play Modeを再起動したクリーンな1セッション内で行った。
+- **`TestDungeon`のバランス変化による全滅**: ユーザーが各ウェーブの敵を1体→3体に増やす調整を
+  行った状態のため、従来使っていた「レベル1スライム2体」の検証パーティーではRNG次第で全滅
+  (`State=Failed`)することがあった(実際に1回発生)。検証パーティーを4体に増やして再実行し、
+  安定してクリアできることを確認した。
+
+### 最終確認(Play Modeを再起動したクリーンな1セッション、レベル1スライム4体)
+
+- ダンジョンクリア前はガチャクリスタルが0枚のため`TryDrawGacha()`が失敗すること(`False`)を確認。
+- `TestDungeon`をクリア後、村に戻った状態でガチャクリスタルがちょうど10枚出現していることを確認
+  (`gachaCrystalAfterClear=10`)。
+- その状態でガチャを引くと成功し(`drawOk=True`)、ガチャクリスタルが0枚になる
+  (`gachaCrystalAfterDraw=0`、10枚消費されたことを確認)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- ガチャクリスタルのアイコンはManaCrystalアイコンの仮流用。専用アートは未作成。
+- `TestDungeon`以外の既存ダンジョン(`TestDungeonChildA/B`, `TestDungeonConfluence`)には
+  `dropRewards`を設定していない(テスト用ダミーダンジョンのため対象外とした)。
+- ガチャクリスタル以外の「ダンジョン産素材」(ファイアクリスタル等)への`DropRewards`の展開は
+  今回のスコープ外。
+- ドロップは確定制(ランダム抽選なし)。将来的に抽選制にする場合は`DungeonDropEntry`の拡張が必要。
