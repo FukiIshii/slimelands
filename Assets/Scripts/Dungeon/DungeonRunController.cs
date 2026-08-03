@@ -60,6 +60,11 @@ namespace Slimelands.Dungeon
         public IReadOnlyList<BattleUnit> PlayerUnits => playerUnits;
         public IReadOnlyList<BattleUnit> AliveEnemies => aliveEnemies;
 
+        /// <summary>直近にStartDungeonへ渡されたダンジョン定義。クリア/失敗後もStartDungeonが
+        /// 再度呼ばれるまで保持されるため、OnDungeonCleared購読側(進行度管理等)が
+        /// 「どのダンジョンがクリアされたか」を参照するのに使える。</summary>
+        public DungeonData CurrentDungeon => dungeonData;
+
         /// <summary>近接攻撃の接近〜着弾の遅延(秒)。見た目側が突進モーションの尺を合わせるために参照する。</summary>
         public float MeleeHitDelay => balanceData != null ? balanceData.MeleeHitDelay : 0.18f;
 

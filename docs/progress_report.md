@@ -1406,3 +1406,97 @@ UIは`DungeonHudDisplay`のIMGUI(OnGUI)によるデバッグ表示のみで、uG
 
 - 「候補プールから抽選して固定」という本来の必殺技習得の仕組みは未実装のまま(GDD「今後詰める論点」)。
 - 種族ごとに異なる必殺技を持たせる調整(現状は全種族が同じ「火炎ブレス」を共有)は未着手。
+
+---
+
+## 追記: ダンジョンの木構造での解放システム(ツリー画面・ダンジョン選択画面)を実装
+
+### 経緯
+
+GDD「ダンジョン解放・進行システム」に既に確定仕様として記載されていた「親ダンジョンをクリアすると
+紐づく子ダンジョンが解放されるツリー構造」「複数の親を持つ合流ノード」「ツリーは専用画面に表示し
+右へ伸びる」を実装してほしいとユーザーから依頼された。あわせて、ツリーのノードをタップして
+ダンジョン情報を確認し、そこから既存のパーティー編成画面(PartyFormationUI)へつなぐ導線も
+要求された。
+
+### データ設計
+
+- **`DungeonData.ParentDungeons`**(新規、`DungeonData[]`): このダンジョンを解放するために
+  必要な親ダンジョン。複数指定すると合流ノード(全ての親をクリアして初めて解放)になる。
+  空配列/未設定の場合は初期解放扱い。
+- **`DungeonRunController.CurrentDungeon`**(新規、getter): 直近に`StartDungeon`へ渡された
+  ダンジョン定義を公開する。既存の`dungeonData`private fieldをそのまま公開しただけで、
+  クリア/失敗後も次の`StartDungeon`まで保持され続ける(=`OnDungeonCleared`購読側が
+  「どのダンジョンがクリアされたか」を参照できる)。
+- **`DungeonProgressManager`**(新規、`DungeonRunController`と同じ`DungeonManagers`に配置):
+  `OnDungeonCleared`を購読し、`CurrentDungeon`を`HashSet<DungeonData>`に記録するだけの
+  ロジック層。`IsCleared`/`IsUnlocked`(親が無いか全親クリア済みなら解放)/`GetState`
+  (`DungeonNodeState`: Locked/UnlockedNotCleared/Cleared)/`GetDepth`(起点=0、親の深さ+1で
+  ツリーの列位置を計算、循環参照は探索中集合でガード)を提供する。
+  「全ダンジョンのマスターリスト」は指示の通り新設せず、既存の`PartyFormationUI.availableDungeons`
+  を`AvailableDungeons`(新規public getter)経由でそのまま参照する。
+- ダンジョンは周回可能(GDD確定仕様)なため、`Cleared`後もそのダンジョン自体は選択可能なままにしている
+  (「未解放」から「解放済み」に上書きされるだけで、クリア済みだからといって選べなくなることはない)。
+
+### 実装内容(画面遷移)
+
+- **`GameScreenController`を`GameScreen`列挙型ベースの状態機械に拡張**
+  (`Village` / `DungeonTree` / `DungeonDetail` / `PartyFormation` / `DungeonBattle`)。
+  従来の`IsDungeonScreenActive`(bool)は`CurrentScreen == DungeonBattle`の後方互換プロパティとして
+  残した。新規Unityシーンには分離せず、既存の「同一シーン内でGameObject/Behaviourの表示切り替えを行う」
+  方式を踏襲している。
+  - 画面遷移: 村 →(「ダンジョンへ」)→ ツリー →(ノードタップ)→ 詳細 →(「挑戦する」)→
+    パーティー編成 →(「出発」、StartDungeon成立)→ ダンジョン戦闘 →(クリア/失敗後「村に戻る」)→ 村
+- **`DungeonTreeUI`**(新規、IMGUI): `DungeonProgressManager.AllDungeons`を`GetDepth`で列ごとに
+  グルーピングして左から右へ配置し、`GetState`に応じて背景色を変える(未解放=グレー・押下不可、
+  解放済み未クリア=白、クリア済み=緑)。ノードをタップすると
+  `GameScreenController.ShowDungeonDetail(dungeon)`を呼ぶ。
+- **`DungeonDetailUI`**(新規、IMGUI): `GameScreenController.SelectedDungeonForDetail`を表示するだけの
+  画面。ダンジョン名・解放状態・必要パーティー体数・敵レベル・ウェーブごとの出現敵種族名を表示し、
+  「挑戦する」ボタンで`PartyFormationUI.SelectDungeon`→`GameScreenController.ShowPartyFormation()`を
+  呼ぶ(未解放時はボタンを`GUI.enabled=false`で押せなくする)。
+- **`VillageDungeonEntranceUI`**(新規、IMGUI、`VillageManagers`に配置): 村画面に「ダンジョンへ」
+  ボタンを1つ追加し、`GameScreenController.ShowDungeonTree()`を呼ぶだけの最小限の入り口。
+- **`PartyFormationUI`**: `AvailableDungeons`(公開getter)、`progressManager`/`screenController`
+  フィールドを追加。ダンジョン選択リストは未解放のものを除外して表示し、クリア済みには
+  「[クリア済]」ラベルを付ける。「< ダンジョン詳細に戻る」ボタンも追加した。
+
+### テストデータ
+
+- `TestDungeonChildA.asset`(親=TestDungeon、スライム1体)、`TestDungeonChildB.asset`
+  (親=TestDungeon、ファイヤースライム1体)、`TestDungeonConfluence.asset`
+  (親=ChildA・ChildB、マグマスライム1体)を新規作成し、`PartyFormationUI.availableDungeons`
+  (マスターリスト)に登録した。ツリー構造: `TestDungeon → {ChildA, ChildB} → Confluence`
+  (Confluenceが合流ノード)。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **初期解放**: `TestDungeon`(親なし)が`UnlockedNotCleared`、`ChildA`/`ChildB`/`Confluence`が
+  いずれも`Locked`であることを確認。`GetDepth`もTestDungeon=0, ChildA=1, ChildB=1, Confluence=2と
+  期待通り。
+- **単一の親クリアで子が解放**: `TestDungeon`を`StartDungeon`→Update連打でクリアさせた後、
+  `ChildA`/`ChildB`が`UnlockedNotCleared`に変わり、`Confluence`はまだ`Locked`のままであることを確認。
+- **合流ノードは全ての親をクリアするまで解放されない**: `ChildA`のみクリアした時点では`Confluence`が
+  依然`Locked`、続けて`ChildB`もクリアした時点で`Confluence`が`UnlockedNotCleared`に変わることを確認。
+  `TestDungeon`自身は`Cleared`のままだが周回可能(選択リストからは除外されない)。
+- **画面遷移の導線**: `GameScreenController.ShowDungeonTree()`→`ShowDungeonDetail(dungeon)`→
+  (`PartyFormationUI.SelectDungeon`+`ShowPartyFormation()`)→`ShowDungeonDetail`(戻る)→
+  `ReturnToVillage()`の一連の呼び出しで、`CurrentScreen`と各画面コンポーネントの`enabled`が
+  正しく切り替わることを確認(`DungeonTreeUI`/`DungeonDetailUI`/`PartyFormationUI`の`Behaviour.enabled`
+  がGameScreenControllerの意図通りtrue/falseになる)。`SelectedDungeonForDetail`
+  ・`PartyFormationUI.SelectedDungeon`も正しく伝播することを確認。
+  ※IMGUIのためRunCommandからマウス操作はシミュレートできず、ボタンが呼ぶのと同じ公開APIを
+  直接呼び出す形で検証した(テスト方針の指示通り)。
+- レベル30パーティーでの`TestDungeon`通しクリアも本変更に影響されないことを確認(897回の
+  Updateポンプで`State=Cleared`、回帰確認)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- ツリー画面・詳細画面ともIMGUIによる簡易表示(色分けされた四角いボタン)で、線で親子関係を結ぶ
+  ような装飾的な表現は行っていない。専用アート・uGUI化は今後の課題。
+- `DungeonRunController`自体は`DungeonProgressManager`を一切知らず、ロック中のダンジョンでも
+  `StartDungeon`を直接呼べば進行してしまう(疎結合を保つため意図的な設計で、アクセス制御は
+  UI層=`PartyFormationUI`の選択リスト除外と`DungeonDetailUI`の「挑戦する」ボタン非活性のみで行っている)。
+- 実際のダンジョンツリー(ノード数・素材の割り振り)はGDD「今後詰める論点」に記載の通り未確定で、
+  今回作成したテスト用ダミーダンジョン(ChildA/ChildB/Confluence)はあくまで検証用。

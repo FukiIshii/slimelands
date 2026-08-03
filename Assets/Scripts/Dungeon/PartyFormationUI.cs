@@ -17,14 +17,22 @@ namespace Slimelands.Dungeon
     {
         [SerializeField] private VillageSlimeRoster roster;
         [SerializeField] private DungeonRunController dungeonController;
-        [Tooltip("選択候補として表示するダンジョン一覧。")]
+        [Tooltip("全ダンジョンのマスターリスト。DungeonProgressManagerもこのリストを参照して" +
+            "ツリーの解放判定を行うため、ここに登録したものが「存在する全ダンジョン」になる。")]
         [SerializeField] private List<DungeonData> availableDungeons = new();
+        [Tooltip("ダンジョンの解放/クリア状態を判定する。未設定の場合は全ダンジョンを解放済み扱いにする" +
+            "(ツリー画面を経由しない旧来のフローでも動作を維持するため)。")]
+        [SerializeField] private DungeonProgressManager progressManager;
+        [Tooltip("村に戻る/前の画面(ダンジョン詳細)に戻るための画面切り替え役。未設定でも動作する。")]
+        [SerializeField] private GameScreenController screenController;
 
         private readonly HashSet<SlimeIndividual> selectedParty = new();
         private Vector2 scroll;
 
         public DungeonData SelectedDungeon { get; private set; }
         public IReadOnlyCollection<SlimeIndividual> SelectedParty => selectedParty;
+        /// <summary>全ダンジョンのマスターリスト。DungeonProgressManagerが解放判定・ツリー表示に使う。</summary>
+        public IReadOnlyList<DungeonData> AvailableDungeons => availableDungeons;
 
         public void SelectDungeon(DungeonData dungeon)
         {
@@ -89,17 +97,24 @@ namespace Slimelands.Dungeon
             GUI.Box(new Rect(440f, 10f, 340f, 560f), string.Empty);
             GUILayout.BeginArea(new Rect(450f, 16f, 320f, 548f));
 
+            if (screenController != null && GUILayout.Button("< ダンジョン詳細に戻る", GUILayout.Width(160f)))
+            {
+                screenController.ShowDungeonDetail(SelectedDungeon);
+            }
+
             GUILayout.Label("--- ダンジョン選択 ---");
             foreach (DungeonData dungeon in availableDungeons)
             {
-                if (dungeon == null)
+                if (dungeon == null || (progressManager != null && !progressManager.IsUnlocked(dungeon)))
                 {
+                    // 未解放のダンジョンはここでは選べない(ツリー画面上でもロック表示になっている)。
                     continue;
                 }
 
                 bool isSelected = dungeon == SelectedDungeon;
+                bool cleared = progressManager != null && progressManager.IsCleared(dungeon);
                 string label = (isSelected ? "[選択中] " : string.Empty) +
-                    $"{dungeon.DungeonName}(必要{dungeon.RequiredPartySize}体)";
+                    $"{dungeon.DungeonName}(必要{dungeon.RequiredPartySize}体)" + (cleared ? " [クリア済]" : string.Empty);
                 if (GUILayout.Button(label))
                 {
                     SelectDungeon(dungeon);

@@ -43,10 +43,15 @@ namespace Slimelands.Dungeon
         [Tooltip("ダンジョン専用画面の背景スクロールに使うスプライト。未設定ならプレースホルダー(単色)を使う。")]
         [SerializeField] private Sprite backgroundSprite;
 
+        [Tooltip("このダンジョンを解放するために必要な親ダンジョン。複数指定すると、全ての親を" +
+            "クリアして初めて解放される合流ノードになる。空(未設定)の場合は最初から解放済みとして扱う。")]
+        [SerializeField] private DungeonData[] parentDungeons;
+
         public string DungeonName => dungeonName;
         public int RequiredPartySize => requiredPartySize;
         public int EnemyLevel => enemyLevel;
         public IReadOnlyList<EncounterWaveData> Waves => waves;
         public Sprite BackgroundSprite => backgroundSprite;
+        public IReadOnlyList<DungeonData> ParentDungeons => parentDungeons;
     }
 }

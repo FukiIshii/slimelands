@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9feddea8c1499940b688de7f0dc58f0, type: 3}
+  m_Name: TestDungeonConfluence
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonData
+  dungeonName: "\u30C6\u30B9\u30C8\u30C0\u30F3\u30B8\u30E7\u30F3\u5408\u6D41\u70B9"
+  requiredPartySize: 2
+  enemyLevel: 5
+  waves:
+  - enemySpecies:
+    - {fileID: 11400000, guid: 2e1b66aef25537e4a8df355bb5669ca5, type: 2}
+    spawnCondition: 0
+    waitSeconds: 2
+  backgroundSprite: {fileID: 0}
+  parentDungeons:
+  - {fileID: 11400000, guid: 912c86d86deab9a4280db018c13c6cc8, type: 2}
+  - {fileID: 11400000, guid: 9c2b1faf6c764f74391964163f59abc7, type: 2}

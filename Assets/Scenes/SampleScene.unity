@@ -1019,6 +1019,9 @@ GameObject:
   - component: {fileID: 360021980}
   - component: {fileID: 360021981}
   - component: {fileID: 360021982}
+  - component: {fileID: 360021985}
+  - component: {fileID: 360021984}
+  - component: {fileID: 360021983}
   m_Layer: 0
   m_Name: DungeonManagers
   m_TagString: Untagged
@@ -1096,6 +1099,11 @@ MonoBehaviour:
   dungeonController: {fileID: 360021976}
   availableDungeons:
   - {fileID: 11400000, guid: 25517110a43c8c048b3a9de47272fc00, type: 2}
+  - {fileID: 11400000, guid: 912c86d86deab9a4280db018c13c6cc8, type: 2}
+  - {fileID: 11400000, guid: 9c2b1faf6c764f74391964163f59abc7, type: 2}
+  - {fileID: 11400000, guid: fddb67425b133b544ae134c9195b7515, type: 2}
+  progressManager: {fileID: 360021985}
+  screenController: {fileID: 360021980}
 --- !u!114 &360021979
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1126,6 +1134,9 @@ MonoBehaviour:
   cardBoardInteraction: {fileID: 597705880}
   villageHudDisplay: {fileID: 761239021}
   gachaUI: {fileID: 761239027}
+  dungeonEntranceUI: {fileID: 761239028}
+  dungeonTreeUI: {fileID: 360021984}
+  dungeonDetailUI: {fileID: 360021983}
   partyFormationUI: {fileID: 360021978}
   dungeonHudDisplay: {fileID: 360021975}
   dungeonBattleVisualsRoot: {fileID: 44227616}
@@ -1167,6 +1178,53 @@ MonoBehaviour:
   portraitSize: 72
   ultimateButtonSize: 64
   innerMargin: 8
+--- !u!114 &360021983
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 360021974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3efb843e9f8f98e45b5336e32fa46df6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonDetailUI
+  screenController: {fileID: 360021980}
+  partyFormationUI: {fileID: 360021978}
+  progressManager: {fileID: 360021985}
+--- !u!114 &360021984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 360021974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62c1caedd985ec04ca3c26b34eeb21c0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonTreeUI
+  progressManager: {fileID: 360021985}
+  screenController: {fileID: 360021980}
+  origin: {x: 30, y: 60}
+  columnWidth: 170
+  rowHeight: 74
+  nodeSize: {x: 150, y: 56}
+--- !u!114 &360021985
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 360021974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bd3d1db47fcaf4e927fd075b1b44ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonProgressManager
+  dungeonController: {fileID: 360021976}
+  partyFormationUI: {fileID: 360021978}
 --- !u!1 &423878184
 GameObject:
   m_ObjectHideFlags: 0
@@ -2538,6 +2596,7 @@ GameObject:
   - component: {fileID: 761239021}
   - component: {fileID: 761239026}
   - component: {fileID: 761239027}
+  - component: {fileID: 761239028}
   m_Layer: 0
   m_Name: VillageManagers
   m_TagString: Untagged
@@ -2647,6 +2706,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Village.GachaUI
   gachaManager: {fileID: 761239026}
+--- !u!114 &761239028
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 761239020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2803af2a22d5bd84b8a1127a1dcf8520, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.VillageDungeonEntranceUI
+  screenController: {fileID: 360021980}
 --- !u!1 &822602462
 GameObject:
   m_ObjectHideFlags: 0
