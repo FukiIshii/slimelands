@@ -37,6 +37,8 @@ namespace Slimelands.Dungeon
         [SerializeField] private Behaviour gachaUI;
         [Tooltip("村画面からダンジョンツリー画面を開くための入り口ボタン(VillageDungeonEntranceUI)。")]
         [SerializeField] private Behaviour dungeonEntranceUI;
+        [Tooltip("盤面でカードを選択した際にその説明を表示するUI(CardDescriptionUI)。")]
+        [SerializeField] private Behaviour cardDescriptionUI;
 
         [Header("ダンジョンツリー/詳細/パーティー編成画面")]
         [SerializeField] private Behaviour dungeonTreeUI;
@@ -135,6 +137,7 @@ namespace Slimelands.Dungeon
             SetEnabledSafe(villageHudDisplay, showVillage);
             SetEnabledSafe(gachaUI, showVillage);
             SetEnabledSafe(dungeonEntranceUI, showVillage);
+            SetEnabledSafe(cardDescriptionUI, showVillage);
 
             SetEnabledSafe(dungeonTreeUI, showTree);
             SetEnabledSafe(dungeonDetailUI, showDetail);

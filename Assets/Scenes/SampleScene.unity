@@ -1137,6 +1137,7 @@ MonoBehaviour:
   villageHudDisplay: {fileID: 761239021}
   gachaUI: {fileID: 761239027}
   dungeonEntranceUI: {fileID: 761239028}
+  cardDescriptionUI: {fileID: 761239029}
   dungeonTreeUI: {fileID: 360021984}
   dungeonDetailUI: {fileID: 360021983}
   partyFormationUI: {fileID: 360021978}
@@ -2614,6 +2615,7 @@ GameObject:
   - component: {fileID: 761239026}
   - component: {fileID: 761239027}
   - component: {fileID: 761239028}
+  - component: {fileID: 761239029}
   m_Layer: 0
   m_Name: VillageManagers
   m_TagString: Untagged
@@ -2736,6 +2738,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.VillageDungeonEntranceUI
   screenController: {fileID: 360021980}
+--- !u!114 &761239029
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 761239020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ad248210080f284bb6d9c0539c2ba58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Village.CardDescriptionUI
+  cardBoard: {fileID: 597705880}
 --- !u!1 &822602462
 GameObject:
   m_ObjectHideFlags: 0

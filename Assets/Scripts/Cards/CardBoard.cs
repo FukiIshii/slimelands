@@ -65,6 +65,12 @@ namespace Slimelands.Cards
         private int nextSortingOrder;
         private Vector2 cardFootprintSize = Vector2.one;
 
+        /// <summary>
+        /// カードをクリック(ドラッグ開始のプレス)したときに、そのカードのデータを通知する。
+        /// 何もない場所をクリックした場合はnullを通知する(説明表示UI側の選択解除に使う)。
+        /// </summary>
+        public event System.Action<CardData> OnCardSelected;
+
         private void Awake()
         {
             if (targetCamera == null)
@@ -175,6 +181,8 @@ namespace Slimelands.Cards
         private void TryBeginDrag(Vector3 pointerWorldPosition)
         {
             CardController clickedCard = FindTopCardAt(pointerWorldPosition, null);
+            OnCardSelected?.Invoke(clickedCard != null ? clickedCard.Data : null);
+
             if (clickedCard == null)
             {
                 return;

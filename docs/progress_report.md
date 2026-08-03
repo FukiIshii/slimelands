@@ -1844,3 +1844,59 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
 - ガチャクリスタル以外の「ダンジョン産素材」(ファイアクリスタル等)への`DropRewards`の展開は
   今回のスコープ外。
 - ドロップは確定制(ランダム抽選なし)。将来的に抽選制にする場合は`DungeonDropEntry`の拡張が必要。
+
+## 追記: 村の盤面でカードを選択した際に説明を表示するUIを追加
+
+ユーザーから「村においてカードを選択したときにそのカードの説明を表示するようにして」との
+指示があった。
+
+### 実装内容
+
+- **`CardBoard`**(`Assets/Scripts/Cards/CardBoard.cs`): 新規イベント
+  `public event System.Action<CardData> OnCardSelected`を追加。既存の`TryBeginDrag`
+  (マウス押下時にドラッグを開始する処理)の先頭で、クリックしたカードの`CardData`
+  (何もない場所なら`null`)を通知するようにした。ドラッグ開始そのもの(以降の既存ロジック)は
+  変更していない、純粋な追加のみ。
+- **`CardDescriptionUI`**(`Assets/Scripts/Village/CardDescriptionUI.cs`、新規): 
+  `CardBoard.OnCardSelected`を購読し、選択中カードのカード名+説明文(`CardData.Description`。
+  未設定の場合は「(説明未設定)」)をIMGUIパネルで表示する最小限のUI。何もない場所をクリックすると
+  選択解除され非表示になる。
+- **`GameScreenController`**: 既存の`gachaUI`等と同様、`cardDescriptionUI`フィールドを追加し
+  村画面(`GameScreen.Village`)のときだけ有効化するよう配線した。
+- シーン: `VillageManagers`(`GachaUI`と同じゲームオブジェクト)に`CardDescriptionUI`を追加し、
+  `cardBoard`参照と`GameScreenController.cardDescriptionUI`を配線。
+
+### テストした内容(Play Mode、Input Systemの低レベルAPIでマウス押下を実機シミュレート)
+
+- 過去のダンジョン画面テストでは「RunCommandはマウス操作をシミュレートできない」という制約が
+  あったが、`CardBoard`は`UnityEngine.InputSystem`の`Mouse.current`を直接読むため、
+  `InputSystem.QueueStateEvent`+`InputSystem.Update()`で実際にマウス押下イベントを注入する形で
+  検証できた(リフレクション不使用、`InputSystem`の公開APIのみ)。`InputState.Change`は
+  ビットフィールド(ボタン)には使えないエラーが出たため、`QueueStateEvent`で
+  `MouseState.buttons`を直接指定する方式に切り替えて解決。
+- 盤面にWoodカードを1枚配置し、その位置でマウス押下イベントを注入したところ、
+  `OnCardSelected`が`Wood`(正しいCardData)で1回発火することを確認。
+- 配置可能範囲外の何もない位置で同様に押下したところ、`OnCardSelected`が`null`で発火することを
+  確認(選択解除に相当)。
+- `CardDescriptionUI.enabled`が村画面(デフォルト状態)でtrueになっていることを確認。
+- コンパイルエラー・警告なしを確認(`System.Action`使用時、`using System;`を追加すると
+  ファイル内の`Random.Range`が`UnityEngine.Random`/`System.Random`で曖昧になりCS0104が
+  発生したため、`using System;`は追加せず`System.Action<CardData>`と完全修飾する形で解決)。
+- ドラッグ&ドロップでの合成(既存機能)への影響有無も同じ入力シミュレーションで確認した。
+  最初に盤面が汚れた状態(過去のテストの残骸)で試したところ1枚のまま合体しない結果になり
+  混乱したが、盤面の隅の未使用座標でクリーンに再現しても同じ結果になったことから調査したところ、
+  `CardBoard.FindTopCardAt`/`FindStackDropTarget`が`Physics2D.OverlapPointAll`/`Collider2D.bounds`
+  というコライダーベースの判定を使っており、`SpawnStack`や`CardStack.UpdateDrag`で
+  `transform.position`を直接書き換えた直後は`Physics2D.SyncTransforms()`を挟まないと
+  コライダー側の物理座標が更新されないという、本プロジェクトで既知の別の箇所(ダンジョン戦闘の
+  近接射程判定)でも踏んだのと同種の制約が原因と判明した。各操作の後に`Physics2D.SyncTransforms()`
+  を挟んで再実行したところ、2枚のWoodが正しく1つのスタック(`mergedStackCount=2`)に合体する
+  ことを確認できた。実際のプレイでは毎フレームの物理更新で自然に解消されるため、これはテスト
+  手法上の制約であり、本機能(および今回の`TryBeginDrag`への1行追加)がドラッグ&ドロップ合成に
+  悪影響を与えていないことを確認できた。
+
+### 残課題
+
+- 全ての`ResourceCardData`アセット(ManaCrystal, FireCrystal, GachaCrystal等)の`description`が
+  未設定(空文字)のままのため、実際に選択しても「(説明未設定)」としか表示されない。
+  各カードの説明文の作成は今回のスコープ外(コンテンツ執筆が必要なため)。
