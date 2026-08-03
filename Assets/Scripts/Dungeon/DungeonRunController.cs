@@ -22,7 +22,7 @@ namespace Slimelands.Dungeon
         [Tooltip("プレイヤー・敵とも自由に動き回る帯の幅(ワールド単位)。")]
         [SerializeField] private float movementBandWidth = 11f;
         [Tooltip("帯の高さ(ワールド単位)。このコンポーネントのtransform.position.y(背景画像の水平中央線)から下方向へこの高さ分だけ帯を確保する。")]
-        [SerializeField] private float movementBandHeight = 3f;
+        [SerializeField] private float movementBandHeight = 1.3f;
 
         [Header("敵不在時のプレイヤー待機(仮値、要調整)")]
         [Tooltip("攻撃対象となる敵が1体もいない間(遭遇待ち等)、プレイヤー側スライムが徘徊目標を選ぶ" +

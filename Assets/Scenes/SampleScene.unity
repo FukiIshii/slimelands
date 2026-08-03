@@ -1059,8 +1059,9 @@ MonoBehaviour:
   defaultAffinityData: {fileID: 11400000, guid: 3412c3e4d829497438fbda30ab519d8d, type: 2}
   defaultBalanceData: {fileID: 11400000, guid: d8cbce8d08253034a9fa8e7c355c8ae2, type: 2}
   movementBandWidth: 11
-  movementBandHeight: 3
+  movementBandHeight: 1.3
   playerIdleHoldWidth: 3
+  meleeContactDistance: 1.2
   enemyEntranceSide: 0
   enemyEntranceMargin: 5
   playerHurtboxLayerName: BattleUnitPlayer
