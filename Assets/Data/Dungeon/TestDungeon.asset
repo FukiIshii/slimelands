@@ -18,6 +18,8 @@ MonoBehaviour:
   waves:
   - enemySpecies:
     - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
+    - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
+    - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
     spawnCondition: 0
     waitSeconds: 3
   - enemySpecies:
