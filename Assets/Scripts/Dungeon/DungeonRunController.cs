@@ -30,12 +30,12 @@ namespace Slimelands.Dungeon
                  "場合は行動帯全体を使う(制限なし)。敵側の徘徊やプレイヤーの交戦中の移動には影響しない。")]
         [SerializeField] private float playerIdleHoldWidth = 3f;
 
-        [Header("交戦中の近接ユニットの待機(仮値、要調整)")]
-        [Tooltip("攻撃対象がいる間、近接タイプが射程内に入った後の徘徊目標を選ぶ範囲を、対象の現在位置" +
-                 "付近に絞る幅(ワールド単位)。射程外の間は従来通りChaseTargetでまっすぐ接近する。" +
-                 "これにより、一度接近した近接ユニットが対象から離れた場所まで徘徊してしまうのを防ぎ、" +
-                 "常に対象の近くに留まって攻撃を続けられるようにする。遠距離タイプ(常に後退する)には影響しない。")]
-        [SerializeField] private float meleeEngageHoldWidth = 3f;
+        [Header("交戦中の近接ユニットの接近(仮値、要調整)")]
+        [Tooltip("攻撃対象がいる間、近接タイプがこの距離(ワールド単位)まで近づいたら接近をやめて" +
+                 "その場に留まる。攻撃射程(MeleeAttackRange)より小さい値にすることで、単に攻撃が" +
+                 "命中する距離まで近づいて止まるのではなく、攻撃の前後を問わず対象のすぐそばまで" +
+                 "近づき続けるようにする。遠距離タイプ(常に後退する)には影響しない。")]
+        [SerializeField] private float meleeContactDistance = 1.2f;
 
         [Header("敵の登場演出")]
         [Tooltip("敵が行動帯の外側のどちら側から歩いて登場するか。")]
@@ -897,7 +897,10 @@ namespace Slimelands.Dungeon
         /// <summary>
         /// 攻撃対象(敵)がいる間、近接タイプは対象へ接近(追尾)し、遠距離タイプは対象から離れる
         /// (後退)。いずれもCombatMovementSpeed(通常の徘徊速度より速く動けるよう個別に調整可能)を
-        /// 使う。近接タイプが既に射程内に入った場合や、対象がいない場合は通常の徘徊(TickWander)を行う。
+        /// 使う。近接タイプは、攻撃射程(MeleeAttackRange)に入った後も攻撃前後を問わず
+        /// meleeContactDistanceまで近づき続け、そこに達して初めて接近をやめる(対象がいる間は
+        /// 常に近づこうとする挙動にするため、通常の徘徊(TickWander)には切り替えない)。対象がいない
+        /// 場合のみ通常の徘徊を行う。
         /// また、行動帯にまだ入っていないユニット(敵の登場演出中で帯の外を起点位置にしている最中)は
         /// この交戦時の移動には切り替えない。特に遠距離タイプのRetreatFromTargetは座標を帯の内側へ
         /// クランプするため、登場直後にいきなり適用すると帯の端まで一瞬で座標が飛んでしまい、
@@ -912,36 +915,17 @@ namespace Slimelands.Dungeon
             {
                 if (unit.AttackType == SlimeAttackType.Melee)
                 {
-                    if (IsMeleeOutOfRange(unit, attackTarget))
-                    {
-                        ChaseTarget(unit, attackTarget, dt);
-                        return;
-                    }
-                }
-                else
-                {
-                    RetreatFromTarget(unit, attackTarget, bounds, dt);
+                    ApproachTargetWithStandoff(unit, attackTarget, meleeContactDistance, dt);
                     return;
                 }
+
+                RetreatFromTarget(unit, attackTarget, bounds, dt);
+                return;
             }
 
-            Rect wanderBounds;
-            if (attackTarget == null && unit.IsPlayerSide)
-            {
-                wanderBounds = GetPlayerIdleHoldBounds(bounds);
-            }
-            else if (attackTarget != null && unit.AttackType == SlimeAttackType.Melee)
-            {
-                // 射程内に入った近接ユニット。ここに来るのはIsMeleeOutOfRangeがfalseの場合のみ
-                // (射程外ならこの手前のChaseTargetでreturn済み)なので、対象からあまり離れない
-                // よう徘徊目標を対象の近くに絞る。
-                wanderBounds = GetEngageHoldBounds(bounds, attackTarget.Position);
-            }
-            else
-            {
-                wanderBounds = bounds;
-            }
-
+            Rect wanderBounds = attackTarget == null && unit.IsPlayerSide
+                ? GetPlayerIdleHoldBounds(bounds)
+                : bounds;
             TickWander(unit, wanderBounds, dt);
         }
 
@@ -952,23 +936,27 @@ namespace Slimelands.Dungeon
             return new Rect(bounds.center.x - width * 0.5f, bounds.yMin, width, bounds.height);
         }
 
-        /// <summary>対象の現在位置付近に幅を絞った矩形(meleeEngageHoldWidth)。行動帯の外へは出ないようクランプする。</summary>
-        private Rect GetEngageHoldBounds(Rect bounds, Vector2 targetPosition)
+        /// <summary>
+        /// 近接タイプが対象へ向けて、standoff(接触とみなす距離)まで近づき続ける。既にstandoff以内
+        /// なら移動しない(スプライト同士が完全に重ならないよう、対象の座標そのものへは詰め切らない)。
+        /// 射程外からの接近(ChaseTarget)と射程内での微調整の両方をこの1メソッドに統一しており、
+        /// 攻撃の発生タイミングに関わらず対象がいる間は常に近づこうとする。
+        /// </summary>
+        private void ApproachTargetWithStandoff(BattleUnit unit, BattleUnit target, float standoff, float dt)
         {
-            float width = Mathf.Min(meleeEngageHoldWidth, bounds.width);
-            float x = Mathf.Clamp(targetPosition.x - width * 0.5f, bounds.xMin, bounds.xMax - width);
-            return new Rect(x, bounds.yMin, width, bounds.height);
-        }
+            Vector2 toTarget = target.Position - unit.Position;
+            float distance = toTarget.magnitude;
+            if (distance <= standoff)
+            {
+                return;
+            }
 
-        /// <summary>近接タイプが射程外の対象へまっすぐ接近する(徘徊目標を対象の位置で上書きする)。</summary>
-        private void ChaseTarget(BattleUnit unit, BattleUnit target, float dt)
-        {
-            unit.WanderTarget = target.Position;
+            Vector2 direction = toTarget / distance;
+            unit.WanderTarget = target.Position - direction * standoff;
             unit.WanderPauseTimer = 0f;
 
-            Vector2 toTarget = unit.WanderTarget - unit.Position;
-            Vector2 step = toTarget.normalized * (balanceData.CombatMovementSpeed * dt);
-            unit.Position = step.sqrMagnitude >= toTarget.sqrMagnitude ? unit.WanderTarget : unit.Position + step;
+            float travel = Mathf.Min(balanceData.CombatMovementSpeed * dt, distance - standoff);
+            unit.Position += direction * travel;
         }
 
         /// <summary>遠距離タイプが対象から離れる方向へ後退する(行動帯の外へは出ないようクランプする)。</summary>
