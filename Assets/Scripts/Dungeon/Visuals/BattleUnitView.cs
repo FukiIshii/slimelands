@@ -142,8 +142,11 @@ namespace Slimelands.Dungeon
             transform.position = homePosition;
             visual.localScale = Vector3.one;
 
+            // 対象のY座標へは寄らず、常にhomePositionと同じ高さのまま真横(X方向)にのみ突進する
+            // (縦の行動帯位置がずれていても斜めに突っ込まず、まっすぐ横方向のタックルに見せるため)。
             float reach = isUltimate ? 0.7f : 0.5f;
-            meleeDashTarget = Vector3.Lerp(homePosition, targetWorldPosition, reach);
+            Vector3 horizontalTarget = new Vector3(targetWorldPosition.x, homePosition.y, homePosition.z);
+            meleeDashTarget = Vector3.Lerp(homePosition, horizontalTarget, reach);
             meleeDashOutDuration = Mathf.Max(0.01f, approachDuration);
             meleePhase = MeleeAnimPhase.DashOut;
             meleeAnimTimer = 0f;

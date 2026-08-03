@@ -1637,3 +1637,32 @@ GDD「ダンジョン解放・進行システム」に既に確定仕様とし�
 ### 残課題
 
 - `meleeEngageHoldWidth`(=3)は仮値。実際のテンポ感に応じて今後調整が必要。
+
+## 追記: 近接攻撃の突進モーションを真横のみのタックルに変更
+
+### 経緯
+
+ユーザーから「近接攻撃は、真横にタックルするようにしてほしい」との指摘があった。従来の
+`BattleUnitView.PlayAttackMotion`は突進先を`Vector3.Lerp(homePosition, targetWorldPosition, reach)`
+で計算しており、対象の実座標(X・Y両方)へ向かって直進するため、行動帯内で縦方向にずれた位置に
+対象がいる場合、斜めに突っ込むような見た目になっていた。
+
+### 実装内容
+
+- **`BattleUnitView.PlayAttackMotion`**: 突進先の計算を、対象のX座標のみを使い、Y座標は常に
+  自分の`homePosition.y`のまま(`new Vector3(targetWorldPosition.x, homePosition.y, homePosition.z)`)
+  にするよう変更。ダッシュアウト/ダッシュバックのモーション自体(タイミング・スケール変化)は変更なし。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- `TestDungeon`をレベル1パーティーで開始し、突進モーション再生中(`IsPlayingAttackMotion`が
+  `true`の間)の全フレームで、Viewの実座標Yと`CurrentPosition`(基準位置)のYの差分を測定。
+  177サンプル中、Y方向のズレは常に0(`maxYDeviationDuringDash=0.0000`)、X方向のみ動いている
+  (`maxXDeviationDuringDash=1.74`)ことを確認し、真横のみのタックルになっていることを検証した。
+- `TestDungeon`の通しクリアが本変更の影響を受けないことを再確認(1525回のUpdateポンプで
+  `State=Cleared`、`PlayerUnits=2`維持)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- 特になし。突進の到達距離(`reach`=通常0.5/必殺技0.7)や見た目のスケール変化は今回変更していない。
