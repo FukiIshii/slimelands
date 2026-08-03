@@ -381,6 +381,22 @@ namespace Slimelands.Cards
                     foodStockManager.AddFood(recipe.FoodStockAmount);
                 }
             }
+            else if (recipe.ExpGrantAmount > 0)
+            {
+                // 結果カードを生成する代わりに、消費されず残ったスライムの個体へ経験値を加算する
+                // レシピ(例: マナクリスタル+スライム→経験値付与)。isConsumed=falseの素材枠に
+                // 割り当てられたスライムカードが対象(=盤面に残っている、上のconsumed処理で
+                // 破棄されていないカード)。
+                foreach (CardController ingredient in ingredients)
+                {
+                    if (consumed.Contains(ingredient) || ingredient.BoundIndividual == null)
+                    {
+                        continue;
+                    }
+
+                    ingredient.BoundIndividual.AddExp(recipe.ExpGrantAmount);
+                }
+            }
             else
             {
                 for (int i = 0; i < recipe.ResultCount; i++)

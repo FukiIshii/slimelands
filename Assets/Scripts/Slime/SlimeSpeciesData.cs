@@ -25,6 +25,9 @@ namespace Slimelands.Slime
         [Header("レベルアップ成長値(1レベルごとの加算値)")]
         [SerializeField] private SlimeStats statsGrowthPerLevel;
 
+        [Tooltip("1レベル分の成長に必要な経験値(仮値、要調整)。現状は全レベル共通の固定値。")]
+        [SerializeField] private int expPerLevel = 100;
+
         [Header("スキル")]
         [SerializeField] private List<SlimeSkillData> learnableSkills = new();
         [Tooltip("同時習得できるスキル数の上限。GDD上「スキルの上限数」は未決定のため種族ごとに調整できるようにしている。")]
@@ -49,6 +52,7 @@ namespace Slimelands.Slime
         public Sprite BattleSprite => battleSprite;
         public SlimeStats BaseStats => baseStats;
         public SlimeStats StatsGrowthPerLevel => statsGrowthPerLevel;
+        public int ExpPerLevel => expPerLevel;
         public IReadOnlyList<SlimeSkillData> LearnableSkills => learnableSkills;
         public int MaxSkillSlots => maxSkillSlots;
         public int MonthlyFoodConsumption => monthlyFoodConsumption;

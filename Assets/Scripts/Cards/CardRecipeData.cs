@@ -20,6 +20,10 @@ namespace Slimelands.Cards
         [Tooltip("0より大きい場合、結果カードを生成する代わりに村の食料ストックへこの量を加算する" +
             "(例: アイテム+納屋→食料ストック加算)。resultはこの用途では未設定にする。")]
         [SerializeField] private int foodStockAmount = 0;
+        [Tooltip("0より大きい場合、結果カードを生成する代わりに、消費されない(isConsumed=false)素材枠に" +
+            "割り当てられたスライムの個体にこの量の経験値を加算する(例: マナクリスタル+スライム→経験値付与)。" +
+            "resultはこの用途では未設定にする。")]
+        [SerializeField] private int expGrantAmount = 0;
 
         public CardRecipeType RecipeType => recipeType;
         public IReadOnlyList<CardIngredient> Ingredients => ingredients;
@@ -27,6 +31,7 @@ namespace Slimelands.Cards
         public int ResultCount => resultCount;
         public float CraftDuration => craftDuration;
         public int FoodStockAmount => foodStockAmount;
+        public int ExpGrantAmount => expGrantAmount;
 
         /// <summary>
         /// 与えられたカード群(順不同)が、このレシピの素材と過不足なく一致するか判定する。

@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 023589ecca635e140a91cc5ca70251dc, type: 3}
-  m_Name: Recipe_Slime_ManaCrystal_CrystalSlime
+  m_Name: Recipe_Slime_Quartz_CrystalSlime
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.CardRecipeData
   recipeType: 1
   ingredients:
@@ -19,10 +19,11 @@ MonoBehaviour:
     category: 0
     isConsumed: 1
   - mode: 0
-    specificCard: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
+    specificCard: {fileID: 11400000, guid: 588e6f447aaacba4bbd570994ccaf445, type: 2}
     category: 0
     isConsumed: 1
   result: {fileID: 11400000, guid: 4f8d62a67b6de4c4a8e828577df0b7e0, type: 2}
   resultCount: 1
   craftDuration: 5
   foodStockAmount: 0
+  expGrantAmount: 0

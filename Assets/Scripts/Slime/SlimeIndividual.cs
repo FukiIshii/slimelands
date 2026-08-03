@@ -96,12 +96,19 @@ namespace Slimelands.Slime
         }
 
         /// <summary>
-        /// 経験値を加算する。レベルアップの必要経験値テーブル/マナ鉱石消費との関係はGDD上未決定のため、
-        /// ここではレベル自動計算は行わない。
+        /// 経験値を加算する。種族ごとのExpPerLevel(仮値、要調整)に達するたびレベルが上がる
+        /// (一度に大量の経験値が入った場合は複数レベル分まとめて上がる)。
         /// </summary>
         public void AddExp(int amount)
         {
             exp += Mathf.Max(0, amount);
+
+            int required = species.ExpPerLevel;
+            while (required > 0 && exp >= required)
+            {
+                exp -= required;
+                level++;
+            }
         }
 
         public void SetLevel(int newLevel)
