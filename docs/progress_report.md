@@ -1370,3 +1370,39 @@ UIは`DungeonHudDisplay`のIMGUI(OnGUI)によるデバッグ表示のみで、uG
 - HUDの見た目はプレースホルダー的な単色パネル+uGUI標準Textで、参考画像のような装飾的なフレーム・
   アイコン枠等の作り込みは行っていない(専用アート素材が用意され次第、差し替えを検討)。
 - 敵側のHP/名前表示や、村パート側のuGUI化は未着手(今回はダンジョンのプレイヤー側パネルのみ)。
+
+---
+
+## 追記: スライムに仮の必殺技を自動習得させる
+
+### 経緯
+
+新設したパーティーHUDの必殺技発動ボタンは、`SlimeIndividual.LearnedSkills`に必殺技(`IsUltimate`)が
+含まれていないと表示されないが、実際のゲームプレイ経路(`CardBoard.CreateLooseCard`)では
+`SlimeIndividual`生成後に一切`LearnSkill`を呼んでいなかったため、村で普通に入手したスライムは
+実質誰も必殺技を持たない状態だった。ユーザーから「スライムに仮で必殺技を設定して」と依頼された。
+
+### 実装内容
+
+- **`CardBoard.CreateLooseCard`**: `SlimeIndividual`生成直後に、種族の`LearnableSkills`から
+  最初に見つかった必殺技(`IsUltimate == true`)を`LearnSkill`で自動習得させる暫定処理を追加。
+  ガチャ・合成・配合・進化のいずれもこのメソッドを通るため、一箇所の変更で全経路に反映される。
+  GDD記載の「候補プールから抽選して固定」という本来の仕組みはまだ未実装であり、これはそれまでの
+  仮の挙動であることをコメント・GDD双方に明記した。
+- **`Slime.asset`/`CrystalSlime.asset`**: これまで必殺技を`learnableSkills`に持っていなかった
+  (通常スキルの「タックル」のみ)ため、`MagmaSlime`/`FireSlime`と同じ「火炎ブレス」を追加した。
+  4種族すべてが同じ必殺技を共有する形になっており、種族ごとの必殺技の中身は今後の調整対象。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- `CardBoard.SpawnStack`でスライム・クリスタルスライム・ファイヤースライム・マグマスライムの
+  カードを生成し、いずれも生成直後に「火炎ブレス」(`isUltimate=true`)を1つ習得済みであることを確認。
+- 習得済み個体を実際に`DungeonRunController.StartDungeon`でダンジョンへ持ち込み、
+  `BattleUnit.HasUltimate=true`になること、`DungeonPartyHud`の必殺技ボタンが表示される
+  (`ultimateButtonActive=true`)ことを確認。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- 「候補プールから抽選して固定」という本来の必殺技習得の仕組みは未実装のまま(GDD「今後詰める論点」)。
+- 種族ごとに異なる必殺技を持たせる調整(現状は全種族が同じ「火炎ブレス」を共有)は未着手。

@@ -28,6 +28,7 @@ MonoBehaviour:
     speed: 1
   learnableSkills:
   - {fileID: 11400000, guid: c0251b54b684f9247b554769319a674b, type: 2}
+  - {fileID: 11400000, guid: 5d16dc61abeca30498282f21d9d4737e, type: 2}
   maxSkillSlots: 3
   monthlyFoodConsumption: 6
   sellResource: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
