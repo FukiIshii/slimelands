@@ -31,6 +31,9 @@ namespace Slimelands.Dungeon
         [SerializeField] private GameObject dungeonBattleVisualsRoot;
         [Tooltip("DungeonBackgroundScrollerが生成する背景タイル一式のコンテナ。")]
         [SerializeField] private GameObject dungeonBackgroundRoot;
+        [Tooltip("DungeonPartyHud(画面上部のHP/名前/必殺技発動ボタン)がついたGameObject。SetActiveで" +
+            "子のCanvasごと表示/非表示を切り替える必要があるため、他のBehaviour系フィールドと異なりGameObjectで持つ。")]
+        [SerializeField] private GameObject dungeonPartyHudRoot;
 
         public bool IsDungeonScreenActive { get; private set; }
 
@@ -83,6 +86,7 @@ namespace Slimelands.Dungeon
             SetEnabledSafe(dungeonHudDisplay, IsDungeonScreenActive);
             SetActiveSafe(dungeonBattleVisualsRoot, IsDungeonScreenActive);
             SetActiveSafe(dungeonBackgroundRoot, IsDungeonScreenActive);
+            SetActiveSafe(dungeonPartyHudRoot, IsDungeonScreenActive);
         }
 
         private static void SetActiveSafe(GameObject go, bool active)

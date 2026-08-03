@@ -61,23 +61,8 @@ namespace Slimelands.Dungeon
                 screenController.ReturnToVillage();
             }
 
-            GUILayout.Space(4f);
-            GUILayout.Label("--- パーティー ---");
-            foreach (BattleUnit unit in controller.PlayerUnits)
-            {
-                string status = unit.IsFainted ? "気絶" : $"HP {unit.CurrentHp}/{unit.Stats.maxHp}";
-                string ultimateInfo = unit.HasUltimate
-                    ? (unit.CanActivateUltimate ? "必殺技: 発動可能" : $"必殺技: 残り{unit.UltimateCooldownRemaining:F1}秒")
-                    : string.Empty;
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"{unit.DisplayName} [{status}] {ultimateInfo}", GUILayout.Width(280f));
-                if (unit.HasUltimate && GUILayout.Button("必殺技発動", GUILayout.Width(90f)))
-                {
-                    controller.TryActivateUltimate(unit);
-                }
-                GUILayout.EndHorizontal();
-            }
+            // パーティーのHP/名前/必殺技発動ボタンはDungeonPartyHud(画面上部のuGUI)に統一したため、
+            // ここでは重複表示しない。
 
             GUILayout.Space(4f);
             GUILayout.Label("--- 敵 ---");

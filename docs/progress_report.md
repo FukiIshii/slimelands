@@ -1302,3 +1302,71 @@ Play Modeでレベル20パーティーによる`TestDungeon`の通しクリア�
 - 見た目側の演出(VFX等)は引き続き未実装。
 - ジャンプ着地点へのドロップアタックはまだ未実装(ユーザーが今後実装予定)。
 - 敵側の必殺技AIは引き続き未実装。
+
+---
+
+## 追記: ダンジョン画面上部にパーティーHUD(肖像・名前・HPバー・必殺技発動ボタン)を追加
+
+### 経緯
+
+ユーザーから、画面上部にキャラのHP・名前・必殺技発動ボタンを表示するUIのスクリーンショット
+(他ゲームの参考画像)が共有され、同様のものを実装してほしいと依頼された。これまでダンジョン画面の
+UIは`DungeonHudDisplay`のIMGUI(OnGUI)によるデバッグ表示のみで、uGUI(Canvas)は本プロジェクトに
+一切導入されていなかった。
+
+### 実装内容
+
+- **`DungeonPartyHud`**(新規、`Assets/Scripts/Dungeon/Visuals/`): `DungeonRunController.OnPartySpawned`
+  を購読し、プレイヤー側ユニット1体につき1行(肖像・名前・HPバー・必殺技発動ボタン)をuGUIで
+  実行時に組み立てる、見た目専用コンポーネント。戦闘ロジックには一切書き込まず、必殺技発動ボタンは
+  `controller.TryActivateUltimate(unit)`を呼ぶのみ(CLAUDE.mdの「プレイヤー操作は必殺技発動と
+  ターゲット指定のみ」という制約に準拠)。
+  - Canvas(Screen Space Overlay、referenceResolution 1080x1920)を画面右上に配置し、
+    `VerticalLayoutGroup`で各行を縦に並べる
+  - 各行はコード上の座標計算(親を左下原点とする単純なローカル座標)で肖像・名前・HPバー(背景+
+    塗りつぶしImage+テキスト)・必殺技ボタンを配置。肖像は`SlimeSpeciesData.BattleSprite`を流用し、
+    未設定時は既存の`RuntimeSpriteFactory`のフォールバック色付き円で代替(新規アセットは追加していない)
+  - 必殺技ボタンは、対象ユニットが必殺技を持たない場合は非表示、クールタイム中は残り秒数を表示して
+    非活性にする(`Update`で毎フレーム全行をリフレッシュ)
+  - `DungeonBattleView.VisualsRoot`と同じ「既に存在する同名の子を再利用する」パターンをCanvas/
+    PartyListの生成に採用し、ドメインリロードやEdit Mode上の再実行でも重複生成しないようにした
+- **uGUI用EventSystem**: 本プロジェクトはPlayer Settings上でActive Input Handlerが新Input System
+  専用のため、旧`StandaloneInputModule`ではなく`UnityEngine.InputSystem.UI.InputSystemUIInputModule`
+  を使うEventSystemをシーンに追加した(初導入)。
+- **`GameScreenController`**: `dungeonPartyHudRoot`(GameObject)フィールドを追加し、
+  `ApplyVisibility`で他のダンジョン専用ルート(`dungeonBattleVisualsRoot`等)と同様に
+  `SetActive`で表示/非表示を切り替える。
+- **`DungeonHudDisplay`**: 名前・HP・必殺技発動ボタンを表示していた「パーティー」欄を削除し、
+  新HUDとの重複表示をなくした(状態表示・敵ターゲット指定・ログ・村に戻るボタンは従来通りIMGUIのまま)。
+- シーン配線: `DungeonPartyHud`コンポーネントは、`DungeonBattleView`と同様に常時アクティブな
+  `DungeonManagers`に配置し(表示/非表示が必要なCanvas子オブジェクトとは別)、`OnEnable`が
+  ダンジョン開始前から確実にイベント購読できるようにした。当初、HUD一式を初期非アクティブな
+  別GameObjectに乗せてしまい、「非アクティブなオブジェクトはOnPartySpawnedの発火時点で購読していない
+  ため最初の1回を必ず取りこぼす」という設計ミスに気づいて修正した(`DungeonBattleView`が
+  常時アクティブなオブジェクト+永続的なプレースホルダー子で表示制御している既存パターンに合わせた)。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- `StartDungeon`後、パーティー人数分のHUD行が生成され、名前・HP(現在値/最大値)が正しく表示される
+  ことを確認。
+- 必殺技を習得済みの個体ではボタンが表示され`interactable=true`、未習得の個体では非表示になることを
+  確認。
+- 敵出現後にターゲットを指定し、HUDの必殺技ボタンの`onClick`を実際に発火させて`TryActivateUltimate`
+  が呼ばれ、クールタイムが正しく設定されることを確認(直接呼び出しとボタン経由の両方で一致)。
+- ダンジョンクリア後もHUDの行(パーティーのHP表示)が消えずに残ること、`ReturnToVillage`で
+  Canvasごと非表示になることを確認。
+- レベル30パーティーで`TestDungeon`を通しクリアできることを再確認(811回のUpdateポンプで
+  `State=Cleared`)。**この過程で判明した重要な学び**: 近接タイプの通常攻撃/必殺技が今回コライダー
+  ベースに切り替わっているため(前回の追記参照)、`controller.SendMessage("Update", ...)`だけを
+  ポンプするテストでは、各`BattleUnitView`自身の`Update()`が一度も走らず当たり判定コライダーの座標が
+  スポーン時のまま固まってしまい、ロジック層では距離0まで接近しているのに永遠に「射程外」判定される
+  (＝戦闘が完全に停止する)という罠がある。必殺技のAOEテストで既に判明していた同種の制約が、通常攻撃
+  にも同様に当てはまることを再確認した。実ゲームプレイでは毎フレームUnityが両方のUpdate()を自動的に
+  呼ぶため問題にならない、テスト手法特有の注意点である。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- HUDの見た目はプレースホルダー的な単色パネル+uGUI標準Textで、参考画像のような装飾的なフレーム・
+  アイコン枠等の作り込みは行っていない(専用アート素材が用意され次第、差し替えを検討)。
+- 敵側のHP/名前表示や、村パート側のuGUI化は未着手(今回はダンジョンのプレイヤー側パネルのみ)。
