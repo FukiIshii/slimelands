@@ -190,11 +190,21 @@ namespace Slimelands.Dungeon
 
         private void CreateView(BattleUnit unit)
         {
-            var go = new GameObject($"BattleUnitView_{unit.DisplayName}", typeof(BattleUnitView));
+            var go = new GameObject($"BattleUnitView_{unit.DisplayName}",
+                typeof(BattleUnitView), typeof(CircleCollider2D), typeof(BattleUnitHurtbox));
             go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
             view.Bind(unit);
             views[unit] = view;
+
+            // 必殺技の範囲攻撃(コライダーベースの当たり判定)専用のトリガーコライダー。
+            // 見た目の描画位置(このGameObjectのtransform)をそのまま当たり判定に使う。
+            if (controller != null)
+            {
+                BattleUnitHurtbox hurtbox = go.GetComponent<BattleUnitHurtbox>();
+                int layer = unit.IsPlayerSide ? controller.PlayerHurtboxLayer : controller.EnemyHurtboxLayer;
+                hurtbox.Bind(unit, controller.HurtboxRadius, layer);
+            }
         }
 
         private void ClearAllViews()

@@ -30,9 +30,17 @@ namespace Slimelands.Dungeon
         [Tooltip("登場開始位置を行動帯の端からどれだけ外側(画面外方向)に離すか(ワールド単位)。")]
         [SerializeField] private float enemyEntranceMargin = 5f;
 
+        [Header("必殺技の範囲攻撃用レイヤー(コライダーベースの当たり判定)")]
+        [Tooltip("プレイヤー側ユニットのBattleUnitHurtboxに使うレイヤー名。敵の必殺技がプレイヤーだけを検出するために使う。")]
+        [SerializeField] private string playerHurtboxLayerName = "BattleUnitPlayer";
+        [Tooltip("敵側ユニットのBattleUnitHurtboxに使うレイヤー名。プレイヤーの必殺技が敵だけを検出するために使う。")]
+        [SerializeField] private string enemyHurtboxLayerName = "BattleUnitEnemy";
+
         private DungeonData dungeonData;
         private TypeAffinityData affinityData;
         private BattleBalanceData balanceData;
+        private int playerHurtboxLayer = -1;
+        private int enemyHurtboxLayer = -1;
 
         private readonly List<BattleUnit> playerUnits = new();
         private readonly List<BattleUnit> aliveEnemies = new();
@@ -48,6 +56,13 @@ namespace Slimelands.Dungeon
 
         /// <summary>近接攻撃の接近〜着弾の遅延(秒)。見た目側が突進モーションの尺を合わせるために参照する。</summary>
         public float MeleeHitDelay => balanceData != null ? balanceData.MeleeHitDelay : 0.18f;
+
+        /// <summary>必殺技の範囲攻撃(コライダー)が検出対象とする、各ユニットのBattleUnitHurtbox半径。</summary>
+        public float HurtboxRadius => balanceData != null ? balanceData.HurtboxRadius : 0.5f;
+        /// <summary>プレイヤー側ユニットのBattleUnitHurtboxに使うレイヤー番号。見た目側(DungeonBattleView)がコライダー生成時に参照する。</summary>
+        public int PlayerHurtboxLayer => EnsurePlayerHurtboxLayer();
+        /// <summary>敵側ユニットのBattleUnitHurtboxに使うレイヤー番号。見た目側(DungeonBattleView)がコライダー生成時に参照する。</summary>
+        public int EnemyHurtboxLayer => EnsureEnemyHurtboxLayer();
 
         /// <summary>戦闘ログ1行が発生するたびに呼ばれる。</summary>
         public event Action<string> OnLog;
@@ -247,20 +262,25 @@ namespace Slimelands.Dungeon
             }
         }
 
-        /// <summary>指定対象(primaryTarget)の座標を中心とした円形範囲に、範囲内の対象全員へダメージを与える。</summary>
+        /// <summary>指定対象(primaryTarget)の座標を中心とした円形範囲に、範囲内の対象全員へダメージを与える(Physics2D.OverlapCircleAllで検出)。</summary>
         private void ActivateCircleUltimate(BattleUnit caster, BattleUnit primaryTarget, SlimeSkillData skill)
         {
             Vector2 origin = primaryTarget.Position;
-            List<BattleUnit> hits = GetUnitsInCircle(origin, skill.AreaRadius, GetOpposingUnits(caster));
+            List<BattleUnit> hits = QueryUnitsInCircle(origin, skill.AreaRadius, caster);
             ApplyAreaDamage(caster, hits, skill, origin);
         }
 
-        /// <summary>発動者からprimaryTarget方向へ伸びる直線状の範囲に、範囲内の対象全員へダメージを与える。</summary>
+        /// <summary>発動者からprimaryTarget方向へ伸びる直線状の範囲に、範囲内の対象全員へダメージを与える(Physics2D.OverlapBoxAllで検出)。</summary>
         private void ActivateLineUltimate(BattleUnit caster, BattleUnit primaryTarget, SlimeSkillData skill)
         {
             Vector2 origin = caster.Position;
             Vector2 direction = primaryTarget.Position - caster.Position;
-            List<BattleUnit> hits = GetUnitsInLine(origin, direction, skill.AreaLength, skill.AreaRadius, GetOpposingUnits(caster));
+            Vector2 dir = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector2.right;
+            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            Vector2 boxCenter = origin + dir * (skill.AreaLength * 0.5f);
+            Vector2 boxSize = new(skill.AreaLength, skill.AreaRadius * 2f);
+
+            List<BattleUnit> hits = QueryUnitsInBox(boxCenter, boxSize, angle, caster);
             ApplyAreaDamage(caster, hits, skill, origin);
         }
 
@@ -338,20 +358,19 @@ namespace Slimelands.Dungeon
 
                 sweep.TickTimer = Mathf.Max(0.01f, sweep.Skill.SweepTickInterval);
 
-                var hitThisTick = new List<BattleUnit>();
-                foreach (BattleUnit target in GetOpposingUnits(sweep.Caster))
-                {
-                    if (target.IsFainted || Mathf.Abs(target.Position.x - x) > sweep.Skill.AreaRadius)
-                    {
-                        continue;
-                    }
+                // 帯の現在位置(x)を中心に、行動帯の高さ全体をカバーする矩形でコライダーを検出する
+                // (元の実装はxのみの距離判定だったが、これと同じ「yは問わない」挙動を矩形クエリで再現する)。
+                Vector2 boxCenter = new(x, bounds.center.y);
+                Vector2 boxSize = new(sweep.Skill.AreaRadius * 2f, bounds.height);
+                List<BattleUnit> hitThisTick = QueryUnitsInBox(boxCenter, boxSize, 0f, sweep.Caster);
 
+                foreach (BattleUnit target in hitThisTick)
+                {
                     int damage = BattleFormulas.CalculateDamage(sweep.Caster.Stats.attack, target.Stats.defense,
                         sweep.Skill.Power, sweep.Caster.Type, target.Type, affinityData);
                     target.ApplyDamage(damage);
                     Log($"{sweep.Caster.DisplayName}の必殺技「{sweep.Skill.SkillName}」が{target.DisplayName}に{damage}ダメージ!");
                     OnSweepHit?.Invoke(sweep.Caster, target, damage);
-                    hitThisTick.Add(target);
                 }
 
                 foreach (BattleUnit target in hitThisTick)
@@ -361,50 +380,72 @@ namespace Slimelands.Dungeon
             }
         }
 
-        /// <summary>casterから見た敵対勢力(プレイヤー側なら生存する敵、敵側ならプレイヤー全員)。</summary>
-        private IReadOnlyList<BattleUnit> GetOpposingUnits(BattleUnit caster)
+        /// <summary>
+        /// casterの敵対勢力(プレイヤー側なら敵、敵側ならプレイヤー)が使うBattleUnitHurtboxのレイヤーマスク。
+        /// Physics2DのOverlapクエリで、味方を誤検出しないよう対象を絞り込むために使う。
+        /// </summary>
+        private int GetOpposingHurtboxMask(BattleUnit caster)
         {
-            return caster.IsPlayerSide ? (IReadOnlyList<BattleUnit>)aliveEnemies : playerUnits;
+            int layer = caster.IsPlayerSide ? EnsureEnemyHurtboxLayer() : EnsurePlayerHurtboxLayer();
+            return layer >= 0 ? 1 << layer : 0;
         }
 
-        private static List<BattleUnit> GetUnitsInCircle(Vector2 center, float radius, IReadOnlyList<BattleUnit> candidates)
+        private int EnsurePlayerHurtboxLayer()
+        {
+            if (playerHurtboxLayer < 0)
+            {
+                playerHurtboxLayer = LayerMask.NameToLayer(playerHurtboxLayerName);
+            }
+
+            return playerHurtboxLayer;
+        }
+
+        private int EnsureEnemyHurtboxLayer()
+        {
+            if (enemyHurtboxLayer < 0)
+            {
+                enemyHurtboxLayer = LayerMask.NameToLayer(enemyHurtboxLayerName);
+            }
+
+            return enemyHurtboxLayer;
+        }
+
+        /// <summary>
+        /// 円形範囲(Physics2D.OverlapCircleAll)で、casterの敵対勢力に属し気絶していないユニットを検出する。
+        /// コライダーは「何に触れたか」の検出専用で、ダメージ計算はここでは行わない
+        /// (呼び出し元がBattleFormulas.CalculateDamage等で別途計算する)。
+        /// </summary>
+        private List<BattleUnit> QueryUnitsInCircle(Vector2 center, float radius, BattleUnit caster)
+        {
+            Physics2D.SyncTransforms();
+            Collider2D[] results = Physics2D.OverlapCircleAll(center, radius, GetOpposingHurtboxMask(caster));
+            return ResolveHurtboxUnits(results);
+        }
+
+        /// <summary>
+        /// 矩形範囲(Physics2D.OverlapBoxAll)で、casterの敵対勢力に属し気絶していないユニットを検出する。
+        /// 直線状の必殺技(発動者から対象方向へ伸びる帯)に使う。
+        /// </summary>
+        private List<BattleUnit> QueryUnitsInBox(Vector2 center, Vector2 size, float angleDegrees, BattleUnit caster)
+        {
+            Physics2D.SyncTransforms();
+            Collider2D[] results = Physics2D.OverlapBoxAll(center, size, angleDegrees, GetOpposingHurtboxMask(caster));
+            return ResolveHurtboxUnits(results);
+        }
+
+        private static List<BattleUnit> ResolveHurtboxUnits(Collider2D[] colliders)
         {
             var hits = new List<BattleUnit>();
-            foreach (BattleUnit unit in candidates)
+            foreach (Collider2D col in colliders)
             {
-                if (!unit.IsFainted && Vector2.Distance(unit.Position, center) <= radius)
+                BattleUnitHurtbox hurtbox = col.GetComponent<BattleUnitHurtbox>();
+                if (hurtbox != null && hurtbox.Unit != null && !hurtbox.Unit.IsFainted)
                 {
-                    hits.Add(unit);
+                    hits.Add(hurtbox.Unit);
                 }
             }
 
             return hits;
-        }
-
-        private static List<BattleUnit> GetUnitsInLine(Vector2 origin, Vector2 direction, float length, float halfWidth,
-            IReadOnlyList<BattleUnit> candidates)
-        {
-            Vector2 dir = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector2.right;
-            Vector2 end = origin + dir * length;
-
-            var hits = new List<BattleUnit>();
-            foreach (BattleUnit unit in candidates)
-            {
-                if (!unit.IsFainted && DistancePointToSegment(unit.Position, origin, end) <= halfWidth)
-                {
-                    hits.Add(unit);
-                }
-            }
-
-            return hits;
-        }
-
-        private static float DistancePointToSegment(Vector2 point, Vector2 a, Vector2 b)
-        {
-            Vector2 ab = b - a;
-            float t = ab.sqrMagnitude > 0.0001f ? Mathf.Clamp01(Vector2.Dot(point - a, ab) / ab.sqrMagnitude) : 0f;
-            Vector2 closest = a + ab * t;
-            return Vector2.Distance(point, closest);
         }
 
         private void Update()

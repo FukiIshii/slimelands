@@ -18,6 +18,7 @@ MonoBehaviour:
   wanderArriveThreshold: 0.15
   wanderPauseMin: 0.3
   wanderPauseMax: 1.5
-  combatMovementSpeed: 2.5
+  combatMovementSpeed: 4
   meleeAttackRange: 3
   meleeHitDelay: 0.25
+  hurtboxRadius: 0.5

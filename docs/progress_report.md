@@ -1174,7 +1174,78 @@ Play Modeでレベル20パーティーによる`TestDungeon`の通しクリア�
 
 - Circle/Line/Sweepいずれも見た目側の演出(VFX・帯の可視化等)は未実装。追加したイベント
   (`OnAreaUltimateActivated`等)を`DungeonBattleView`側で購読して演出を実装する必要がある。
-- 敵側(プレイヤーを攻撃する側)が必殺技を使うAIは現状未実装のまま(`GetOpposingUnits`は
-  汎用化済みなので、実装時はロジック側の追加変更は不要な想定)。
+- 敵側(プレイヤーを攻撃する側)が必殺技を使うAIは現状未実装のまま(`GetOpposingHurtboxMask`
+  等は汎用化済みなので、実装時はロジック側の追加変更は不要な想定)。
 - 具体的な必殺技のパターン数・中身(どのスライム種族がどの形状の必殺技を持つか等)は未決定
   (GDDの「今後詰める論点」を参照)。
+
+---
+
+## 追記: 必殺技の範囲攻撃をコライダーベース(Physics2D)に切り替え
+
+### 経緯
+
+前回追記の範囲攻撃(円形/直線/スイープ)は座標計算のみで実装したが、ユーザーから
+「範囲攻撃・空振りのような当たり判定の複雑さがある場合はコライダーの方が自然」という
+セカンドオピニオン(コライダー専用レイヤーでPlayer/Enemyを分離する、当たり判定検出とダメージ
+計算を分離する、`Physics2D.Simulate`+同期的なOverlap系APIを使えばこのプロジェクトの検証手法
+でもテスト可能、といった具体的な設計指針込み)が共有された。さらにユーザーから「ジャンプ斬撃の
+着地点周辺」に類似した「ジャンプ着地点へのドロップアタック」を今後実装する予定があるとのことで、
+それに備えてコライダーベースの実装に切り替えることになった。
+
+### 実装内容
+
+- **物理レイヤー**: `Unity_ManageEditor`の`AddLayer`で`BattleUnitPlayer`(スロット8)・
+  `BattleUnitEnemy`(スロット9)を追加。必殺技の範囲攻撃が敵味方を誤って巻き込まないよう、
+  Overlapクエリの`layerMask`引数で対象を絞り込むために使う。
+- **`BattleUnitHurtbox`**(新規、`Assets/Scripts/Dungeon/Visuals/`): `CircleCollider2D`
+  (`isTrigger=true`)を持つ検出専用コンポーネント。「何に触れたか」の検出のみを担い、ダメージ
+  計算・タイプ相性判定などの戦闘ロジックは一切持たない(ユーザーの設計指針「当たり判定と
+  ダメージ計算の分離」に従う)。`BattleUnitView`と同じGameObjectに付与し、見た目の描画位置
+  (=`BattleUnit.Position`を反映したtransform)をそのままコライダー位置として利用する。
+- **`BattleBalanceData`**に`hurtboxRadius`(各ユニットの当たり判定半径、既定0.5)を追加。
+- **`DungeonRunController`**:
+  - `playerHurtboxLayerName`/`enemyHurtboxLayerName`(Inspectorでレイヤー名を指定)を追加し、
+    `LayerMask.NameToLayer`で実行時に解決(`PlayerHurtboxLayer`/`EnemyHurtboxLayer`として
+    View側に公開)。
+  - 円形は`Physics2D.OverlapCircleAll`、直線は発動者→対象方向への回転矩形として
+    `Physics2D.OverlapBoxAll`で命中対象を検出するよう変更(旧`GetUnitsInCircle`/`GetUnitsInLine`/
+    `DistancePointToSegment`による座標計算は削除)。スイープも各ティックで現在位置を中心とした
+    矩形(帯の高さ全体をカバー)を`OverlapBoxAll`で判定するよう変更。
+  - 検出結果(`Collider2D[]`)は`BattleUnitHurtbox`経由で`BattleUnit`に逆引きし、気絶済みを除外。
+    ダメージ計算(`BattleFormulas.CalculateDamage`)・ログ出力・気絶判定は従来通り
+    `ApplyAreaDamage`/`TickActiveSweeps`側に一元化されたまま(ユーザーの設計指針に従い、
+    コライダー側にダメージ処理を書き込んでいない)。
+  - `Physics2D.SyncTransforms()`をクエリ直前に呼び、スクリプトで動かしたTransformの位置を
+    確実に物理エンジン側へ反映させてからOverlapクエリを実行する。
+  - 通常攻撃(近接の射程判定等)は今回の対象外とし、従来通りのコライダー不使用の座標計算のまま
+    (ユーザー・アドバイスどちらも「必殺技だけコライダー化」という提案だったため)。
+- **`DungeonBattleView.CreateView`**: ユニット生成時に`CircleCollider2D`+`BattleUnitHurtbox`を
+  付与し、`unit.IsPlayerSide`に応じたレイヤー・`controller.HurtboxRadius`で`Bind`する。
+- `docs/GDD.md`の記述を「コライダーは使わない」から実際の実装(Physics2D+レイヤー分離)に修正。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **重要な学び**: `BattleUnit.Position`をテストスクリプトから直接書き換えても、コライダーが
+  乗っている`BattleUnitView`のTransformは(見た目側が)毎フレームのUpdate()で追従する仕組みの
+  ため、`controller.SendMessage("Update", ...)`だけでは反映されない。各Viewの
+  `gameObject.SendMessage("Update", ...)`も明示的にポンプする必要があると判明した(1回目の
+  円形AoEテストで、この見落としにより誤って「範囲内のはずが無傷」という結果を得て気づいた)。
+- **円形**: 3体の敵(距離0・距離1・距離10)+味方1体(距離0=敵と同座標)に対し半径3の円形必殺技を
+  発動し、距離0・距離1の敵はダメージ、距離10の敵と味方(同座標でも別レイヤーのため)は無傷で
+  あることを確認(レイヤー分離による味方誤爆防止も確認)。
+- **直線**: 半幅1・長さ6の直線必殺技で、線上(対象自身)・垂直距離0.5(範囲内)・垂直距離2
+  (範囲外)の3体のうち、範囲内の2体のみダメージを受けることを確認。
+- **スイープ**: 帯の通り道にとどまり続ける敵に`OnSweepHit`が7回発火(接触中の継続ダメージ)し、
+  `sweepDuration`経過後に`OnSweepEnded`が発火する(自動終了)ことを確認。帯の高さの範囲外に
+  置いた敵は無傷のままであることも確認。
+- レベル30パーティーで`TestDungeon`(通常攻撃・単体必殺技のみ使用)を通しクリアできることを
+  再確認(コライダー導入後の回帰確認)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- 見た目側の演出(VFX等)は引き続き未実装(前回の残課題から継続)。
+- ジャンプ着地点へのドロップアタックはまだ未実装(ユーザーが今後実装予定)。今回整備した
+  レイヤー分離・`BattleUnitHurtbox`・Overlapクエリの仕組みをそのまま流用できる想定。
+- 敵側の必殺技AIは引き続き未実装。

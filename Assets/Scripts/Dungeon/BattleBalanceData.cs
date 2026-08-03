@@ -38,6 +38,11 @@ namespace Slimelands.Dungeon
                  "見た目側の突進(接近)モーションの所要時間もこれに合わせて同期される。")]
         [SerializeField] private float meleeHitDelay = 0.25f;
 
+        [Header("必殺技の範囲攻撃(コライダー、仮値・要調整)")]
+        [Tooltip("各ユニットが持つ当たり判定用コライダー(BattleUnitHurtbox)の半径。" +
+                 "必殺技の範囲攻撃(Circle/Line/Sweep)がPhysics2Dのクエリで命中対象を検出する際に使う。")]
+        [SerializeField] private float hurtboxRadius = 0.5f;
+
         public float NormalAttackInterval => normalAttackInterval;
         public int NormalAttackPower => normalAttackPower;
         public float WanderSpeed => wanderSpeed;
@@ -47,5 +52,6 @@ namespace Slimelands.Dungeon
         public float CombatMovementSpeed => combatMovementSpeed;
         public float MeleeAttackRange => meleeAttackRange;
         public float MeleeHitDelay => meleeHitDelay;
+        public float HurtboxRadius => hurtboxRadius;
     }
 }
