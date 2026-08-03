@@ -15,6 +15,8 @@ namespace Slimelands.Dungeon
         private static readonly Color PlayerVfxColor = new(0.9f, 0.9f, 0.9f);
         private static readonly Color EnemyVfxColor = new(0.9f, 0.5f, 0.3f);
         private static readonly Color UltimateVfxColor = new(1f, 0.85f, 0.2f);
+        private static readonly Color PlayerDamagedNumberColor = new(1f, 0.35f, 0.35f);
+        private static readonly Color EnemyDamagedNumberColor = Color.white;
 
         [SerializeField] private DungeonRunController controller;
 
@@ -63,6 +65,7 @@ namespace Slimelands.Dungeon
             controller.OnUltimateActivated += HandleUltimateActivated;
             controller.OnNormalAttackResolved += HandleNormalAttackResolved;
             controller.OnUltimateResolved += HandleUltimateResolved;
+            controller.OnDamageDealt += HandleDamageDealt;
             controller.OnUnitFainted += HandleUnitFainted;
             controller.OnDungeonCleared += ClearEnemyViews;
             controller.OnDungeonFailed += ClearAllViews;
@@ -81,6 +84,7 @@ namespace Slimelands.Dungeon
             controller.OnUltimateActivated -= HandleUltimateActivated;
             controller.OnNormalAttackResolved -= HandleNormalAttackResolved;
             controller.OnUltimateResolved -= HandleUltimateResolved;
+            controller.OnDamageDealt -= HandleDamageDealt;
             controller.OnUnitFainted -= HandleUnitFainted;
             controller.OnDungeonCleared -= ClearEnemyViews;
             controller.OnDungeonFailed -= ClearAllViews;
@@ -122,6 +126,22 @@ namespace Slimelands.Dungeon
         private void HandleUltimateResolved(BattleUnit attacker, BattleUnit target, int damage)
         {
             ResolveMeleeAttackVisual(attacker, target, damage, isUltimate: true);
+        }
+
+        /// <summary>
+        /// ダメージ発生源(通常攻撃/単体・範囲必殺技/スイープ)を問わず、対象に実際にダメージが
+        /// 反映されるたびに呼ばれる。対象の現在位置の周辺にダメージ数字を表示し、上昇しながら
+        /// フェードアウトさせる(DamageNumberView側の演出)。
+        /// </summary>
+        private void HandleDamageDealt(BattleUnit attacker, BattleUnit target, int damage)
+        {
+            if (damage <= 0 || !views.TryGetValue(target, out BattleUnitView targetView) || targetView == null)
+            {
+                return;
+            }
+
+            Color color = target.IsPlayerSide ? PlayerDamagedNumberColor : EnemyDamagedNumberColor;
+            DamageNumberView.Spawn(targetView.CurrentPosition, damage, color);
         }
 
         private void HandleUnitFainted(BattleUnit unit)

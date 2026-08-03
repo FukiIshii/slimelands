@@ -104,6 +104,14 @@ namespace Slimelands.Dungeon
         /// <summary>範囲必殺技(Circle/Line)が発動し、命中した全対象へダメージが確定した瞬間に発火する。</summary>
         public event Action<BattleUnit, IReadOnlyList<BattleUnit>, Vector2> OnAreaUltimateActivated;
 
+        /// <summary>
+        /// 通常攻撃・単体対象必殺技・範囲必殺技(Circle/Line)・スイープのいずれかで、対象に実際に
+        /// ダメージが反映された瞬間(1ヒットごと)に発火する(attacker, target, damage)。ダメージ発生源を
+        /// 問わず一箇所で拾える通知イベントで、ダメージ数字ポップアップ等の演出に使う想定。
+        /// ミス(ダメージ0)の場合は発火しない。
+        /// </summary>
+        public event Action<BattleUnit, BattleUnit, int> OnDamageDealt;
+
         /// <summary>スイープ型必殺技(左右往復)が発動した瞬間に発火する(見た目側の帯の生成に使用)。</summary>
         public event Action<BattleUnit, SlimeSkillData> OnSweepStarted;
         /// <summary>スイープの現在位置(帯の中心x座標)が更新されるたびに発火する(見た目側の帯の追従に使用)。</summary>
@@ -269,6 +277,7 @@ namespace Slimelands.Dungeon
                 target.ApplyDamage(damage);
                 Log($"{unit.DisplayName}の必殺技「{skill.SkillName}」!{target.DisplayName}に{damage}ダメージ");
                 OnUltimateActivated?.Invoke(unit, target, damage);
+                OnDamageDealt?.Invoke(unit, target, damage);
                 HandleIfFainted(target);
             }
         }
@@ -310,6 +319,7 @@ namespace Slimelands.Dungeon
                     skill.Power, caster.Type, target.Type, affinityData);
                 target.ApplyDamage(damage);
                 Log($"{caster.DisplayName}の必殺技「{skill.SkillName}」が{target.DisplayName}にヒット!{damage}ダメージ");
+                OnDamageDealt?.Invoke(caster, target, damage);
             }
 
             OnAreaUltimateActivated?.Invoke(caster, hits, origin);
@@ -382,6 +392,7 @@ namespace Slimelands.Dungeon
                     target.ApplyDamage(damage);
                     Log($"{sweep.Caster.DisplayName}の必殺技「{sweep.Skill.SkillName}」が{target.DisplayName}に{damage}ダメージ!");
                     OnSweepHit?.Invoke(sweep.Caster, target, damage);
+                    OnDamageDealt?.Invoke(sweep.Caster, target, damage);
                 }
 
                 foreach (BattleUnit target in hitThisTick)
@@ -696,6 +707,7 @@ namespace Slimelands.Dungeon
             target.ApplyDamage(damage);
             Log($"{attacker.DisplayName}の通常攻撃!{target.DisplayName}に{damage}ダメージ");
             OnNormalAttackPerformed?.Invoke(attacker, target, damage);
+            OnDamageDealt?.Invoke(attacker, target, damage);
             HandleIfFainted(target);
         }
 
@@ -767,6 +779,7 @@ namespace Slimelands.Dungeon
             {
                 target.ApplyDamage(pending.Damage);
                 Log($"{attacker.DisplayName}の{skillLabel}が{target.DisplayName}にヒット!{pending.Damage}ダメージ");
+                OnDamageDealt?.Invoke(attacker, target, pending.Damage);
             }
             else
             {
