@@ -1249,3 +1249,56 @@ Play Modeでレベル20パーティーによる`TestDungeon`の通しクリア�
 - ジャンプ着地点へのドロップアタックはまだ未実装(ユーザーが今後実装予定)。今回整備した
   レイヤー分離・`BattleUnitHurtbox`・Overlapクエリの仕組みをそのまま流用できる想定。
 - 敵側の必殺技AIは引き続き未実装。
+
+---
+
+## 追記: 通常攻撃(近接)の射程判定もコライダーベースに統一
+
+### 経緯
+
+前回の追記で必殺技の範囲攻撃のみをコライダー化し、通常攻撃(近接の射程判定)は従来通り
+`Vector2.Distance`による座標計算のまま残していた。ユーザーから「通常攻撃も当たり判定は
+コライダーで行いましょう」との指示があり、必殺技と同じ当たり判定方式に統一した。
+
+### 実装内容
+
+- **`DungeonRunController.IsMeleeTargetInRange`**(新規private): `attacker.Position`を中心に
+  半径`MeleeAttackRange`の`Physics2D.OverlapCircleAll`を実行し、`GetOpposingHurtboxMask`で
+  絞り込んだ結果の中に`target`の`BattleUnitHurtbox`が含まれるかで射程内かどうかを判定する。
+  必殺技の範囲攻撃と同じ「検出はコライダー、ダメージ計算はDungeonRunController側」という
+  役割分担を踏襲。
+- `IsMeleeOutOfRange`(通常攻撃の接近待ち判定・移動のChase/Retreat分岐に使用)と
+  `BeginMeleeAttack`(命中/ミスの判定、通常攻撃・単体対象必殺技で共用)の両方で、従来の
+  `Vector2.Distance(...) <= MeleeAttackRange`という数式比較を`IsMeleeTargetInRange`呼び出しに
+  置き換えた。旧`Vector2.Distance`ベースの計算は削除。
+- 挙動の変化: 対象の当たり判定コライダー(`BattleBalanceData.HurtboxRadius`、既定0.5)の分だけ、
+  中心点同士の距離が`MeleeAttackRange`を多少超えていても命中するようになった(コライダー同士が
+  物理的に重なっていれば命中、という自然な判定になったことによる意図した副作用)。
+- `docs/GDD.md`の該当箇所を「通常攻撃はコライダー不使用」から実際の実装(必殺技と同じ
+  コライダー判定に統一、射程がコライダー半径分だけ自然に広がる旨)に修正。
+
+### テストした内容(Play Mode上でRunCommand経由の公開APIを使用)
+
+- **重要な学び(新規)**: プレイヤー・敵とも近接タイプの1v1テストで、`controller.SendMessage
+  ("Update", ...)`だけをループで回すと、敵側からの反撃で敵自身の`BattleUnitView`が突進アニメー
+  ション状態(`meleePhase != Idle`)に入ってしまい、そのView自身の`Update()`(`TickMeleeAnim`)を
+  ポンプしていないと`homePosition`が`boundUnit.Position`との同期を止めたまま固まる(Update内で
+  Idle分岐のみが`homePosition = boundUnit.Position`を行うため)。これにより敵の当たり判定コライダー
+  の実座標が、テストで意図した座標とズレて残ってしまい、誤った命中結果(距離3.6でも命中と誤判定)を
+  引き起こした。**対処**: 検証対象でない側(今回は敵)の`NormalAttackTimer`を大きな値に固定して
+  一切攻撃させないようにし、コンタミネーションの発生源を断つことで解決。あわせてPlay Modeを
+  再起動してクリーンな状態から再テストした。
+- **境界値テスト**: `MeleeAttackRange=3`、`HurtboxRadius=0.5`(いずれもBattleBalanceData.asset
+  時点の値)の下で、距離10(明確に射程外)→ミス、距離2(明確に射程内)→命中、距離3.3
+  (旧実装なら射程外3>3.3だが、コライダー分の余裕`3+0.5=3.5`以内)→命中、距離3.6(コライダー
+  込みでも範囲外)→ミス、を確認。旧来の単純距離比較とは異なる、コライダーの実体を考慮した判定に
+  切り替わったことを確認した。
+- レベル30パーティーで`TestDungeon`(3ウェーブ、近接・近接・遠距離)を通しクリアできることを
+  再確認(667回のUpdateポンプで`State=Cleared`、回帰確認)。
+- コンパイルエラー・実行時エラー・警告なしを確認。
+
+### 残課題
+
+- 見た目側の演出(VFX等)は引き続き未実装。
+- ジャンプ着地点へのドロップアタックはまだ未実装(ユーザーが今後実装予定)。
+- 敵側の必殺技AIは引き続き未実装。

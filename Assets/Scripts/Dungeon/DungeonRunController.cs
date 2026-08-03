@@ -647,8 +647,29 @@ namespace Slimelands.Dungeon
         /// <summary>近接タイプの攻撃者がtargetに対して射程(MeleeAttackRange)外にいるかどうか。遠距離タイプは常にfalse。</summary>
         private bool IsMeleeOutOfRange(BattleUnit attacker, BattleUnit target)
         {
-            return attacker.AttackType == SlimeAttackType.Melee
-                && Vector2.Distance(attacker.Position, target.Position) > balanceData.MeleeAttackRange;
+            return attacker.AttackType == SlimeAttackType.Melee && !IsMeleeTargetInRange(attacker, target);
+        }
+
+        /// <summary>
+        /// 近接攻撃の射程判定(通常攻撃・必殺技共通)。attackerの実座標を中心とした半径MeleeAttackRangeの
+        /// 範囲をPhysics2D.OverlapCircleAllで検出し、その中にtargetのBattleUnitHurtboxが含まれるかで
+        /// 判定する(必殺技の範囲攻撃と同じコライダーベースの当たり判定に統一するため、数学的な距離比較は行わない)。
+        /// </summary>
+        private bool IsMeleeTargetInRange(BattleUnit attacker, BattleUnit target)
+        {
+            Physics2D.SyncTransforms();
+            Collider2D[] results = Physics2D.OverlapCircleAll(attacker.Position, balanceData.MeleeAttackRange,
+                GetOpposingHurtboxMask(attacker));
+            foreach (Collider2D col in results)
+            {
+                BattleUnitHurtbox hurtbox = col.GetComponent<BattleUnitHurtbox>();
+                if (hurtbox != null && hurtbox.Unit == target)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void PerformNormalAttack(BattleUnit attacker, BattleUnit target)
@@ -668,15 +689,15 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 近接攻撃(通常攻撃・必殺技共通)。attacker/targetの実座標の距離がMeleeAttackRangeを
-        /// 超える場合は「接近が間に合わず攻撃が届かない」ものとしてミス(ダメージ0)にする。
-        /// 命中/ミスいずれの場合も、実際の決着(ダメージ反映)はMeleeHitDelay秒後まで遅延させ、
-        /// 見た目側の接近モーションが完了するタイミングと同期させる。
+        /// 近接攻撃(通常攻撃・必殺技共通)。attackerを中心としたBattleUnitHurtboxのコライダー判定
+        /// (IsMeleeTargetInRange)でtargetに実際に届くかを判定し、届かない場合は「接近が間に合わず
+        /// 攻撃が届かない」ものとしてミス(ダメージ0)にする。命中/ミスいずれの場合も、実際の決着
+        /// (ダメージ反映)はMeleeHitDelay秒後まで遅延させ、見た目側の接近モーションが完了するタイミング
+        /// と同期させる。
         /// </summary>
         private void BeginMeleeAttack(BattleUnit attacker, BattleUnit target, int power, bool isUltimate, string skillName)
         {
-            float distance = Vector2.Distance(attacker.Position, target.Position);
-            bool willHit = distance <= balanceData.MeleeAttackRange;
+            bool willHit = IsMeleeTargetInRange(attacker, target);
             int damage = willHit
                 ? BattleFormulas.CalculateDamage(attacker.Stats.attack, target.Stats.defense, power,
                     attacker.Type, target.Type, affinityData)
