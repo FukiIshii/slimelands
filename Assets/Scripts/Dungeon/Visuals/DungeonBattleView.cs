@@ -144,6 +144,21 @@ namespace Slimelands.Dungeon
             DamageNumberView.Spawn(targetView.CurrentPosition, damage, color);
         }
 
+        /// <summary>
+        /// 敵側の気絶演出(灰色化→フェードアウト)が完全に終わった瞬間に呼ばれる。見た目(GameObject)を
+        /// 破棄する。BattleUnitView側でプレイヤー側では発火しないよう既にガードされているため、
+        /// ここでは敵味方を判定せず単純にviewsから取り除くだけでよい。
+        /// </summary>
+        private void HandleFaintVisualCompleted(BattleUnit unit)
+        {
+            if (views.TryGetValue(unit, out BattleUnitView view) && view != null)
+            {
+                Destroy(view.gameObject);
+            }
+
+            views.Remove(unit);
+        }
+
         private void HandleUnitFainted(BattleUnit unit)
         {
             if (views.TryGetValue(unit, out BattleUnitView view) && view != null)
@@ -215,6 +230,7 @@ namespace Slimelands.Dungeon
             go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
             view.Bind(unit);
+            view.OnFaintVisualCompleted += HandleFaintVisualCompleted;
             views[unit] = view;
 
             // 必殺技の範囲攻撃(コライダーベースの当たり判定)専用のトリガーコライダー。

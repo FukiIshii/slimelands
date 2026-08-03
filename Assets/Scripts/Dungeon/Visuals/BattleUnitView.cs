@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Slimelands.Slime;
 
@@ -26,6 +27,10 @@ namespace Slimelands.Dungeon
         private const float IdleHopPeriod = 0.55f;
         private const float IdleHopHeight = 0.16f;
         private const float FaintFadeDuration = 0.35f;
+        // 敵側のみ: 灰色化(FaintFadeDuration)が終わってから、フェードアウトして見た目が消えるまでの
+        // 追加時間(秒、仮値)。倒した敵がいつまでも灰色のまま残り続けないようにするため。
+        // プレイヤー側は村に戻るまで見た目を残し続ける仕様のため対象外。
+        private const float EnemyFaintRemovalDelay = 0.5f;
         private const float HpBarWidth = 0.9f;
         private const float HpBarHeight = 0.14f;
         private const float HpBarYOffset = 0.75f;
@@ -36,6 +41,8 @@ namespace Slimelands.Dungeon
         private SpriteRenderer visualRenderer;
         private SpriteRenderer hpBarFillRenderer;
         private Transform hpBarFillTransform;
+        private GameObject hpBarBackgroundGo;
+        private GameObject hpBarFillGo;
 
         private BattleUnit boundUnit;
         private SlimeAttackType attackType;
@@ -47,10 +54,17 @@ namespace Slimelands.Dungeon
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
+        private bool faintRemovalNotified;
 
         /// <summary>現在の基準位置(ロジック側のBattleUnit.Positionをそのまま反映)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
         public Vector3 CurrentPosition => homePosition;
         public bool IsPlayingAttackMotion => meleePhase != MeleeAnimPhase.Idle;
+
+        /// <summary>
+        /// 敵側の気絶演出(灰色化→フェードアウト)が完全に終わった瞬間に発火する。
+        /// DungeonBattleViewはこれを購読し、見た目(GameObject)を破棄する。プレイヤー側では発火しない。
+        /// </summary>
+        public event Action<BattleUnit> OnFaintVisualCompleted;
 
         private void Awake()
         {
@@ -67,6 +81,7 @@ namespace Slimelands.Dungeon
             SpriteRenderer bgRenderer = bgGo.GetComponent<SpriteRenderer>();
             bgRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite(new Color(0.1f, 0.1f, 0.1f, 0.85f));
             bgRenderer.sortingOrder = 20;
+            hpBarBackgroundGo = bgGo;
 
             var fillGo = new GameObject("HpBarFill", typeof(SpriteRenderer));
             fillGo.transform.SetParent(transform, false);
@@ -75,6 +90,7 @@ namespace Slimelands.Dungeon
             hpBarFillRenderer = fillGo.GetComponent<SpriteRenderer>();
             hpBarFillRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite(Color.white);
             hpBarFillRenderer.sortingOrder = 21;
+            hpBarFillGo = fillGo;
         }
 
         /// <summary>この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。初期位置はunit.Positionをそのまま使う。</summary>
@@ -88,8 +104,11 @@ namespace Slimelands.Dungeon
             idleHopTimer = 0f;
             isFaintedVisual = false;
             faintTimer = 0f;
+            faintRemovalNotified = false;
             visual.localRotation = Quaternion.identity;
             visual.localScale = Vector3.one;
+            hpBarBackgroundGo.SetActive(true);
+            hpBarFillGo.SetActive(true);
 
             Sprite sprite = unit.Species != null ? unit.Species.BattleSprite : null;
             if (sprite == null)
@@ -130,11 +149,12 @@ namespace Slimelands.Dungeon
             meleeAnimTimer = 0f;
         }
 
-        /// <summary>戦闘不能(HP0)になった際の見た目(グレーアウト)へ切り替える。</summary>
+        /// <summary>戦闘不能(HP0)になった際の見た目(グレーアウト、敵側はその後フェードアウト)へ切り替える。</summary>
         public void SetFainted()
         {
             isFaintedVisual = true;
             faintTimer = 0f;
+            faintRemovalNotified = false;
             meleePhase = MeleeAnimPhase.Idle;
             transform.position = homePosition;
             visual.localScale = Vector3.one;
@@ -151,8 +171,35 @@ namespace Slimelands.Dungeon
 
             if (isFaintedVisual)
             {
-                faintTimer = Mathf.Min(FaintFadeDuration, faintTimer + Time.deltaTime);
-                visualRenderer.color = Color.Lerp(Color.white, FaintedTint, faintTimer / FaintFadeDuration);
+                faintTimer += Time.deltaTime;
+                float tintProgress = Mathf.Clamp01(faintTimer / FaintFadeDuration);
+                Color tinted = Color.Lerp(Color.white, FaintedTint, tintProgress);
+
+                // 敵側のみ、灰色化が終わった後さらにフェードアウトさせて見た目を消す。プレイヤー側は
+                // 村に戻るまで見た目を残し続ける仕様のため、灰色のまま(このifに入らない)にする。
+                if (!boundUnit.IsPlayerSide)
+                {
+                    float fadeElapsed = faintTimer - FaintFadeDuration;
+                    if (fadeElapsed >= 0f)
+                    {
+                        if (hpBarBackgroundGo.activeSelf)
+                        {
+                            hpBarBackgroundGo.SetActive(false);
+                            hpBarFillGo.SetActive(false);
+                        }
+
+                        float fadeProgress = Mathf.Clamp01(fadeElapsed / EnemyFaintRemovalDelay);
+                        tinted.a = FaintedTint.a * (1f - fadeProgress);
+
+                        if (fadeProgress >= 1f && !faintRemovalNotified)
+                        {
+                            faintRemovalNotified = true;
+                            OnFaintVisualCompleted?.Invoke(boundUnit);
+                        }
+                    }
+                }
+
+                visualRenderer.color = tinted;
                 return;
             }
 
