@@ -544,6 +544,10 @@ namespace Slimelands.Cards
 
                     ingredient.BoundIndividual.AddExp(recipe.ExpGrantAmount);
                 }
+
+                // まとめ給餌(FeedQueueSequentially)経由と表示を揃えるため、1枚ずつの給餌でも
+                // 経験値量をポップアップ表示する。
+                FloatingNumberPopup.Spawn(anchorPosition, recipe.ExpGrantAmount, expPopupColor);
             }
             else
             {
