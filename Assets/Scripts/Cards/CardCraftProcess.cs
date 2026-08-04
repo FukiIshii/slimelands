@@ -27,6 +27,14 @@ namespace Slimelands.Cards
         public IReadOnlyList<CardController> Ingredients { get; private set; }
         public bool IsComplete { get; private set; }
 
+        /// <summary>
+        /// trueの間、進行中の合成タイマーは一切進まない(食料不足で月齢の進行がブロックされている間、
+        /// 村の生産活動も連動して止めるための全体スイッチ。MoonCycleManagerが切り替える)。
+        /// ただし食料ストックを増やすレシピ(FoodStockAmount/UseIngredientFoodSupplyValue)だけは、
+        /// 食料不足を自力で解消する手段を残すため例外的に進行を続ける。
+        /// </summary>
+        public static bool ProductionPaused { get; set; }
+
         public void Begin(CardRecipeData recipeData, IReadOnlyList<CardController> ingredients,
             Sprite backgroundSprite, Sprite fillSprite, Action<CardCraftProcess> onCompletedCallback)
         {
@@ -65,6 +73,11 @@ namespace Slimelands.Cards
                 return;
             }
 
+            if (ProductionPaused && !IsFoodStockRecipe(Recipe))
+            {
+                return;
+            }
+
             elapsed += Time.deltaTime;
             float duration = Mathf.Max(Recipe.CraftDuration, 0.0001f);
             float progress = elapsed / duration;
@@ -79,6 +92,11 @@ namespace Slimelands.Cards
             }
 
             SetProgress(progress);
+        }
+
+        private static bool IsFoodStockRecipe(CardRecipeData recipe)
+        {
+            return recipe != null && (recipe.FoodStockAmount > 0 || recipe.UseIngredientFoodSupplyValue);
         }
 
         private void SetProgress(float progress01)

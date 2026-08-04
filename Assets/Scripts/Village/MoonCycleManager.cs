@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Slimelands.Cards;
 
 namespace Slimelands.Village
 {
@@ -9,6 +10,8 @@ namespace Slimelands.Village
     /// 月齢経過時、在籍する全スライムの消費量合計を食料ストックからまとめて差し引く。
     /// ストックが足りない場合は消費せずに進行をブロックし、スライムの売却や食料投入で
     /// 消費量合計がストック以下に戻ると自動的にブロックを解除して進行を再開する。
+    /// ブロック中は村の生産活動(CardCraftProcess)も連動して停止させる(食料ストックを
+    /// 増やすレシピだけは、自力で解消できるよう例外的に動き続ける。CardCraftProcess側で判定)。
     /// </summary>
     public class MoonCycleManager : MonoBehaviour
     {
@@ -86,6 +89,7 @@ namespace Slimelands.Village
             if (foodStockManager == null || !foodStockManager.TryConsume(totalConsumption))
             {
                 IsBlocked = true;
+                CardCraftProcess.ProductionPaused = true;
                 int currentFood = foodStockManager != null ? foodStockManager.CurrentFood : 0;
                 OnMonthBlocked?.Invoke(totalConsumption, currentFood);
                 return;
@@ -125,6 +129,7 @@ namespace Slimelands.Village
             }
 
             IsBlocked = false;
+            CardCraftProcess.ProductionPaused = false;
             elapsedInMonth = 0f;
             OnMonthUnblocked?.Invoke();
         }
