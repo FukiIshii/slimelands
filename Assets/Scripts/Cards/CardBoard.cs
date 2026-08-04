@@ -736,6 +736,16 @@ namespace Slimelands.Cards
         {
             yield return AnimateFlyPosition(card.transform, start, end);
             SetColliderEnabled(card, true);
+
+            if (targetStack == null)
+            {
+                // 飛行中に合流先のスタックが消滅していた場合(合成消費・取得など)は、
+                // 代わりにその場で新しいスタックとして着地させる。
+                CardStack fallbackStack = CardStack.Create(cardParent, end);
+                fallbackStack.AddToTop(card);
+                yield break;
+            }
+
             targetStack.AddToTop(card);
         }
 
