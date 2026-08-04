@@ -863,7 +863,7 @@ GameObject:
   - component: {fileID: 264097660}
   - component: {fileID: 264097659}
   m_Layer: 0
-  m_Name: "Card_\u7D0D\u5C4B"
+  m_Name: "Card_\u3048\u3055\u5834"
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
