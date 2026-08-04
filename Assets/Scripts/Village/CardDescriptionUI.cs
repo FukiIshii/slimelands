@@ -25,8 +25,8 @@ namespace Slimelands.Village
 
         private const float BasePanelHeight = 130f;
         private const float SlimeSummaryHeight = 60f;
-        private const float DetailsOverlayWidth = 360f;
-        private const float DetailsOverlayHeight = 220f;
+        private const float DetailsOverlayWidth = 380f;
+        private const float DetailsOverlayHeight = 300f;
 
         private void OnEnable()
         {
