@@ -2316,3 +2316,99 @@ Play Modeを一時停止状態(`IsPaused=true`)にする副作用があり、こ
   挙動は未検証(対象の`CardStack`参照が古くなる可能性はあるが、`targetStack == null`チェックで
   クラッシュはしない設計にはしてある)。
 - `expPopupColor`(仮のゴールド系配色)は仮値、要調整。
+
+## 修正: マナクリスタル1枚のみ給餌したときに経験値ポップアップが出ない
+
+まとめ給餌(`FeedQueueSequentially`)側にしか経験値ポップアップの表示を実装しておらず、
+通常の1枚合成経路(`OnCraftCompleted`)には表示がなかった。`OnCraftCompleted`の経験値付与
+分岐にも同様の`FloatingNumberPopup.Spawn`呼び出しを追加して解消した。
+
+## 修正: 結果カードが合流先スタックへ飛行中に消滅した場合のMissingReferenceException
+
+`FlyThenMergeIntoStack`コルーチンは、飛行アニメーション開始時点の`targetStack`参照を
+コルーチン内に保持したまま数フレーム(`resultFlyDuration`秒)待ってから`AddToTop`を呼んでいた。
+待っている間に対象スタックが合成消費等で破棄されると、破棄済みオブジェクトへのアクセスで
+`MissingReferenceException`が発生していた。着地時に`targetStack == null`(Unityの破棄済み判定)
+なら、`FlyThenCreateStack`と同様その場に新しいスタックを作るフォールバックへ変更した。
+
+## 修正: 編成選択画面でダンジョンを選び直せてしまう不具合
+
+ダンジョンツリー→ダンジョン詳細→編成選択画面、というフローで、詳細画面の「挑戦する」を
+押した時点で`PartyFormationUI.SelectDungeon`によりダンジョンは確定するはずだったが、
+編成選択画面(`PartyFormationUI`)側にも独自のダンジョン選択ボタン一覧が残っており、
+そこから別のダンジョンへ選び直せてしまっていた。選択ボタン一覧を廃止し、確定済みダンジョンの
+名前・必要体数・クリア済み表示のみを見せる読み取り専用表示に変更した。
+`availableDungeons`(ダンジョンツリーのマスターリストとしても使われる)フィールド自体は
+そのまま残している。
+
+## 修正: 非推奨API `FindFirstObjectByType` の置き換え
+
+`DungeonPartyHud.cs`で`EventSystem`の存在有無を確認するためだけに使っていた
+`Object.FindFirstObjectByType<T>(FindObjectsInactive)`が非推奨(CS0618)だったため、
+インスタンス順序に依存しない`Object.FindAnyObjectByType<T>(FindObjectsInactive)`に置き換えた。
+存在チェックのみの用途であり、順序性を必要としないため挙動に影響はない。
+
+## 実装: 納屋への任意素材投入による食料化(汎用素材食料化)
+
+### 要望
+「食糧庫にありとあらゆる素材を合成すると、その素材に決められた食糧供給値の分だけ食料
+スタックの値を増やしたい。マナクリスタルと同じように、増えた値だけ数値を表示してフェード
+アウトさせてほしい」という依頼。
+
+従来は`Recipe_Wood_Barn_FoodStock`という「木材+納屋」専用の固定レシピ(`foodStockAmount=5`)
+1本のみが存在し、他の資源(石材・板材・水晶など)は納屋に与えても何も起きなかった。
+CLAUDE.mdルール3(配合ロジックは汎用的なテーブル/ルールにする。個別のif分岐で埋め込まず、
+データ側で結果を引ける設計にする)に従い、素材ごとに専用レシピを増やすのではなく、
+既存の`CardIngredient.MatchMode.AnyOfCategory`(カテゴリが一致すれば種類を問わない指定。
+マナクリスタル+「スライムなら何でも良い」レシピで既に使われている仕組み)を流用して
+「納屋+資源カテゴリのカードなら何でも」という1本のレシピに一般化した。
+
+### 実装内容
+- **`ResourceCardData.cs`**: `foodSupplyValue`(int, デフォルト0)フィールドを追加。
+  資源カード1種につき、納屋に与えたときに加算される食料量をInspectorで個別に設定できる。
+- **`CardRecipeData.cs`**: `useIngredientFoodSupplyValue`(bool)フィールドを追加。
+  trueの場合、固定値の`foodStockAmount`の代わりに、消費される素材カード自身の
+  `FoodSupplyValue`の合計を食料ストックへ加算する。
+- **`Recipe_Wood_Barn_FoodStock.asset` → `Recipe_Barn_AnyMaterial_FoodStock.asset`にリネーム**
+  (`git mv`で実施、GUIDは維持されるため`CardRecipeBook`側の参照は無変更で有効)。
+  素材側のingredientを「Wood指定」から「Resourceカテゴリなら何でも」に変更し、
+  `foodStockAmount: 0` / `useIngredientFoodSupplyValue: 1`、`craftDuration`も
+  マナクリスタルのケースに倣い0(即時)へ変更(食料化のような「同じ処理の繰り返し」に
+  毎回演出時間を挟む必要は薄いという、以前ユーザーと合意した方針を踏襲)。
+- **`CardBoard.cs` (`OnCraftCompleted`)**: 食料加算の分岐を
+  `recipe.FoodStockAmount > 0 || recipe.UseIngredientFoodSupplyValue`に拡張。
+  後者の場合は消費された素材カードそれぞれの`FoodSupplyValue`を合算してから
+  `FoodStockManager.AddFood`に渡す。加算後は`foodPopupColor`(新規追加、緑系仮配色)で
+  `FloatingNumberPopup`を表示する。
+- **まとめ給餌との整合性**: 既存の`FeedQueueSequentially`(マナクリスタルの複数枚まとめ給餌で
+  導入したコルーチン)は、資源+納屋の組み合わせでも同じ安全条件(対象=納屋側の枠が全て
+  `isConsumed=false`)を満たすため無改造でそのまま動作する。ただし、1枚給餌時の経験値
+  ポップアップ表示を追加した直近の修正により、`OnCraftCompleted`が呼ばれるたびに
+  ポップアップが出るようになっていたため、このままだとまとめ給餌中に「1枚ごとの小さな
+  ポップアップ」×N + 最後の「合計値の大きなポップアップ」が二重に出てしまう問題が新たに
+  発生することが分かった。これを避けるため、`suppressCraftCompletionPopup`という
+  一時フラグを追加: `FeedQueueSequentially`が1枚を乗せてから完了を待つ間だけtrueにし、
+  `OnCraftCompleted`側はこのフラグがtrueのときポップアップ表示だけをスキップする
+  (実際の経験値/食料の加算処理自体はスキップしない)。ループ終了後、
+  `FeedQueueSequentially`側で経験値/固定食料量/素材固有食料値のいずれかに応じた
+  合計値を1回だけポップアップ表示する。
+- **バランス値の扱い**: `foodSupplyValue`は木材(Wood)のみ、既存の固定レシピが持っていた
+  値5をそのまま移行した。他の資源(石材・板材・ガチャクリスタル・水晶・ファイアクリスタル等)は
+  デフォルトの0のままとした。`docs/GDD.md`の「今後詰める論点」に「食料値の具体的なバランス」が
+  未決定事項として明記されている(CLAUDE.mdルール9)ため、根拠のないバランス数値を新たに
+  作らず、Inspectorで後から調整可能な状態に留めている。
+- **`docs/GDD.md`**: 村の施設一覧の下に「納屋への素材投入(食料化)」の節を新設し、
+  上記の仕組みと現状のバランス値の状態を記載した。
+
+### テスト方針
+Unity MCPが本セッション終盤で接続不可(`Unity not detected`)だったため、今回はコード
+レビューのみで検証した(Play Modeでの実機確認は未実施)。確認したポイント:
+- `CardRecipeData.TryMatch`/`CardIngredient.Matches`は無変更のため、`AnyOfCategory`による
+  マッチング自体は既存のマナクリスタル+スライムレシピと同じロジックが流用されるだけで、
+  新規のバグ混入リスクは小さいと判断。
+- `OnCraftCompleted`・`FeedQueueSequentially`の分岐追加箇所は、既存の`recipe.FoodStockAmount`
+  分岐・`recipe.ExpGrantAmount`分岐と排他的なif/else if構造を保ったまま追加しており、
+  既存レシピ(経験値付与・通常の結果カード生成)の挙動には影響しない。
+- 残課題: 実機でのドラッグ&ドロップ確認(木材1枚/複数枚を納屋に与えたときの食料増加量・
+  ポップアップ表示・他資源を与えたときに0加算のまま消費される挙動)は次回Unity接続時に
+  要実施。

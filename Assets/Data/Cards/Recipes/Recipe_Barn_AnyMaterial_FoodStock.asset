@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 023589ecca635e140a91cc5ca70251dc, type: 3}
-  m_Name: Recipe_Wood_Barn_FoodStock
+  m_Name: Recipe_Barn_AnyMaterial_FoodStock
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.CardRecipeData
   recipeType: 0
   ingredients:
-  - mode: 0
-    specificCard: {fileID: 11400000, guid: 8b3fa6634a87b0c4d9cd35177699568a, type: 2}
+  - mode: 1
+    specificCard: {fileID: 0}
     category: 0
     isConsumed: 1
   - mode: 0
@@ -24,5 +24,6 @@ MonoBehaviour:
     isConsumed: 0
   result: {fileID: 0}
   resultCount: 0
-  craftDuration: 3
-  foodStockAmount: 5
+  craftDuration: 0
+  foodStockAmount: 0
+  useIngredientFoodSupplyValue: 1

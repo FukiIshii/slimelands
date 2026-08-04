@@ -25,6 +25,8 @@ namespace Slimelands.Cards
         [SerializeField] private Sprite craftProgressFillSprite;
         [Tooltip("経験値付与レシピ(ExpGrantAmount)をまとめ給餌したときに表示するポップアップの色。")]
         [SerializeField] private Color expPopupColor = new(1f, 0.85f, 0.3f);
+        [Tooltip("食料ストック加算レシピ(FoodStockAmount/UseIngredientFoodSupplyValue)が完了したときに表示するポップアップの色。")]
+        [SerializeField] private Color foodPopupColor = new(0.4f, 0.85f, 0.4f);
         [Tooltip("foodStockAmountを持つレシピが完了したときに加算する食料ストック。")]
         [SerializeField] private FoodStockManager foodStockManager;
         [Tooltip("スライムカードが生成/消費されるたびに、対応する個体(SlimeIndividual)を登録/除去する村の名簿。")]
@@ -67,6 +69,12 @@ namespace Slimelands.Cards
         private CardStack draggedStack;
         private int nextSortingOrder;
         private Vector2 cardFootprintSize = Vector2.one;
+
+        /// <summary>
+        /// FeedQueueSequentially(まとめ給餌)の1枚ずつの合成完了中はtrueにし、OnCraftCompleted側の
+        /// 単発ポップアップ表示を抑止する(まとめ給餌側で合計値のポップアップを1回だけ出すため)。
+        /// </summary>
+        private bool suppressCraftCompletionPopup;
 
         /// <summary>
         /// カードをクリック(ドラッグ開始のプレス)したときに、そのカードのデータを通知する。
@@ -332,7 +340,7 @@ namespace Slimelands.Cards
             }
 
             List<CardController> queue = dropped.TakeAll();
-            StartCoroutine(FeedQueueSequentially(targetStack, queue, recipe));
+            StartCoroutine(FeedQueueSequentially(targetStack, queue, recipe, repeatedData));
             return true;
         }
 
@@ -340,10 +348,11 @@ namespace Slimelands.Cards
         /// キューにあるカードを対象スタックへ1枚ずつ乗せてはCardCraftProcessの完了を待つ、を繰り返す。
         /// CardCraftProcessのDestroy()はフレーム末まで反映が遅延されるため、次のカードを乗せる前に
         /// 必ず1フレーム待ってから進める(同一フレーム内で複数のCardCraftProcessが同居し、
-        /// GetComponentの参照が曖昧になるのを避けるため)。全て給餌し終えたら、経験値付与レシピの
-        /// 場合のみ合計値をまとめてポップアップ表示する。
+        /// GetComponentの参照が曖昧になるのを避けるため)。1枚ごとのポップアップ表示はOnCraftCompleted側で
+        /// 抑止し、全て給餌し終えたところで合計値をまとめて1回だけポップアップ表示する。
         /// </summary>
-        private IEnumerator FeedQueueSequentially(CardStack targetStack, List<CardController> queue, CardRecipeData recipe)
+        private IEnumerator FeedQueueSequentially(CardStack targetStack, List<CardController> queue, CardRecipeData recipe,
+            CardData repeatedData)
         {
             int fedCount = 0;
 
@@ -362,12 +371,15 @@ namespace Slimelands.Cards
 
                 AssignAscendingSortingOrders(new List<CardController> { card });
                 targetStack.AddToTop(card);
+
+                suppressCraftCompletionPopup = true;
                 TryStartCraftIfMatches(targetStack);
 
                 CardCraftProcess process = targetStack.GetComponent<CardCraftProcess>();
                 if (process == null)
                 {
                     // 想定外(TryBeginBatchFeedの事前確認と食い違った)。これ以上は続けない。
+                    suppressCraftCompletionPopup = false;
                     yield break;
                 }
 
@@ -376,17 +388,35 @@ namespace Slimelands.Cards
                     yield return null;
                     if (targetStack == null)
                     {
+                        suppressCraftCompletionPopup = false;
                         yield break;
                     }
                 }
 
+                suppressCraftCompletionPopup = false;
+
                 fedCount++;
             }
 
-            if (fedCount > 0 && recipe.ExpGrantAmount > 0 && targetStack != null)
+            if (fedCount <= 0 || targetStack == null)
+            {
+                yield break;
+            }
+
+            if (recipe.ExpGrantAmount > 0)
             {
                 int totalExp = recipe.ExpGrantAmount * fedCount;
                 FloatingNumberPopup.Spawn(targetStack.transform.position, totalExp, expPopupColor);
+            }
+            else if (recipe.FoodStockAmount > 0)
+            {
+                int totalFood = recipe.FoodStockAmount * fedCount;
+                FloatingNumberPopup.Spawn(targetStack.transform.position, totalFood, foodPopupColor);
+            }
+            else if (recipe.UseIngredientFoodSupplyValue && repeatedData is ResourceCardData resourceData)
+            {
+                int totalFood = resourceData.FoodSupplyValue * fedCount;
+                FloatingNumberPopup.Spawn(targetStack.transform.position, totalFood, foodPopupColor);
             }
         }
 
@@ -521,12 +551,35 @@ namespace Slimelands.Cards
                 Destroy(ingredient.gameObject);
             }
 
-            if (recipe.FoodStockAmount > 0)
+            if (recipe.FoodStockAmount > 0 || recipe.UseIngredientFoodSupplyValue)
             {
-                // 結果カードを生成する代わりに食料ストックへ加算するレシピ(例: アイテム+納屋)。
+                // 結果カードを生成する代わりに食料ストックへ加算するレシピ(例: 納屋+ありとあらゆる素材)。
+                // UseIngredientFoodSupplyValueがtrueの場合は固定値ではなく、消費された素材カード自身が
+                // 持つ食料供給値(ResourceCardData.FoodSupplyValue)の合計を使う。これにより素材の種類ごとに
+                // 個別のレシピを用意しなくても、どの素材を与えたかで加算量が変わる。
+                int foodAmount = recipe.FoodStockAmount;
+                if (recipe.UseIngredientFoodSupplyValue)
+                {
+                    foodAmount = 0;
+                    foreach (CardController ingredient in consumed)
+                    {
+                        if (ingredient.Data is ResourceCardData resourceData)
+                        {
+                            foodAmount += resourceData.FoodSupplyValue;
+                        }
+                    }
+                }
+
                 if (foodStockManager != null)
                 {
-                    foodStockManager.AddFood(recipe.FoodStockAmount);
+                    foodStockManager.AddFood(foodAmount);
+                }
+
+                // まとめ給餌(FeedQueueSequentially)経由と表示を揃えるため、1枚ずつの給餌でも
+                // 増えた食料量をポップアップ表示する(まとめ給餌中は合計値側で1回だけ表示するため抑止)。
+                if (!suppressCraftCompletionPopup)
+                {
+                    FloatingNumberPopup.Spawn(anchorPosition, foodAmount, foodPopupColor);
                 }
             }
             else if (recipe.ExpGrantAmount > 0)
@@ -546,8 +599,11 @@ namespace Slimelands.Cards
                 }
 
                 // まとめ給餌(FeedQueueSequentially)経由と表示を揃えるため、1枚ずつの給餌でも
-                // 経験値量をポップアップ表示する。
-                FloatingNumberPopup.Spawn(anchorPosition, recipe.ExpGrantAmount, expPopupColor);
+                // 経験値量をポップアップ表示する(まとめ給餌中は合計値側で1回だけ表示するため抑止)。
+                if (!suppressCraftCompletionPopup)
+                {
+                    FloatingNumberPopup.Spawn(anchorPosition, recipe.ExpGrantAmount, expPopupColor);
+                }
             }
             else
             {

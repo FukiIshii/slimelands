@@ -17,9 +17,14 @@ namespace Slimelands.Cards
         [SerializeField] private int resultCount = 1;
         [Tooltip("合成が完了するまでにかかる時間(秒)。0以下なら即時完了。")]
         [SerializeField] private float craftDuration = 0f;
-        [Tooltip("0より大きい場合、結果カードを生成する代わりに村の食料ストックへこの量を加算する" +
-            "(例: アイテム+納屋→食料ストック加算)。resultはこの用途では未設定にする。")]
+        [Tooltip("0より大きい場合、結果カードを生成する代わりに村の食料ストックへこの固定量を加算する" +
+            "(例: 特定のアイテム+納屋→食料ストック加算)。resultはこの用途では未設定にする。" +
+            "UseIngredientFoodSupplyValueがtrueの場合はこちらではなく素材側の値を使う。")]
         [SerializeField] private int foodStockAmount = 0;
+        [Tooltip("trueの場合、固定値(foodStockAmount)の代わりに、消費される素材カード自身が持つ" +
+            "食料供給値(ResourceCardData.FoodSupplyValue)の合計を食料ストックへ加算する" +
+            "(例: 納屋+ありとあらゆる素材、のように素材の種類を問わない食料化レシピ用)。")]
+        [SerializeField] private bool useIngredientFoodSupplyValue = false;
         [Tooltip("0より大きい場合、結果カードを生成する代わりに、消費されない(isConsumed=false)素材枠に" +
             "割り当てられたスライムの個体にこの量の経験値を加算する(例: マナクリスタル+スライム→経験値付与)。" +
             "resultはこの用途では未設定にする。")]
@@ -31,6 +36,7 @@ namespace Slimelands.Cards
         public int ResultCount => resultCount;
         public float CraftDuration => craftDuration;
         public int FoodStockAmount => foodStockAmount;
+        public bool UseIngredientFoodSupplyValue => useIngredientFoodSupplyValue;
         public int ExpGrantAmount => expGrantAmount;
 
         /// <summary>
