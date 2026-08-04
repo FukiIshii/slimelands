@@ -6,7 +6,7 @@ namespace Slimelands.Cards
     [CreateAssetMenu(fileName = "NewResourceCard", menuName = "Slimelands/Cards/Resource Card", order = 10)]
     public class ResourceCardData : CardData
     {
-        [Tooltip("納屋にこのカードを与えたときに食料ストックへ加算される量(0なら納屋の食料には使えない)。" +
+        [Tooltip("えさ場にこのカードを与えたときに食料ストックへ加算される量(0ならえさ場の食料には使えない)。" +
             "素材ごとに個別のレシピを用意せず、この値をレシピ側(UseIngredientFoodSupplyValue)から参照する。")]
         [SerializeField] private int foodSupplyValue = 0;
 

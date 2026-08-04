@@ -553,7 +553,7 @@ namespace Slimelands.Cards
 
             if (recipe.FoodStockAmount > 0 || recipe.UseIngredientFoodSupplyValue)
             {
-                // 結果カードを生成する代わりに食料ストックへ加算するレシピ(例: 納屋+ありとあらゆる素材)。
+                // 結果カードを生成する代わりに食料ストックへ加算するレシピ(例: えさ場+ありとあらゆる素材)。
                 // UseIngredientFoodSupplyValueがtrueの場合は固定値ではなく、消費された素材カード自身が
                 // 持つ食料供給値(ResourceCardData.FoodSupplyValue)の合計を使う。これにより素材の種類ごとに
                 // 個別のレシピを用意しなくても、どの素材を与えたかで加算量が変わる。

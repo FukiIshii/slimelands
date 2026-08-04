@@ -5,7 +5,7 @@ namespace Slimelands.Village
 {
     /// <summary>
     /// 村全体で共有する食料ストック(単一の数値)を管理する。
-    /// 加算は「アイテム+納屋→食料ストック加算」のようなCardRecipeData(foodStockAmount)の完了によって行われ、
+    /// 加算は「アイテム+えさ場→食料ストック加算」のようなCardRecipeData(foodStockAmount)の完了によって行われ、
     /// 月齢経過時にまとめて消費される。
     /// </summary>
     public class FoodStockManager : MonoBehaviour
