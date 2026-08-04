@@ -16,6 +16,7 @@ namespace Slimelands.Village
         private CardData selectedCard;
         private SlimeIndividual selectedIndividual;
         private bool showDetails;
+        private readonly object detailsOverlayKey = new();
         private GUIStyle nameStyle;
         private GUIStyle descriptionStyle;
         private GUIStyle expLabelStyle;
@@ -24,7 +25,8 @@ namespace Slimelands.Village
 
         private const float BasePanelHeight = 130f;
         private const float SlimeSummaryHeight = 60f;
-        private const float DetailsHeight = 150f;
+        private const float DetailsOverlayWidth = 360f;
+        private const float DetailsOverlayHeight = 220f;
 
         private void OnEnable()
         {
@@ -42,6 +44,7 @@ namespace Slimelands.Village
             }
 
             ScreenUIPanelRegistry.SetPanelRect(this, null);
+            ScreenUIPanelRegistry.SetPanelRect(detailsOverlayKey, null);
         }
 
         private void HandleCardSelected(CardController card)
@@ -93,6 +96,7 @@ namespace Slimelands.Village
             if (selectedCard == null)
             {
                 ScreenUIPanelRegistry.SetPanelRect(this, null);
+                ScreenUIPanelRegistry.SetPanelRect(detailsOverlayKey, null);
                 return;
             }
 
@@ -102,10 +106,6 @@ namespace Slimelands.Village
             if (selectedIndividual != null)
             {
                 panelHeight += SlimeSummaryHeight;
-                if (showDetails)
-                {
-                    panelHeight += DetailsHeight;
-                }
             }
 
             Rect panelRect = new(10f, 270f, 260f, panelHeight);
@@ -125,19 +125,35 @@ namespace Slimelands.Village
                 {
                     showDetails = !showDetails;
                 }
-
-                if (showDetails)
-                {
-                    DrawDetails(selectedIndividual);
-                }
             }
 
             GUILayout.EndArea();
+
+            if (selectedIndividual != null && showDetails)
+            {
+                DrawDetailsOverlay(selectedIndividual);
+            }
+            else
+            {
+                ScreenUIPanelRegistry.SetPanelRect(detailsOverlayKey, null);
+            }
         }
 
-        /// <summary>詳細ボタンで開閉する、ステータス(攻撃力等)と必殺技の内訳表示。</summary>
-        private void DrawDetails(SlimeIndividual individual)
+        /// <summary>
+        /// 詳細ボタンで開く、ステータス(攻撃力等)と必殺技の内訳表示。他のUI(ダンジョンへボタン等)と
+        /// 重ならないよう、盤面上のパネルとは独立に画面中央へオーバーレイ表示する。
+        /// </summary>
+        private void DrawDetailsOverlay(SlimeIndividual individual)
         {
+            Rect overlayRect = new((Screen.width - DetailsOverlayWidth) * 0.5f, (Screen.height - DetailsOverlayHeight) * 0.5f,
+                DetailsOverlayWidth, DetailsOverlayHeight);
+            ScreenUIPanelRegistry.SetPanelRect(detailsOverlayKey, overlayRect);
+
+            GUI.Box(overlayRect, string.Empty);
+            GUILayout.BeginArea(new Rect(overlayRect.x + 10f, overlayRect.y + 6f, overlayRect.width - 20f, overlayRect.height - 12f));
+
+            GUILayout.Label($"{selectedCard.CardName} の詳細", nameStyle);
+
             SlimeStats stats = individual.CalculateCurrentStats();
             GUILayout.Label("ステータス", nameStyle);
             GUILayout.Label($"HP: {stats.maxHp}    攻撃: {stats.attack}", descriptionStyle);
@@ -155,6 +171,13 @@ namespace Slimelands.Village
             {
                 GUILayout.Label("なし", descriptionStyle);
             }
+
+            if (GUILayout.Button("閉じる"))
+            {
+                showDetails = false;
+            }
+
+            GUILayout.EndArea();
         }
 
         private void DrawExpBar(SlimeIndividual individual)
