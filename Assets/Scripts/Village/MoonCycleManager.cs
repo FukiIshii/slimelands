@@ -21,6 +21,7 @@ namespace Slimelands.Village
         [SerializeField] private float monthDurationSeconds = 30f;
 
         private float elapsedInMonth;
+        private bool isRecheckingBlock;
 
         public int CurrentMonth { get; private set; } = 1;
         public bool IsBlocked { get; private set; }
@@ -110,28 +111,41 @@ namespace Slimelands.Village
         }
 
         /// <summary>
-        /// ブロック中に消費量合計がストック以下に戻っていないかを再確認し、
-        /// 満たしていればブロックを解除して次の月から進行を再開する。
+        /// ブロック中に消費量合計を賄えるだけの食料が揃ったかを再確認し、賄えるなら
+        /// (滞っていた月の分の)消費を実際に行った上でブロックを解除し、次の月から進行を再開する。
+        /// 滞っていた月の消費自体はここで確定させる(AdvanceMonthNowの成功パスと同じ扱い)。
         /// </summary>
         public void RecheckBlock()
         {
-            if (!IsBlocked)
+            // TryConsumeが発火するOnFoodChangedをこのメソッド自身がHandleFoodChanged経由で
+            // 購読しているため、そのままでは「消費→OnFoodChanged→RecheckBlock再入→もう一度消費」
+            // という二重消費が起きる。再入を弾くガードで防ぐ。
+            if (!IsBlocked || isRecheckingBlock)
             {
                 return;
             }
 
-            int totalConsumption = slimeRoster != null ? slimeRoster.CalculateTotalMonthlyConsumption() : 0;
-            int currentFood = foodStockManager != null ? foodStockManager.CurrentFood : 0;
-
-            if (totalConsumption > currentFood)
+            isRecheckingBlock = true;
+            try
             {
-                return;
-            }
+                int totalConsumption = slimeRoster != null ? slimeRoster.CalculateTotalMonthlyConsumption() : 0;
 
-            IsBlocked = false;
-            CardCraftProcess.ProductionPaused = false;
-            elapsedInMonth = 0f;
-            OnMonthUnblocked?.Invoke();
+                if (foodStockManager == null || !foodStockManager.TryConsume(totalConsumption))
+                {
+                    return;
+                }
+
+                IsBlocked = false;
+                CardCraftProcess.ProductionPaused = false;
+                elapsedInMonth = 0f;
+                CurrentMonth++;
+                OnMonthUnblocked?.Invoke();
+                OnMonthAdvanced?.Invoke(totalConsumption, CurrentMonth);
+            }
+            finally
+            {
+                isRecheckingBlock = false;
+            }
         }
     }
 }

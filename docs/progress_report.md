@@ -2450,3 +2450,37 @@ Unity MCPが本セッション終盤で接続不可(`Unity not detected`)だっ�
 - 残課題: 実機での確認(食料を意図的に枯渇させて月齢を進め、施設の自動生産バーが本当に
   止まること、えさ場への素材投入だけは引き続き機能して食料を回復できること、回復後に
   自動で生産が再開すること)は次回Unity接続時に要実施。
+
+## 修正: ブロック解除時に食料が消費されていなかった(二重消費の危険もあわせて修正)
+
+### 指摘内容
+「食料ストックの値が足りている場合は、ちゃんと食料ストックの表示が減るが、食料ストックの値が
+足りず一時停止モードになった後、再開する時には消費されていない」との指摘。
+
+### 原因
+`MoonCycleManager.RecheckBlock()`は、ブロック中に消費量合計がストック以下に戻ったかを
+`totalConsumption > currentFood`で判定するだけで、実際に`FoodStockManager.TryConsume`を
+呼び出していなかった。そのため、ブロックが解除される瞬間は「滞っていた月の食料消費」が
+一切行われないまま`IsBlocked = false`になっていた(`AdvanceMonthNow`の成功パスとは異なる
+挙動になっていた)。
+
+### 実装内容
+- `RecheckBlock()`内の判定を、読み取りのみの比較から`foodStockManager.TryConsume(totalConsumption)`
+  の呼び出しに変更。消費に成功した場合のみブロックを解除するようにした(`AdvanceMonthNow`の
+  成功パスと同じ扱い)。
+- ブロック解除時も「月が1つ進んだ」ことに変わりはないため、`CurrentMonth++`と
+  `OnMonthAdvanced`イベントの発火を追加し、`AdvanceMonthNow`成功パスと整合させた。
+- **副次的に発見・修正した二重消費リスク**: `RecheckBlock`は`foodStockManager.OnFoodChanged`
+  を購読した`HandleFoodChanged`から呼ばれる。`RecheckBlock`が自ら`TryConsume`を呼ぶように
+  なったことで、その`TryConsume`が発火する`OnFoodChanged`イベント経由で`RecheckBlock`が
+  「まだ`IsBlocked = false`にする前」の状態で再入してしまい、同じ月の消費がもう一度実行される
+  (=食料を二重に消費し、`CurrentMonth`も2つ進んでしまう)危険があった。`isRecheckingBlock`
+  という再入ガードを追加し、実行中の再入呼び出しは即座に無視するようにして防いだ。
+
+### テスト方針
+本修正時点でもUnity MCPが未接続のため、コードレビューのみでの確認。
+- 再入ガードの妥当性: `isRecheckingBlock`はメソッド冒頭でtrueに設定し、`try/finally`で
+  メソッドを抜ける際に必ずfalseへ戻すため、例外発生時にガードが残ったままになることもない。
+- 残課題: 実機での確認(食料不足でブロック→えさ場へ素材投入して食料を回復→ブロック解除の
+  瞬間に消費量分だけ食料ストックが減ること、`CurrentMonth`が1つだけ進むこと)は次回Unity
+  接続時に要実施。
