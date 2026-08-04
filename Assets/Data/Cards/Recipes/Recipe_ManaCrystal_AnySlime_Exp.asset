@@ -24,6 +24,6 @@ MonoBehaviour:
     isConsumed: 0
   result: {fileID: 0}
   resultCount: 0
-  craftDuration: 5
+  craftDuration: 0
   foodStockAmount: 0
   expGrantAmount: 20

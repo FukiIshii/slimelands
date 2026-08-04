@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Slimelands.Slime;
+using Slimelands.UI;
 
 namespace Slimelands.Dungeon
 {
@@ -131,7 +132,7 @@ namespace Slimelands.Dungeon
         /// <summary>
         /// ダメージ発生源(通常攻撃/単体・範囲必殺技/スイープ)を問わず、対象に実際にダメージが
         /// 反映されるたびに呼ばれる。対象の現在位置の周辺にダメージ数字を表示し、上昇しながら
-        /// フェードアウトさせる(DamageNumberView側の演出)。
+        /// フェードアウトさせる(FloatingNumberPopup側の演出)。
         /// </summary>
         private void HandleDamageDealt(BattleUnit attacker, BattleUnit target, int damage)
         {
@@ -141,7 +142,7 @@ namespace Slimelands.Dungeon
             }
 
             Color color = target.IsPlayerSide ? PlayerDamagedNumberColor : EnemyDamagedNumberColor;
-            DamageNumberView.Spawn(targetView.CurrentPosition, damage, color);
+            FloatingNumberPopup.Spawn(targetView.CurrentPosition, damage, color);
         }
 
         /// <summary>

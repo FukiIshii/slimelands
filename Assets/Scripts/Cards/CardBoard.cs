@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Slimelands.Slime;
+using Slimelands.UI;
 using Slimelands.Village;
 
 namespace Slimelands.Cards
@@ -22,6 +23,8 @@ namespace Slimelands.Cards
         [SerializeField] private Transform cardParent;
         [SerializeField] private Sprite craftProgressBackgroundSprite;
         [SerializeField] private Sprite craftProgressFillSprite;
+        [Tooltip("経験値付与レシピ(ExpGrantAmount)をまとめ給餌したときに表示するポップアップの色。")]
+        [SerializeField] private Color expPopupColor = new(1f, 0.85f, 0.3f);
         [Tooltip("foodStockAmountを持つレシピが完了したときに加算する食料ストック。")]
         [SerializeField] private FoodStockManager foodStockManager;
         [Tooltip("スライムカードが生成/消費されるたびに、対応する個体(SlimeIndividual)を登録/除去する村の名簿。")]
@@ -255,6 +258,14 @@ namespace Slimelands.Cards
             CardStack targetStack = target.ParentStack;
             CardController droppedTopCard = dropped.Count == 1 ? dropped.PeekTop() : null;
 
+            // 同じ種類のカードがN枚重なったスタックをまとめてドロップした場合、条件が合えば
+            // 1枚ずつ順番に合成するバッチ給餌を行う(例: マナクリスタルを重ねてスライムに与える)。
+            // 対象外の組み合わせならfalseを返すので、その場合は下の通常の重ね合わせ処理に進む。
+            if (droppedTopCard == null && TryBeginBatchFeed(dropped, targetStack))
+            {
+                return;
+            }
+
             // カードは常にまず物理的に重ねる。
             List<CardController> cardsToMove = dropped.TakeAll();
             AssignAscendingSortingOrders(cardsToMove);
@@ -266,6 +277,116 @@ namespace Slimelands.Cards
             if (droppedTopCard != null)
             {
                 TryStartCraftIfMatches(targetStack);
+            }
+        }
+
+        /// <summary>
+        /// 同じ種類のカードがN枚重なったスタックを、別のスタックへまとめてドロップした場合に、
+        /// 「1枚だけドロップしたときと同じレシピ」がN回連続で成立する状況であれば、1枚ずつ順番に
+        /// 合成を実行するバッチ給餌を開始する(例: マナクリスタルを重ねてスライムに与える)。
+        /// TryMatch/TryAssign自体には一切手を加えず、既存の判定・CardCraftProcessをそのまま
+        /// 繰り返し呼び出すだけで実現する(レシピ側にN枚固定の枠を用意する必要をなくすため)。
+        /// 対応しない組み合わせの場合は何もせずfalseを返す(呼び出し側が従来通りの単純な重ね合わせを行う)。
+        /// </summary>
+        private bool TryBeginBatchFeed(CardStack dropped, CardStack targetStack)
+        {
+            if (recipeBook == null || dropped == null || dropped.Count <= 1 || targetStack == null)
+            {
+                return false;
+            }
+
+            CardData repeatedData = dropped.Cards[0].Data;
+            foreach (CardController card in dropped.Cards)
+            {
+                if (card.Data != repeatedData)
+                {
+                    // 重なっているカードの種類が揃っていない場合はバッチ給餌の対象外。
+                    return false;
+                }
+            }
+
+            // 対象スタックの現在の中身+このカード1枚で、いずれかのレシピと一致するか確認する
+            // (実際の判定はrecipeBook.TryFindRecipe/recipe.TryMatchをそのまま使う)。
+            var probeContents = new List<CardData>(targetStack.Count + 1);
+            foreach (CardController card in targetStack.Cards)
+            {
+                probeContents.Add(card.Data);
+            }
+            probeContents.Add(repeatedData);
+
+            if (!recipeBook.TryFindRecipe(probeContents, out CardRecipeData recipe) ||
+                !recipe.TryMatch(probeContents, out int[] mapping))
+            {
+                return false;
+            }
+
+            // 対象スタック側のカードが1枚でも消費される(isConsumed=true)枠に割り当てられる場合、
+            // 1回目の合成で対象自体が失われてしまい2回目以降を繰り返せないため対象外とする
+            // (対象側が常に残る=isConsumed=falseの場合のみ、安全に繰り返せる)。
+            for (int i = 0; i < targetStack.Count; i++)
+            {
+                if (recipe.Ingredients[mapping[i]].IsConsumed)
+                {
+                    return false;
+                }
+            }
+
+            List<CardController> queue = dropped.TakeAll();
+            StartCoroutine(FeedQueueSequentially(targetStack, queue, recipe));
+            return true;
+        }
+
+        /// <summary>
+        /// キューにあるカードを対象スタックへ1枚ずつ乗せてはCardCraftProcessの完了を待つ、を繰り返す。
+        /// CardCraftProcessのDestroy()はフレーム末まで反映が遅延されるため、次のカードを乗せる前に
+        /// 必ず1フレーム待ってから進める(同一フレーム内で複数のCardCraftProcessが同居し、
+        /// GetComponentの参照が曖昧になるのを避けるため)。全て給餌し終えたら、経験値付与レシピの
+        /// 場合のみ合計値をまとめてポップアップ表示する。
+        /// </summary>
+        private IEnumerator FeedQueueSequentially(CardStack targetStack, List<CardController> queue, CardRecipeData recipe)
+        {
+            int fedCount = 0;
+
+            foreach (CardController card in queue)
+            {
+                if (targetStack == null)
+                {
+                    yield break;
+                }
+
+                yield return null;
+                if (targetStack == null)
+                {
+                    yield break;
+                }
+
+                AssignAscendingSortingOrders(new List<CardController> { card });
+                targetStack.AddToTop(card);
+                TryStartCraftIfMatches(targetStack);
+
+                CardCraftProcess process = targetStack.GetComponent<CardCraftProcess>();
+                if (process == null)
+                {
+                    // 想定外(TryBeginBatchFeedの事前確認と食い違った)。これ以上は続けない。
+                    yield break;
+                }
+
+                while (!process.IsComplete)
+                {
+                    yield return null;
+                    if (targetStack == null)
+                    {
+                        yield break;
+                    }
+                }
+
+                fedCount++;
+            }
+
+            if (fedCount > 0 && recipe.ExpGrantAmount > 0 && targetStack != null)
+            {
+                int totalExp = recipe.ExpGrantAmount * fedCount;
+                FloatingNumberPopup.Spawn(targetStack.transform.position, totalExp, expPopupColor);
             }
         }
 
