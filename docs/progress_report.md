@@ -2102,3 +2102,24 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
   引き続き仮のまま(GDD「今後詰める論点」参照)。今回追加した「衝撃波」も動作検証用の仮データ。
 - 敵側(`DungeonRunController`のウェーブ生成)は従来通り必殺技なし(`ultimateSkill: null`)の
   ままで、今回のスコープ外(候補プール方式はプレイヤー側スライムの生成経路のみが対象)。
+
+## カード説明UIに「詳細」ボタン(ステータス・必殺技表示)を追加
+
+### 変更内容
+
+- `CardDescriptionUI`: スライムカード選択時、Lv・EXPバーの下に「詳細」ボタンを追加。押すと
+  パネルが展開し、`SlimeIndividual.CalculateCurrentStats()`(個体値込みの実ステータス:
+  HP・攻撃・防御・素早さ)と、`SlimeIndividual.AssignedUltimate`(必殺技の名前・説明。
+  なければ「なし」)を表示する。もう一度押すと閉じる(`showDetails`のトグル)。
+- カード選択が切り替わったタイミングで`showDetails`を自動的にfalseへリセットする
+  (別のカードを選んだときに前のカードの詳細が開きっぱなしにならないようにするため)。
+
+### テストした内容
+
+- Play Modeで、`SlimeIndividual.CalculateCurrentStats()`・`AssignedUltimate`が詳細パネルの
+  表示内容と同じ値(HP/攻撃/防御/素早さ、必殺技名・説明)を正しく返すことを公開API経由で確認。
+- カードを実際にクリックして選択した状態でPlay Modeの実フレームが進行してもエラーが
+  発生しないことを確認(IMGUIの`GUI.Button`はMouse.current経由のクリックシミュレーションでは
+  押下できないため、ボタン押下そのものの自動テストは行っていない。ロジックは単純な真偽値の
+  トグルとラベル表示のみで、選択カード切り替え時のリセット処理も含めコードレビューで確認済み)。
+- コンパイルエラーなし。

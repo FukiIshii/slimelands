@@ -15,13 +15,16 @@ namespace Slimelands.Village
 
         private CardData selectedCard;
         private SlimeIndividual selectedIndividual;
+        private bool showDetails;
         private GUIStyle nameStyle;
         private GUIStyle descriptionStyle;
         private GUIStyle expLabelStyle;
         private Texture2D expBarBackTexture;
         private Texture2D expBarFillTexture;
 
-        private const float PanelHeight = 180f;
+        private const float BasePanelHeight = 130f;
+        private const float SlimeSummaryHeight = 60f;
+        private const float DetailsHeight = 150f;
 
         private void OnEnable()
         {
@@ -43,6 +46,7 @@ namespace Slimelands.Village
         {
             selectedCard = card != null ? card.Data : null;
             selectedIndividual = card != null ? card.BoundIndividual : null;
+            showDetails = false;
         }
 
         private void EnsureStyles()
@@ -91,7 +95,16 @@ namespace Slimelands.Village
 
             EnsureStyles();
 
-            float panelHeight = selectedIndividual != null ? PanelHeight : PanelHeight - 40f;
+            float panelHeight = BasePanelHeight;
+            if (selectedIndividual != null)
+            {
+                panelHeight += SlimeSummaryHeight;
+                if (showDetails)
+                {
+                    panelHeight += DetailsHeight;
+                }
+            }
+
             GUI.Box(new Rect(10f, 270f, 260f, panelHeight), string.Empty);
             GUILayout.BeginArea(new Rect(20f, 276f, 240f, panelHeight - 12f));
             GUILayout.Label(selectedCard.CardName, nameStyle);
@@ -102,9 +115,41 @@ namespace Slimelands.Village
             {
                 GUILayout.Label($"Lv.{selectedIndividual.Level}", nameStyle);
                 DrawExpBar(selectedIndividual);
+
+                if (GUILayout.Button(showDetails ? "詳細を閉じる" : "詳細"))
+                {
+                    showDetails = !showDetails;
+                }
+
+                if (showDetails)
+                {
+                    DrawDetails(selectedIndividual);
+                }
             }
 
             GUILayout.EndArea();
+        }
+
+        /// <summary>詳細ボタンで開閉する、ステータス(攻撃力等)と必殺技の内訳表示。</summary>
+        private void DrawDetails(SlimeIndividual individual)
+        {
+            SlimeStats stats = individual.CalculateCurrentStats();
+            GUILayout.Label("ステータス", nameStyle);
+            GUILayout.Label($"HP: {stats.maxHp}    攻撃: {stats.attack}", descriptionStyle);
+            GUILayout.Label($"防御: {stats.defense}    素早さ: {stats.speed}", descriptionStyle);
+
+            GUILayout.Label("必殺技", nameStyle);
+            SlimeSkillData ultimate = individual.AssignedUltimate;
+            if (ultimate != null)
+            {
+                GUILayout.Label(ultimate.SkillName, descriptionStyle);
+                string skillDescription = string.IsNullOrEmpty(ultimate.Description) ? "(説明未設定)" : ultimate.Description;
+                GUILayout.Label(skillDescription, descriptionStyle);
+            }
+            else
+            {
+                GUILayout.Label("なし", descriptionStyle);
+            }
         }
 
         private void DrawExpBar(SlimeIndividual individual)
