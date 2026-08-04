@@ -102,23 +102,16 @@ namespace Slimelands.Dungeon
                 screenController.ShowDungeonDetail(SelectedDungeon);
             }
 
-            GUILayout.Label("--- ダンジョン選択 ---");
-            foreach (DungeonData dungeon in availableDungeons)
+            GUILayout.Label("--- 挑戦するダンジョン ---");
+            if (SelectedDungeon != null)
             {
-                if (dungeon == null || (progressManager != null && !progressManager.IsUnlocked(dungeon)))
-                {
-                    // 未解放のダンジョンはここでは選べない(ツリー画面上でもロック表示になっている)。
-                    continue;
-                }
-
-                bool isSelected = dungeon == SelectedDungeon;
-                bool cleared = progressManager != null && progressManager.IsCleared(dungeon);
-                string label = (isSelected ? "[選択中] " : string.Empty) +
-                    $"{dungeon.DungeonName}(必要{dungeon.RequiredPartySize}体)" + (cleared ? " [クリア済]" : string.Empty);
-                if (GUILayout.Button(label))
-                {
-                    SelectDungeon(dungeon);
-                }
+                bool cleared = progressManager != null && progressManager.IsCleared(SelectedDungeon);
+                GUILayout.Label($"{SelectedDungeon.DungeonName}(必要{SelectedDungeon.RequiredPartySize}体)" +
+                    (cleared ? " [クリア済]" : string.Empty));
+            }
+            else
+            {
+                GUILayout.Label("(ダンジョンが選択されていません)");
             }
 
             GUILayout.Space(8f);
