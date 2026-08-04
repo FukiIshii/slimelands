@@ -150,7 +150,7 @@ namespace Slimelands.Dungeon
             // uGUIのボタン等はEventSystemが無いと入力を受け取れない。このプロジェクトは新Input System
             // 専用(Player Settings上でActive Input Handler=Input System Package)のため、
             // 旧StandaloneInputModuleではなくInputSystemUIInputModuleを使う。
-            if (Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include) == null)
+            if (Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include) == null)
             {
                 var esGo = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
             }
