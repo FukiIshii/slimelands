@@ -789,19 +789,9 @@ namespace Slimelands.Cards
                 // SlimeCardDataは種族を指すだけの共有アセットなので、カードが生成されるたびに
                 // 個体差(SlimeIndividual)を新規に作り、村の名簿(VillageSlimeRoster)へ登録する。
                 // ガチャ・合成・配合・進化、いずれの経路でもこのメソッドを通るため一箇所で完結する。
+                // 必殺技は種族のUltimateSkillCandidatesからのランダム抽選・固定含め、
+                // SlimeIndividualのコンストラクタ内で完結する(GDD確定仕様)。
                 var individual = new SlimeIndividual(slimeCardData.Species);
-
-                // 仮実装: 「候補プールから抽選して固定」という本来の必殺技習得の仕組み(GDD未実装)が
-                // 整うまでの暫定措置として、種族の習得可能スキルの中から最初の必殺技を自動習得させる。
-                // これにより、ダンジョンで必殺技発動ボタンが使える状態を確認できるようにする。
-                foreach (SlimeSkillData skill in slimeCardData.Species.LearnableSkills)
-                {
-                    if (skill != null && skill.IsUltimate)
-                    {
-                        individual.LearnSkill(skill);
-                        break;
-                    }
-                }
 
                 card.BindSlimeIndividual(individual);
                 villageSlimeRoster?.AddSlime(individual);

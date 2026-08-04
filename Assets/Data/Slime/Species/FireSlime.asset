@@ -26,10 +26,9 @@ MonoBehaviour:
     attack: 2
     defense: 1
     speed: 1
-  learnableSkills:
-  - {fileID: 11400000, guid: c0251b54b684f9247b554769319a674b, type: 2}
+  expPerLevel: 100
+  ultimateSkillCandidates:
   - {fileID: 11400000, guid: 5d16dc61abeca30498282f21d9d4737e, type: 2}
-  maxSkillSlots: 3
   monthlyFoodConsumption: 8
   sellResource: {fileID: 11400000, guid: fa1d9b8bd6c2f1547b49811ac295bdf4, type: 2}
   sellAmount: 1

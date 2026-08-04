@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Slimelands.Cards;
 
 namespace Slimelands.Slime
@@ -28,10 +29,13 @@ namespace Slimelands.Slime
         [Tooltip("1レベル分の成長に必要な経験値(仮値、要調整)。現状は全レベル共通の固定値。")]
         [SerializeField] private int expPerLevel = 100;
 
-        [Header("スキル")]
-        [SerializeField] private List<SlimeSkillData> learnableSkills = new();
-        [Tooltip("同時習得できるスキル数の上限。GDD上「スキルの上限数」は未決定のため種族ごとに調整できるようにしている。")]
-        [SerializeField] private int maxSkillSlots = 4;
+        [Header("必殺技")]
+        [Tooltip("この種族が必殺技として持てる候補プール(すべてIsUltimate=trueであること)。個体の生成" +
+            "(ガチャ排出・合成・配合・進化)時にこの中からランダムに1つ抽選され、以後その個体では" +
+            "変更されない(GDD確定仕様)。複数の種族が同じ候補を共有してよい。空の場合はその種族の" +
+            "個体は必殺技を持たない。")]
+        [FormerlySerializedAs("learnableSkills")]
+        [SerializeField] private List<SlimeSkillData> ultimateSkillCandidates = new();
 
         [Header("村の食料・売却(仮の値。GDD上「食料値の具体的バランス」は未決定)")]
         [Tooltip("月齢が1つ経過するごとに消費する食料の固定量。")]
@@ -53,8 +57,7 @@ namespace Slimelands.Slime
         public SlimeStats BaseStats => baseStats;
         public SlimeStats StatsGrowthPerLevel => statsGrowthPerLevel;
         public int ExpPerLevel => expPerLevel;
-        public IReadOnlyList<SlimeSkillData> LearnableSkills => learnableSkills;
-        public int MaxSkillSlots => maxSkillSlots;
+        public IReadOnlyList<SlimeSkillData> UltimateSkillCandidates => ultimateSkillCandidates;
         public int MonthlyFoodConsumption => monthlyFoodConsumption;
         public ResourceCardData SellResource => sellResource;
         public int SellAmount => sellAmount;
@@ -70,11 +73,14 @@ namespace Slimelands.Slime
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            if (learnableSkills.Count > maxSkillSlots)
+            foreach (SlimeSkillData skill in ultimateSkillCandidates)
             {
-                Debug.LogWarning(
-                    $"{name}: 習得可能スキル数({learnableSkills.Count})がmaxSkillSlots({maxSkillSlots})を超えています。",
-                    this);
+                if (skill != null && !skill.IsUltimate)
+                {
+                    Debug.LogWarning(
+                        $"{name}: ultimateSkillCandidatesに必殺技ではないスキル({skill.SkillName})が含まれています。",
+                        this);
+                }
             }
         }
 #endif

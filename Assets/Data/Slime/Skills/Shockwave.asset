@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 269e0a3fdb93e724bab6830ecc9daebe, type: 3}
+  m_Name: Shockwave
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Slime.SlimeSkillData
+  skillName: "\u885D\u6483\u6CE2"
+  description: "\u5468\u56F2\u306B\u885D\u6483\u6CE2\u3092\u653E\u3061\u3001\u7BC4\u56F2\u5185\u306E\u6575\u306B\u30C0\u30E1\u30FC\u30B8\u3092\u4E0E\u3048\u308B\u5FC5\u6BBA\u6280\u3002"
+  isUltimate: 1
+  power: 12
+  cooldownSeconds: 8
+  areaShape: 1
+  areaRadius: 2.5
+  areaLength: 6
+  sweepDuration: 3
+  sweepOneWayDuration: 1
+  sweepTickInterval: 0.5

@@ -163,19 +163,9 @@ namespace Slimelands.Dungeon
                     continue;
                 }
 
-                SlimeSkillData ultimate = null;
-                foreach (SlimeSkillData skill in individual.LearnedSkills)
-                {
-                    if (skill != null && skill.IsUltimate)
-                    {
-                        ultimate = skill;
-                        break;
-                    }
-                }
-
                 SlimeStats stats = individual.CalculateCurrentStats();
                 playerUnits.Add(new BattleUnit(individual.Species.SpeciesName, individual.Species.Type,
-                    individual.Species.AttackType, individual.Species, stats, true, individual, ultimate,
+                    individual.Species.AttackType, individual.Species, stats, true, individual, individual.AssignedUltimate,
                     individual.CurrentHp));
             }
 

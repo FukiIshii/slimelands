@@ -17,7 +17,9 @@ namespace Slimelands.Slime
         [SerializeField] private int level = 1;
         [SerializeField] private int exp;
         [SerializeField] private SlimeIndividualValues individualValues;
-        [SerializeField] private List<SlimeSkillData> learnedSkills = new();
+        [Tooltip("生成時(ガチャ排出・合成・配合・進化)に種族のUltimateSkillCandidatesからランダムに" +
+            "1つ抽選され、以後変化しない(GDD確定仕様)。候補が空の種族ではnullのまま(必殺技を持たない)。")]
+        [SerializeField] private SlimeSkillData assignedUltimate;
         [Tooltip("-1は未初期化(=満タン扱い)を表す。ダンジョンでの気絶(戦闘不能)はHP0の状態として" +
             "ここに保持される(気絶=死亡ではないため個体自体は破棄しない)。専用の状態フラグは持たず、" +
             "常にこの実数値から気絶・編成可否を算出する。")]
@@ -30,7 +32,7 @@ namespace Slimelands.Slime
         public int Level => level;
         public int Exp => exp;
         public SlimeIndividualValues IndividualValues => individualValues;
-        public IReadOnlyList<SlimeSkillData> LearnedSkills => learnedSkills;
+        public SlimeSkillData AssignedUltimate => assignedUltimate;
 
         /// <summary>現在のHP。未初期化(-1)の場合は満タン(CalculateCurrentStats().maxHp)を返す。</summary>
         public int CurrentHp => currentHp < 0 ? CalculateCurrentStats().maxHp : Mathf.Min(currentHp, CalculateCurrentStats().maxHp);
@@ -49,6 +51,27 @@ namespace Slimelands.Slime
             this.species = species;
             this.level = Mathf.Max(1, level);
             individualValues = SlimeIndividualValues.CreateRandom();
+            assignedUltimate = DrawRandomUltimate(species);
+        }
+
+        /// <summary>
+        /// 種族のUltimateSkillCandidatesからランダムに1つ抽選する(候補プール方式、GDD確定仕様)。
+        /// 個体生成時(このコンストラクタ)にのみ呼ばれ、以後変化しない。
+        /// </summary>
+        private static SlimeSkillData DrawRandomUltimate(SlimeSpeciesData species)
+        {
+            if (species == null)
+            {
+                return null;
+            }
+
+            IReadOnlyList<SlimeSkillData> candidates = species.UltimateSkillCandidates;
+            if (candidates == null || candidates.Count == 0)
+            {
+                return null;
+            }
+
+            return candidates[UnityEngine.Random.Range(0, candidates.Count)];
         }
 
         /// <summary>ダンジョン終了時、戦闘結果の残りHPを個体の永続状態に反映する。</summary>
@@ -77,22 +100,6 @@ namespace Slimelands.Slime
             stats.defense += individualValues.defense;
             stats.speed += individualValues.speed;
             return stats;
-        }
-
-        public bool LearnSkill(SlimeSkillData skill)
-        {
-            if (skill == null || learnedSkills.Contains(skill))
-            {
-                return false;
-            }
-
-            if (learnedSkills.Count >= species.MaxSkillSlots)
-            {
-                return false;
-            }
-
-            learnedSkills.Add(skill);
-            return true;
         }
 
         /// <summary>

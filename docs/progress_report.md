@@ -2038,3 +2038,67 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
 ズレが問題にならなかった)」という非対称な現象が発生した。`DungeonRunController.Update()`と併せて
 シーン内の全`BattleUnitView`に対しても`SendMessage("Update", ...)`をポンプすることで解消した。
 今後、戦闘を絡めたヘッドレステストを書く際は両方を必ずポンプすること。
+
+## 必殺技「候補プールから抽選して固定」システムの本実装
+
+### 変更内容
+
+暫定実装だった「カード生成時に種族の習得可能スキルの中から最初の必殺技を自動習得させる」処理
+(`CardBoard.CreateLooseCard`)を、GDD確定仕様の「候補プールから抽選して固定」に置き換えた。
+
+- `SlimeSpeciesData`: `learnableSkills`(+`maxSkillSlots`)を廃止し、`ultimateSkillCandidates`
+  (`List<SlimeSkillData>`、Inspectorで編集可能)に置き換えた。既存データを失わないよう
+  `[FormerlySerializedAs("learnableSkills")]`でリネームし、既存アセット(Slime/FireSlime/
+  MagmaSlime/CrystalSlimeがそれぞれ持っていた候補リスト)はそのまま引き継いだ。
+  候補に必殺技(`IsUltimate=true`)以外が含まれる場合に警告する`OnValidate`を追加(データミスの
+  早期発見用)。
+- `SlimeIndividual`: 複数スキルを個別に習得する`learnedSkills`/`LearnSkill`を廃止し、単一の
+  `assignedUltimate`フィールド+`AssignedUltimate`プロパティに置き換えた。コンストラクタ内で
+  種族の`UltimateSkillCandidates`から`UnityEngine.Random.Range`で1つ抽選して確定させる
+  (`DrawRandomUltimate`)。候補が空なら`null`(必殺技なし)のまま。
+  コンストラクタでの一度きりの抽選のため、以後変更する手段自体を公開していない
+  (外部から必殺技を差し替えるAPIを意図的に持たせていない)。
+- `CardBoard.CreateLooseCard`: 暫定の「最初の必殺技を自動習得」ループを削除。`new SlimeIndividual(...)`
+  の呼び出し1箇所(ガチャ・合成・配合・進化いずれの経路もここを通る)だけで完結するようになった。
+- `DungeonRunController.StartDungeon`: `individual.LearnedSkills`を走査してisUltimateを探す処理を、
+  `individual.AssignedUltimate`をそのまま`BattleUnit`へ渡す形に簡略化。
+- 必殺技の範囲攻撃システム(単体/円形/直線/左右スイープ)・Physics2Dベースの当たり判定は
+  `BattleUnit.UltimateSkill`を経由する既存の仕組みをそのまま利用しており、変更していない。
+
+### データの調整
+
+- 必殺技候補が種族間で共有されるケースを実際に検証できるよう、必殺技を新たにもう1つ追加した
+  (`Shockwave.asset`「衝撃波」、`isUltimate=true`、円形範囲、仮値)。既存の`FlameBreath`
+  「火炎ブレス」と合わせて必殺技候補が2種類になった。
+- 各種族の`ultimateSkillCandidates`を整理:
+  - Slime: [火炎ブレス, 衝撃波](2候補、ランダム分布の検証用)
+  - FireSlime: [火炎ブレス](Slimeと共有)
+  - MagmaSlime: [衝撃波](Slimeと共有)
+  - CrystalSlime: [火炎ブレス, 衝撃波]
+- 従来`learnableSkills`に含まれていた非必殺技の`Tackle`(体当たり、`isUltimate=false`)は、
+  必殺技候補プールとしての用途とは無関係(かつ他のどこからも参照されておらず実質未使用の
+  データだった)なため、各種族の候補リストから除外した。`Tackle.asset`自体は削除していない。
+
+### テストした内容(Play Mode、公開APIを直接呼び出し)
+
+- **分布**: Slime種族(候補2種)から2000体生成し、`AssignedUltimate`の内訳が
+  火炎ブレス1041体/衝撃波959体(52.1%/48.0%)と偏りなく分布することを確認。
+- **固定性**: 生成直後の`AssignedUltimate`を記録した後、`AddExp`・`SetLevel`・`Heal`を呼んでも
+  値が変化しないことを確認。
+- **候補共有**: FireSlime(候補1種=火炎ブレス)を50体、MagmaSlime(候補1種=衝撃波)を50体生成し、
+  いずれも100%期待通りのスキル(Slimeの候補と同一アセット参照)が割り当てられることを確認。
+- **生成経路**: `CardBoard.SpawnStack`(実際のカード生成経路、`CreateLooseCard`を通る)経由で
+  Slimeカードを20体生成し、火炎ブレス14体/衝撃波6体と偏りなく分布することを確認。
+- **戦闘への反映**: `DungeonRunController.StartDungeon`を呼び出し、`BattleUnit.UltimateSkill`が
+  `individual.AssignedUltimate`と一致することを確認(必殺技発動システムへの接続を確認)。
+- **Inspector編集可能性**: `SerializedProperty`で`ultimateSkillCandidates`が`isArray=true`・
+  要素`ObjectReference`型であることを確認(通常のオブジェクト参照リストとしてInspector上で
+  要素数の増減・ドラッグ&ドロップ差し替えが可能)。
+- コンパイルエラー・警告なし(`OnValidate`の新規警告も、データ整理後は発生しないことを確認)。
+
+### 残課題
+
+- 必殺技の具体的なパターン数・中身(各種族の候補プールに何個・どんな技を用意するか)は
+  引き続き仮のまま(GDD「今後詰める論点」参照)。今回追加した「衝撃波」も動作検証用の仮データ。
+- 敵側(`DungeonRunController`のウェーブ生成)は従来通り必殺技なし(`ultimateSkill: null`)の
+  ままで、今回のスコープ外(候補プール方式はプレイヤー側スライムの生成経路のみが対象)。
