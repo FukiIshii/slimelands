@@ -29,6 +29,8 @@ namespace Slimelands.Village
                 gachaManager.OnGachaDrawn -= HandleGachaDrawn;
                 gachaManager.OnGachaFailed -= HandleGachaFailed;
             }
+
+            ScreenUIPanelRegistry.SetPanelRect(this, null);
         }
 
         private void HandleGachaDrawn(SlimeCardData drawn)
@@ -43,7 +45,9 @@ namespace Slimelands.Village
 
         private void OnGUI()
         {
-            GUI.Box(new Rect(10f, 150f, 220f, 108f), string.Empty);
+            Rect panelRect = new(10f, 150f, 220f, 108f);
+            ScreenUIPanelRegistry.SetPanelRect(this, panelRect);
+            GUI.Box(panelRect, string.Empty);
             GUILayout.BeginArea(new Rect(20f, 156f, 200f, 96f));
 
             if (GUILayout.Button("ガチャを引く", GUILayout.Height(32f)))

@@ -95,9 +95,30 @@ namespace Slimelands.Cards
         // (ドラッグ&ドロップで一度触るまで動き出さない、という不自然な挙動を避ける)。
         private void Start()
         {
+            BindIndividualsToPreplacedSlimeCards();
+
             foreach (CardStack stack in FindObjectsByType<CardStack>(FindObjectsInactive.Exclude))
             {
                 TryStartCraftIfMatches(stack);
+            }
+        }
+
+        /// <summary>
+        /// エディタ上でシーンに直接配置されたスライムカードはCreateLooseCardを経由しないため、
+        /// 起動時点ではBoundIndividualを持たない(レベル・ステータス・必殺技などの個体データが
+        /// 存在しない)。実行時に生成されたスライムと同様に扱えるよう、起動時に個体を生成して
+        /// 割り当てる。
+        /// </summary>
+        private void BindIndividualsToPreplacedSlimeCards()
+        {
+            foreach (CardController card in FindObjectsByType<CardController>(FindObjectsInactive.Exclude))
+            {
+                if (card.Data is SlimeCardData slimeCardData && slimeCardData.Species != null && card.BoundIndividual == null)
+                {
+                    var individual = new SlimeIndividual(slimeCardData.Species);
+                    card.BindSlimeIndividual(individual);
+                    villageSlimeRoster?.AddSlime(individual);
+                }
             }
         }
 
@@ -157,7 +178,13 @@ namespace Slimelands.Cards
 
             if (mouse.leftButton.wasPressedThisFrame)
             {
-                TryBeginDrag(GetPointerWorldPosition(mouse));
+                // IMGUIの画面固定パネル(ガチャボタン、カード説明UI等)の上をクリックした場合は、
+                // ワールド側のカード選択・ドラッグ開始として処理しない(ボタン操作がそのまま
+                // 盤面のクリックとして誤爆し、選択中のカードが解除されてしまうのを防ぐ)。
+                if (!ScreenUIPanelRegistry.IsScreenPointOverPanel(mouse.position.ReadValue()))
+                {
+                    TryBeginDrag(GetPointerWorldPosition(mouse));
+                }
             }
             else if (draggedStack != null && mouse.leftButton.wasReleasedThisFrame)
             {

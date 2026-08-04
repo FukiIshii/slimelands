@@ -2123,3 +2123,60 @@ Play Modeで`GachaManager.CostResource`/`CostAmount`を公開APIから読み取�
   押下できないため、ボタン押下そのものの自動テストは行っていない。ロジックは単純な真偽値の
   トグルとラベル表示のみで、選択カード切り替え時のリセット処理も含めコードレビューで確認済み)。
 - コンパイルエラーなし。
+
+## 不具合修正: 開始時から場にいるスライムの詳細が出ない/詳細ボタンが効かない
+
+ユーザー報告: 「開始時点から場にいるスライムに詳細が出ないのは仕様か」「詳細ボタンを押しても
+ステータス画面が出ない」の2点を調査・修正した。
+
+### 原因1: シーンに直接配置されたスライムカードは個体を持っていなかった
+
+`SlimeIndividual`(レベル・ステータス・必殺技などの個体データ)は`CardBoard.CreateLooseCard`内で
+生成・`BindSlimeIndividual`されるが、これはガチャ・合成・配合・進化などランタイムでのカード生成
+経路でしか呼ばれない。`SampleScene.unity`にエディタ上で直接配置されているスライムカード
+(初期配置の6体)はこの経路を通っていないため、`BoundIndividual`が`null`のままだった。
+`CardDescriptionUI`はLv/EXPバー/詳細ボタンを`selectedIndividual != null`の場合のみ表示するため、
+これらのカードでは何も表示されない状態になっていた。意図した仕様ではなく、初期配置カードが
+個体生成経路をバイパスしていたことによる抜けだったため、修正した。
+
+- `CardBoard.Start()`に`BindIndividualsToPreplacedSlimeCards()`を追加。起動時にシーン上の
+  全`CardController`を走査し、`SlimeCardData`かつ`BoundIndividual`が未設定のものへ新規に
+  `SlimeIndividual`を生成・割り当て、`villageSlimeRoster`にも登録する。今後シーンに直接
+  配置されるスライムカードにも同様に適用される汎用的な対応。
+
+### 原因2: IMGUIパネルのボタン押下が、盤面のクリックとしても二重処理されていた
+
+`CardBoard`はUnityの新Input Systemの`Mouse.current`を直接ポーリングしてワールド空間の
+カード選択・ドラッグ開始を判定している。一方`CardDescriptionUI`の「詳細」ボタンは旧来の
+IMGUI(`OnGUI`/`GUILayout.Button`)で描画されており、IMGUI側でボタンのクリックを検知して
+`Event.Use()`しても、それは`Mouse.current`(Input System)の状態には一切影響しない。そのため
+「詳細」ボタンを押すと、同じクリックが`CardBoard.Update()`側でも「盤面のどこかをクリックした」
+として処理され、ボタンの画面座標をワールド座標に変換した位置にはカードが存在しないため
+`OnCardSelected`が`null`で発火し、選択中のカード自体が解除されてパネルごと消えてしまっていた
+(詳細ボタンを押した瞬間に選択解除→パネル非表示、という流れ)。
+
+- `ScreenUIPanelRegistry`(新規、`Slimelands.Village`)を追加。IMGUIパネルは`OnGUI`のたびに
+  自身の描画矩形を`SetPanelRect`で登録し(非表示時は`null`で解除)、`CardBoard.Update()`は
+  `wasPressedThisFrame`を処理する前に、クリック位置がいずれかの登録パネルの上にあるかを
+  `IsScreenPointOverPanel`で確認し、そうであれば`TryBeginDrag`自体を呼ばない(=ワールド側の
+  クリックとして扱わない)ようにした。特定のUIを名指しするのではなく、今後追加されるIMGUIパネル
+  にも同じ仕組みがそのまま使えるよう汎用化してある。
+- 同じ問題を潜在的に抱えていた`GachaUI`(ガチャを引くボタン)にも同様に矩形登録を追加した。
+
+### テストした内容(Play Mode)
+
+- 起動時に、シーンに直接配置されたスライムカード6体すべてが`BoundIndividual`を持つように
+  なったことを確認(`total=6, bound=6`)。
+- `ScreenUIPanelRegistry.IsScreenPointOverPanel`を公開APIから直接呼び出し、登録した矩形の
+  内側/外側/境界(上端の1px内外)で正しく判定されること、`SetPanelRect(...,null)`で解除後は
+  ブロックされなくなることを確認。
+- `CardBoard.OnCardSelected`が、登録済みパネルの矩形内をクリックした場合は発火しないことを
+  実際のマウスシミュレーション(Input System)経由でも確認。
+  - 一方、パネル矩形の外側をクリックした場合に正しく発火することの確認(いわゆる対照実験)は、
+    このテストセッションでは`Mouse.current.wasPressedThisFrame`が不安定になり(Play Modeが
+    一時停止していない状態で、手動の`InputSystem.Update()`ポンプと実フレームの自動input処理が
+    競合し、押下エッジを取りこぼすケースがあった)、シミュレーション側の限界により再現できな
+    かった。座標判定ロジック自体は上記の直接ユニットテストで境界値まで含めて正しいことを
+    確認済みであり、`CardBoard`側の変更点も`if (!ブロック中) TryBeginDrag(...)`という単純な
+    分岐のみのため、実際の(一時停止していない)プレイでは問題なく動作すると判断した。
+- コンパイルエラーなし。

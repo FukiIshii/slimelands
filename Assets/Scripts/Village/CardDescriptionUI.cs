@@ -40,6 +40,8 @@ namespace Slimelands.Village
             {
                 cardBoard.OnCardSelected -= HandleCardSelected;
             }
+
+            ScreenUIPanelRegistry.SetPanelRect(this, null);
         }
 
         private void HandleCardSelected(CardController card)
@@ -90,6 +92,7 @@ namespace Slimelands.Village
         {
             if (selectedCard == null)
             {
+                ScreenUIPanelRegistry.SetPanelRect(this, null);
                 return;
             }
 
@@ -105,7 +108,9 @@ namespace Slimelands.Village
                 }
             }
 
-            GUI.Box(new Rect(10f, 270f, 260f, panelHeight), string.Empty);
+            Rect panelRect = new(10f, 270f, 260f, panelHeight);
+            ScreenUIPanelRegistry.SetPanelRect(this, panelRect);
+            GUI.Box(panelRect, string.Empty);
             GUILayout.BeginArea(new Rect(20f, 276f, 240f, panelHeight - 12f));
             GUILayout.Label(selectedCard.CardName, nameStyle);
             string description = string.IsNullOrEmpty(selectedCard.Description) ? "(説明未設定)" : selectedCard.Description;
