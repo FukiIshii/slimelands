@@ -15,13 +15,8 @@ MonoBehaviour:
   speciesName: "\u30AF\u30EA\u30B9\u30BF\u30EB\u30B9\u30E9\u30A4\u30E0"
   slimeType: 5
   attackType: 1
-  battleSprite: {fileID: 368543389579951487, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
-  battleAnimationFrames:
-  - {fileID: 368543389579951487, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
-  - {fileID: -458641133534639524, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
-  - {fileID: 2542698315722941828, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
-  - {fileID: -3711818451352614709, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
-  - {fileID: -6875693984060724655, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  battleSprite: {fileID: 9049937856813170760, guid: 57d8d306b7bf0744f9f9b9378b0377a0, type: 3}
+  battleAnimationFrames: []
   baseStats:
     maxHp: 30
     attack: 7

@@ -2839,3 +2839,24 @@ Unity_RunCommandでPlay Mode中に`CardCraftProcess`を直接生成して検証�
   `ProductionPaused=true`のまま`Update()`を5回呼んだ結果、`IsComplete`は`false`のままで、
   通常の生産レシピは従来通り正しく停止し続けることを確認した(既存の生産停止機能への
   回帰がないことの確認)。コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 実装: 遠距離タイプのスライムの見た目をslime_ball.pngに
+
+「slime_ball.pngを遠距離タイプのスライムの見た目にして」との依頼。当初`Assets/Picture/slime_ball/
+slime_ball.png`が0バイト(中身が空)で読み込めなかったため、ユーザーに`.aseprite`からの再書き出しを
+依頼し、再配置後(276バイト、64x64、単一スプライト`slime_ball_0`)に対応した。
+
+### 実装内容
+- 遠距離タイプ(`AttackType.Ranged`)の種族は`FireSlime`・`CrystalSlime`の2種(`Slime`・`MagmaSlime`は
+  近接タイプ)。両方の`SlimeSpeciesData`について、`Unity_RunCommand`(`SerializedObject`経由)で
+  `battleSprite`を`slime_ball_0`に差し替え、従来設定されていた`battleAnimationFrames`(スライム
+  走行アニメーション5コマ、近接のslime.png用)を空配列にクリアした(空の場合は`battleSprite`を
+  静止画として表示する既存の後方互換フォールバックに従う)。
+- テクスチャのインポート設定(FilterMode=Bilinear、PixelsPerUnit=100)は既存の`slime.png`と同一の
+  ままで、追加調整は不要だった。
+
+### テスト
+Play Mode中に`BattleUnitView`を新規生成し`FireSlime`をBindした結果、実際に使用される
+`SpriteRenderer.sprite`が`slime_ball_0`になっていることを確認。Unity_SceneView_Capture2DSceneで
+実際に丸いスライムボール型の見た目が表示されていることも目視で確認した。コンパイルエラー・
+警告なしを確認(Unity Console)。
