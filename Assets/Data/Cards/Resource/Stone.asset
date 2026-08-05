@@ -14,4 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.ResourceCardData
   cardName: "\u77F3\u6750"
   icon: {fileID: 21300000, guid: 7c38d2e36f22dda48bc32db4ca494804, type: 3}
+  frame: {fileID: 6431239780024713301, guid: d7d2db5ac02317b43ba9230a1fe4d94b, type: 3}
   description: 
+  foodSupplyValue: 0

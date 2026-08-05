@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: CrystalSlime
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.SlimeCardData
   cardName: "\u30AF\u30EA\u30B9\u30BF\u30EB\u30B9\u30E9\u30A4\u30E0"
-  icon: {fileID: 21300000, guid: c02ad637cee8cfd4eb159feed7c2e514, type: 3}
+  icon: {fileID: 368543389579951487, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  frame: {fileID: 238987952088556596, guid: 0be351f21c142364598884f598557745, type: 3}
   description: 
   species: {fileID: 11400000, guid: 84287e6dd4ec15e48b37cc7beeeb2530, type: 2}

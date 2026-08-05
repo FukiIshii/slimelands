@@ -10,10 +10,14 @@ namespace Slimelands.Cards
     {
         [SerializeField] private string cardName;
         [SerializeField] private Sprite icon;
+        [Tooltip("カード表示の背景に敷くフレーム画像(任意)。未設定ならフレームなしでicon(前景)のみ描画する" +
+            "(既存カードとの後方互換のため)。")]
+        [SerializeField] private Sprite frame;
         [SerializeField, TextArea] private string description;
 
         public string CardName => cardName;
         public Sprite Icon => icon;
+        public Sprite Frame => frame;
         public string Description => description;
 
         public abstract CardCategory Category { get; }

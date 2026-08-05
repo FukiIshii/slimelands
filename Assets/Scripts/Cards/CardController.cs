@@ -6,14 +6,27 @@ namespace Slimelands.Cards
     /// <summary>
     /// 盤面に置かれた1枚のカードの見た目を管理する。
     /// ドラッグ・重なりの管理はCardStack、入力の受付・合成判定はCardBoardが担う。
+    /// 見た目は背景の「Frame」子と前景の「Icon」子の2枚のSpriteRendererで構成する(どちらも
+    /// このコンポーネントが自己修復的に生成する。プレハブ自体には手を加えていない)。
     /// </summary>
     [RequireComponent(typeof(SpriteRenderer))]
     [RequireComponent(typeof(Collider2D))]
     public class CardController : MonoBehaviour
     {
+        [Tooltip("frame画像の縦横比を保ったまま収める目標サイズ(ワールド単位、正方形)。" +
+            "当たり判定(BoxCollider2D)からはみ出さないよう、frame画像のピクセルサイズがまちまちでも" +
+            "自動的に縮小して揃える。")]
+        [SerializeField] private float frameTargetSize = 1f;
+        [Tooltip("icon画像を、frameの短辺に対してこの割合のサイズで中央に収める(frame未設定の場合は" +
+            "frameTargetSizeを基準にする)。icon画像の実ピクセルサイズが素材ごとにまちまちでも" +
+            "(例: 小さいスライム絵と大きいプレースホルダー絵が混在)、frameの絵柄の窓に対して" +
+            "常に同じ相対サイズで表示されるようにするための補正。")]
+        [SerializeField, Range(0.1f, 1f)] private float iconFillRatio = 0.7f;
+
         [SerializeField] private CardData data;
 
-        private SpriteRenderer cachedSpriteRenderer;
+        private SpriteRenderer frameRenderer;
+        private SpriteRenderer iconRenderer;
 
         public CardData Data => data;
         public CardStack ParentStack { get; private set; }
@@ -30,19 +43,120 @@ namespace Slimelands.Cards
             BoundIndividual = individual;
         }
 
-        public SpriteRenderer SpriteRenderer =>
-            cachedSpriteRenderer != null ? cachedSpriteRenderer : (cachedSpriteRenderer = GetComponent<SpriteRenderer>());
+        /// <summary>カード背景のフレームを描画する子SpriteRenderer。他システムからはsortingOrderの
+        /// 基準値としてのみ参照される(スタック内の重なり順の追跡・比較用)。</summary>
+        public SpriteRenderer SpriteRenderer => EnsureFrameRenderer();
+
+        /// <summary>
+        /// エディタ上でシーンに直接配置されたカードはInitialize()を経由しないため、
+        /// 起動時点でも見た目(フレーム+アイコン)が正しく反映されるようAwakeでも描画し直す
+        /// (BindIndividualsToPreplacedSlimeCardsと同種の自己修復パターン)。
+        /// </summary>
+        private void Awake()
+        {
+            RefreshVisual();
+        }
 
         public void Initialize(CardData cardData)
         {
             data = cardData;
-            SpriteRenderer.sprite = data != null ? data.Icon : null;
             name = data != null ? $"Card_{data.CardName}" : "Card";
+            RefreshVisual();
+        }
+
+        /// <summary>
+        /// カードの見た目を、背景のフレーム(Frame子)と前景のアイコン(Icon子)の2層で描画し直す。
+        /// frame未設定のカードはフレームなし(アイコンのみ)になり、既存カードとの後方互換を保つ。
+        /// </summary>
+        private void RefreshVisual()
+        {
+            // 旧実装(このGameObject自身のSpriteRendererに直接アイコンを描画する方式)で
+            // 事前に配置されたシーン上のカードは、ここでクリアしないと旧スプライトがFrame/Icon子の
+            // 上や下に残ったまま二重に表示されてしまう。
+            SpriteRenderer root = GetComponent<SpriteRenderer>();
+            if (root != null)
+            {
+                root.sprite = null;
+            }
+
+            SpriteRenderer frame = EnsureFrameRenderer();
+            frame.sprite = data != null ? data.Frame : null;
+            float frameScale = ApplyUniformFitScale(frame, frameTargetSize);
+            float frameShortSide = frame.sprite != null
+                ? Mathf.Min(frame.sprite.bounds.size.x, frame.sprite.bounds.size.y) * frameScale
+                : frameTargetSize;
+
+            SpriteRenderer icon = EnsureIconRenderer();
+            icon.sprite = data != null ? data.Icon : null;
+            ApplyUniformFitScale(icon, frameShortSide * iconFillRatio);
+            icon.sortingLayerID = frame.sortingLayerID;
+            icon.sortingOrder = frame.sortingOrder + 1;
+        }
+
+        /// <summary>
+        /// スプライトの縦横比を保ったまま、targetSize四方(ワールド単位)に収まるようレンダラーの
+        /// GameObjectのlocalScaleを調整し、実際に適用したスケール値を返す。frame/icon画像は
+        /// 素材ごとに実ピクセルサイズがまちまちなため、当たり判定からのはみ出しや、絵柄同士の
+        /// 相対サイズのばらつきを防ぐためにこの補正が必要。
+        /// </summary>
+        private static float ApplyUniformFitScale(SpriteRenderer renderer, float targetSize)
+        {
+            if (renderer.sprite == null)
+            {
+                renderer.transform.localScale = Vector3.one;
+                return 1f;
+            }
+
+            Vector2 size = renderer.sprite.bounds.size;
+            float scale = Mathf.Min(
+                targetSize / Mathf.Max(size.x, 0.0001f),
+                targetSize / Mathf.Max(size.y, 0.0001f));
+            renderer.transform.localScale = new Vector3(scale, scale, 1f);
+            return scale;
+        }
+
+        private SpriteRenderer EnsureFrameRenderer()
+        {
+            if (frameRenderer == null)
+            {
+                frameRenderer = EnsureChildRenderer("Frame");
+            }
+
+            return frameRenderer;
+        }
+
+        private SpriteRenderer EnsureIconRenderer()
+        {
+            if (iconRenderer == null)
+            {
+                iconRenderer = EnsureChildRenderer("Icon");
+            }
+
+            return iconRenderer;
+        }
+
+        private SpriteRenderer EnsureChildRenderer(string childName)
+        {
+            Transform existing = transform.Find(childName);
+            GameObject go = existing != null ? existing.gameObject : new GameObject(childName);
+            if (existing == null)
+            {
+                go.transform.SetParent(transform, false);
+            }
+
+            SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+            if (renderer == null)
+            {
+                renderer = go.AddComponent<SpriteRenderer>();
+            }
+
+            return renderer;
         }
 
         public void SetSortingOrder(int order)
         {
-            SpriteRenderer.sortingOrder = order;
+            EnsureFrameRenderer().sortingOrder = order;
+            EnsureIconRenderer().sortingOrder = order + 1;
         }
 
         public void SetParentStack(CardStack stack)

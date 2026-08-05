@@ -2484,3 +2484,68 @@ Unity MCPが本セッション終盤で接続不可(`Unity not detected`)だっ�
 - 残課題: 実機での確認(食料不足でブロック→えさ場へ素材投入して食料を回復→ブロック解除の
   瞬間に消費量分だけ食料ストックが減ること、`CurrentMonth`が1つだけ進むこと)は次回Unity
   接続時に要実施。
+
+## 実装: カードフレーム画像+スライム画像をカード表示に反映
+
+### 経緯
+ユーザーが新しい画像素材(`Assets/Picture/Cradframe/`のカードフレーム各種、`Assets/Picture/Slime/slime.png`の
+スライム画像)をプロジェクトに追加。まずUnity Editor接続(`Unity_ManageAsset`)でこれらが正しく
+`Texture2D`(Sprite, Single)としてインポート済みであることを確認した上で、「カードフレームの上に
+スライムの画像を重ねる」形で実際のカード表示に反映してほしいという依頼を受けて対応した。
+
+### 設計
+- **`CardData.cs`**: 既存の`icon`に加え、新たに`frame`(Sprite, 任意)フィールドを追加。
+  `frame`未設定のカードは従来通りアイコンのみの表示になる(完全な後方互換)。
+- **`CardController.cs`**: 見た目を「Frame」(背景)・「Icon」(前景)の2つの子SpriteRendererで
+  構成するよう全面的に書き換えた。どちらもこのコンポーネントが自己修復的に生成する
+  (プレハブ自体は無改造)。ルート自身のSpriteRenderer(旧実装でアイコンを直接描画していたもの)は
+  Play時に明示的にsprite=nullへクリアする(でないとシーンに事前配置されたカードで旧スプライトが
+  二重に表示され続けてしまうため — 実際にこの不具合を作り込んで発見・修正した)。
+- **サイズの自動調整**: frame画像は素材ごとにピクセルサイズがバラバラ(340〜366×536〜559px)で、
+  そのまま使うとカードの当たり判定(1×1ワールド単位)を大きくはみ出してしまう。
+  `ApplyUniformFitScale`で、スプライトの縦横比を保ったまま指定サイズに収まるよう
+  子GameObjectのlocalScaleを自動計算する(`Sprite.bounds`を使うため、PPU設定に依存せず動作)。
+  さらにicon側は、frameの短辺に対する比率(`iconFillRatio`、デフォルト0.7)で追従してサイズを
+  決めるようにした。こうしないと、小さいスライム絵(slime.png, 40×43px)と大きい既存の
+  プレースホルダー絵(Wood.png等, 64×64px)が混在する状況で、プレースホルダー側がframeの窓より
+  大きくなってframeを覆い隠してしまう不具合が起きる(これも実際に発生させてから気づいた)。
+- **frameの割り当て**(データ側、コードに埋め込まない):
+  - Building系カード(Barn/Quarry/LumberCamp/ManaPool)→ `cardframe_Building`
+  - Resource系カード(Wood/Stone/Plank/ManaCrystal/FireCrystal/Quartz/GachaCrystal)→
+    `Cradframe_resourse`
+  - Slime系カード(Slime/FireSlime/MagmaSlime/CrystalSlime)→ icon共通で`slime.png`
+    (現状これしか素材がないため暫定で全種族に流用)、frameは`SlimeType`に近い配色を選定:
+    Slime(Neutral)→`cardframe_glass`(消去法の暫定選択)、FireSlime/MagmaSlime(Fire)→
+    `cardframe_fire`、CrystalSlime(Light)→`cardframe_light`。`cardframe_dark`/`cardframe_water`は
+    該当する種族がまだ存在しないため未使用(将来のDark/Water種族用に温存)。
+  - これらは全てInspector側のSprite参照(CardDataアセットの`icon`/`frame`)で完結しており、
+    コード側に種族→フレームの対応表やif分岐は一切ない(CLAUDE.mdルール2/3準拠)。
+
+### 実装上のハマりどころ(重要な学び)
+- **Sprite参照のfileIDを手で推測して直接YAML編集したところ`MissingReferenceException`になった**:
+  既存の一部プレースホルダー画像は単純な`fileID: 21300000`(Unityが単一スプライトに使う定番の
+  固定ID)だったため、新しい画像も同じだろうと決め打ちしてicon/frameのYAMLを直接編集したが、
+  実際には画像ごとに(スプライト名がリネーム前の名残で非デフォルトだったことなどが影響してか)
+  異なる長いfileIDが採番されていて、手で書いたfileIDは存在しない参照になっていた。
+  **教訓**: Sprite参照をアセットファイルに手で書き込むのは危険。`AssetDatabase.LoadAssetAtPath<Sprite>`
+  +`SerializedObject`経由でUnity自身に解決させる方が確実(`Unity_RunCommand`で実施し、
+  全15件のCardDataアセットを一括で正しい参照に修正した)。
+- **キャプチャで新しい見た目が反映されないように見えた**: 実際には2つの別々の不具合が
+  重なっていたことが分かった(上記の「ルートSpriteRendererのクリア漏れ」と
+  「iconのサイズ比率が素材ごとに不揃い」)。`Unity_Camera_Capture`(実際のシーンビューカメラの
+  レンダリング)で確認したところ発覚し、`Unity_RunCommand`で全カードのSpriteRenderer状態
+  (sprite名・sortingOrder・scale)をログ出力して原因を特定した。
+
+### テスト
+Play Modeに入り、`Unity_Camera_Capture`で盤面全体・`Unity_SceneView_Capture2DScene`で個別カードを
+拡大キャプチャして目視確認。スライムカード・木材カード・えさ場カードいずれも、縄と麻布のカード
+フレームの中に、サイズの揃ったアイコン(スライム絵/プレースホルダー絵)が中央に収まって
+表示されることを確認した。
+
+### 残課題
+- Building用の新規アート素材(`Assets/Picture/Building/`)はユーザー曰く未追加、今後追加予定。
+  追加され次第、各Building系CardDataの`icon`を差し替えるだけで反映される(仕組みは対応済み)。
+- Slime系カードのiconは4種族とも暫定で同じ`slime.png`を流用している。種族ごとの専用アートが
+  用意され次第、各CardDataアセットの`icon`を個別に差し替える想定。
+- Slime(Neutral)→`cardframe_glass`の対応づけは消去法による暫定選択。ユーザーの意図と異なれば
+  Inspector上で即座に変更可能。
