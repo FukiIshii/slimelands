@@ -37,6 +37,9 @@ namespace Slimelands.Dungeon
         private const float HpBarYOffset = 0.75f;
         // SlimeSpeciesData.BattleAnimationFramesのコマ送り速度(仮値、要調整)。気絶中は止める。
         private const float AnimationFrameDuration = 0.12f;
+        // 元画像が右向きのため、この値未満のX移動はノイズとみなして向きを変えない
+        // (浮動小数点誤差で左右に細かくちらつくのを防ぐ)。
+        private const float FacingChangeThreshold = 0.001f;
 
         private static readonly Color FaintedTint = new(0.45f, 0.45f, 0.45f, 0.5f);
 
@@ -61,6 +64,7 @@ namespace Slimelands.Dungeon
         private IReadOnlyList<Sprite> animationFrames;
         private int animationFrameIndex;
         private float animationTimer;
+        private float lastFacingTrackedX;
 
         /// <summary>現在の基準位置(ロジック側のBattleUnit.Positionをそのまま反映)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
         public Vector3 CurrentPosition => homePosition;
@@ -133,7 +137,10 @@ namespace Slimelands.Dungeon
 
             visualRenderer.sprite = sprite;
             visualRenderer.color = Color.white;
+            // 移動し始めるまでの暫定の向き(プレイヤー側は敵側を、敵側はプレイヤー側を向く)。
+            // 元画像は右向きのため、flipX=trueで左向きになる。
             visualRenderer.flipX = !unit.IsPlayerSide;
+            lastFacingTrackedX = homePosition.x;
 
             RefreshHpBar();
         }
@@ -155,6 +162,11 @@ namespace Slimelands.Dungeon
             // (ホップと突進の軌道が混ざって位置がスナップするのを防ぐ)。
             transform.position = homePosition;
             visual.localScale = Vector3.one;
+
+            // 突進中・戻り中を通して対象の方向を向いたままにする(戻り際に一瞬だけ逆向きの移動に
+            // なるため、毎フレームの移動方向で向きを決めるUpdateFacingFromMovementは使わず、
+            // 突進開始時点の対象方向で固定する)。
+            visualRenderer.flipX = targetWorldPosition.x < homePosition.x;
 
             // 対象のY座標へは寄らず、常にhomePositionと同じ高さのまま真横(X方向)にのみ突進する
             // (縦の行動帯位置がずれていても斜めに突っ込まず、まっすぐ横方向のタックルに見せるため)。
@@ -234,6 +246,7 @@ namespace Slimelands.Dungeon
             // 待機中は、ロジック側が徘徊シミュレーションで更新したBattleUnit.Positionをそのまま反映する。
             homePosition = new Vector3(boundUnit.Position.x, boundUnit.Position.y, 0f);
             transform.position = homePosition;
+            UpdateFacingFromMovement(homePosition.x);
 
             if (attackType == SlimeAttackType.Ranged)
             {
@@ -243,6 +256,26 @@ namespace Slimelands.Dungeon
             {
                 TickIdleHop();
             }
+        }
+
+        /// <summary>
+        /// 元画像が右向きであることを前提に、直前フレームからのX移動方向に応じてflipXを切り替える
+        /// (左へ移動していれば反転して左向きに、右へ移動していれば反転を解除して右向きに表示する)。
+        /// 徘徊による待機中の移動にのみ使い、突進中はPlayAttackMotion側で固定した向きを使う。
+        /// </summary>
+        private void UpdateFacingFromMovement(float newX)
+        {
+            float delta = newX - lastFacingTrackedX;
+            if (delta > FacingChangeThreshold)
+            {
+                visualRenderer.flipX = false;
+            }
+            else if (delta < -FacingChangeThreshold)
+            {
+                visualRenderer.flipX = true;
+            }
+
+            lastFacingTrackedX = newX;
         }
 
         /// <summary>

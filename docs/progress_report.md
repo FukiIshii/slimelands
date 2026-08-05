@@ -2597,3 +2597,25 @@ Editor編集モード下でのAwake未実行によりテストハーネス側で
 Play Modeで`BattleUnitView`を生成し`Bind()`した直後は`slime_0`固定であることを確認。
 その後`SendMessage("Update", ...)`で疑似フレーム送りを40回行うと`slime_1`へ進行することを
 ログで確認し、コマ送りロジックが正しく動作していることを検証した。
+
+## 修正: 左に移動しているときスライムが左を向くようにする
+
+「このスライムの画像は右向きです。なので、左向きに進んでいるときは左を向くようにして」との依頼。
+従来`BattleUnitView`の`flipX`は`!unit.IsPlayerSide`(プレイヤー側かどうか)のみで固定されており、
+実際の移動方向は見た目に反映されていなかった。
+
+### 実装内容
+- **`BattleUnitView.cs`**: `UpdateFacingFromMovement(float newX)`を追加。直前フレームの
+  X座標との差分(`FacingChangeThreshold`=0.001未満はノイズとみなして無視)を見て、右へ移動なら
+  `flipX=false`(元画像通り右向き)、左へ移動なら`flipX=true`(反転して左向き)に切り替える。
+  待機中の徘徊移動(`homePosition`更新箇所)でこれを呼び出す。
+- 近接攻撃の突進(`PlayAttackMotion`)は、戻りフェーズで一瞬だけ移動方向が逆転する
+  (対象へ突進→home位置へ戻る)ため、`UpdateFacingFromMovement`は使わず、突進開始時点で
+  対象の方向を一度だけ判定して固定する(突進中・戻り中を通して対象を向いたままにする)。
+- `Bind()`時点(まだ一度も移動していない瞬間)の初期向きは、従来通り`!unit.IsPlayerSide`
+  (プレイヤー側は右=敵側を、敵側は左=プレイヤー側を向く)を暫定値として使う。
+
+### テスト
+Play Modeで`BattleUnitView`を生成し、`BattleUnit.Position`を直接書き換えて`SendMessage("Update")`
+で疑似フレーム送りしながら`flipX`を確認: 左へ移動→`flipX=true`、右へ移動→`flipX=false`、
+左側の対象へ`PlayAttackMotion`→`flipX=true`、いずれも期待通りの結果を確認した。
