@@ -2549,3 +2549,26 @@ Play Modeに入り、`Unity_Camera_Capture`で盤面全体・`Unity_SceneView_Ca
   用意され次第、各CardDataアセットの`icon`を個別に差し替える想定。
 - Slime(Neutral)→`cardframe_glass`の対応づけは消去法による暫定選択。ユーザーの意図と異なれば
   Inspector上で即座に変更可能。
+
+## 実装: ダンジョンで動くスライムの見た目をslime.pngに変更
+
+`SlimeSpeciesData.BattleSprite`(ダンジョン戦闘中の見た目、`BattleUnitView.Bind()`が参照する)が
+4種族ともカード変更前の旧プレースホルダー画像のままだったため、カードのiconと同様に
+`slime.png`(スプライトシートの1枚目`slime_0`)へ差し替えた。`AssetDatabase.LoadAllAssetsAtPath`+
+`SerializedObject`経由で参照を解決し、手書きfileIDによる`MissingReferenceException`を再発させない
+ようにした(前回のカード対応時に得た教訓をそのまま踏襲)。
+
+`slime.png`は実際には5フレーム(`slime_0`〜`slime_4`)の走行アニメーション用スプライトシート
+(aseprite書き出し、frameTag"run")だが、`BattleSprite`は単一Spriteのフィールドのため、
+現状は1枚目の静止画のみを使用している。複数フレームを使ったアニメーション再生への対応は
+今回のスコープ外(依頼は「見た目をslime.pngにする」のみ)。将来的にダンジョンの徘徊モーション
+(`BattleUnitView.TickIdleHop`)にコマ送りアニメーションを組み込む場合は、このスプライトシートを
+流用できる。
+
+### テスト
+Unity_RunCommandで`SlimeSpeciesData.BattleSprite`が`slime_0`に解決されていることをログで確認
+(`Species=[スライム] BattleSprite=[slime_0]`)。`BattleUnitView.Bind()`自体の呼び出しは
+Editor編集モード下でのAwake未実行によりテストハーネス側でNullReferenceExceptionになったが、
+これはBind()呼び出し前提のhpバー初期化(Awake内)がPlay Mode専用であることに起因するテスト
+環境側の制約であり、`BattleSprite`の参照解決自体は正しく行われていることを確認済み。
+実際のダンジョン画面での見た目確認は次回Unity接続時のPlay Modeテストで実施予定。
