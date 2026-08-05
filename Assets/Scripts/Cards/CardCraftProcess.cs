@@ -30,8 +30,7 @@ namespace Slimelands.Cards
         /// <summary>
         /// trueの間、進行中の合成タイマーは一切進まない(食料不足で月齢の進行がブロックされている間、
         /// 村の生産活動も連動して止めるための全体スイッチ。MoonCycleManagerが切り替える)。
-        /// ただし食料ストックを増やすレシピ(FoodStockAmount/UseIngredientFoodSupplyValue)だけは、
-        /// 食料不足を自力で解消する手段を残すため例外的に進行を続ける。
+        /// ただし一部のレシピ(IsPauseExemptRecipe参照)は例外的に進行を続ける。
         /// </summary>
         public static bool ProductionPaused { get; set; }
 
@@ -73,7 +72,7 @@ namespace Slimelands.Cards
                 return;
             }
 
-            if (ProductionPaused && !IsFoodStockRecipe(Recipe))
+            if (ProductionPaused && !IsPauseExemptRecipe(Recipe))
             {
                 return;
             }
@@ -94,9 +93,18 @@ namespace Slimelands.Cards
             SetProgress(progress);
         }
 
-        private static bool IsFoodStockRecipe(CardRecipeData recipe)
+        /// <summary>
+        /// 生産停止中でも例外的に進行を続けてよいレシピかどうか。
+        /// 食料ストックを増やすレシピ(FoodStockAmount/UseIngredientFoodSupplyValue)は、食料不足を
+        /// 自力で解消する手段を残すために必須の例外。経験値付与レシピ(ExpGrantAmount、マナクリスタルの
+        /// スライムへの給餌)は「施設の生産」ではなくスライムの世話に近い行為であり、まとめ給餌
+        /// (CardBoard.FeedQueueSequentially)が停止中に1枚だけ合体した状態で止まってしまうと
+        /// 見た目が不自然になるため、同様に例外とする。
+        /// </summary>
+        private static bool IsPauseExemptRecipe(CardRecipeData recipe)
         {
-            return recipe != null && (recipe.FoodStockAmount > 0 || recipe.UseIngredientFoodSupplyValue);
+            return recipe != null &&
+                (recipe.FoodStockAmount > 0 || recipe.UseIngredientFoodSupplyValue || recipe.ExpGrantAmount > 0);
         }
 
         private void SetProgress(float progress01)

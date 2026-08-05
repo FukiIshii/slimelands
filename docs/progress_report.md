@@ -2813,3 +2813,29 @@ Unity_RunCommandで実際にダンジョン戦闘を1件構築し、生成され
 確認した(以前の`TakeAll()`ベースの実装ではこの時点で全カードが`ParentStack == null`になり、
 今回の不具合が再現する状態だった)。コンパイルエラー・警告なしを確認(Unity Console)。実際の
 ドラッグ操作を伴う最終確認はユーザー側でのPlay Mode手動テストが必要。
+
+## 修正: マナクリスタルのまとめ給餌を生産停止中も進行させる(見た目の不自然さの根本解消)
+
+上記の修正でスタックの分離・操作不能自体は直ったが、「まとめて与えたのに一つだけスライムの上に
+残り、それ以外が別の場所に置かれるのは不自然」との指摘。改善案をいくつか提示したところ、
+ユーザーから「そもそもマナクリスタルの給餌は生産停止中でも進めてよいのでは」という代替案が
+出たため、そちらを採用した。停止中でも合成が最後まで進めば、まとめ給餌のコルーチンが
+`while (!process.IsComplete)`で長時間止まること自体がなくなり、見た目の不自然さが根本的に解消される。
+
+### 実装内容
+- **`CardCraftProcess.cs`**: 生産停止(`ProductionPaused`)からの例外対象だった
+  `IsFoodStockRecipe`を`IsPauseExemptRecipe`に一般化し、既存の食料ストック系レシピ
+  (`FoodStockAmount`/`UseIngredientFoodSupplyValue`)に加えて、経験値付与レシピ
+  (`ExpGrantAmount > 0`、マナクリスタルのスライムへの給餌)も例外対象に追加した。
+  理由: マナクリスタル給餌は「施設の生産」ではなくスライムの世話に近い行為であり、
+  停止中に進行が止まることでまとめ給餌が見た目上壊れて見えるくらいなら、素直に
+  進行を続けさせたほうが自然、というユーザーの判断による。
+
+### テスト
+Unity_RunCommandでPlay Mode中に`CardCraftProcess`を直接生成して検証した。
+- `Recipe_ManaCrystal_AnySlime_Exp`(ExpGrantAmount=20)を使い、`ProductionPaused=true`の状態で
+  `Update()`を数回呼んだ結果、`IsComplete`が`true`になり、停止中でも合成が完了することを確認した。
+- 対照として`Recipe_LumberCamp_AnySlime_Wood`(通常の施設生産、CraftDuration=5)で同様に
+  `ProductionPaused=true`のまま`Update()`を5回呼んだ結果、`IsComplete`は`false`のままで、
+  通常の生産レシピは従来通り正しく停止し続けることを確認した(既存の生産停止機能への
+  回帰がないことの確認)。コンパイルエラー・警告なしを確認(Unity Console)。
