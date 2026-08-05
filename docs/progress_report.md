@@ -2699,3 +2699,22 @@ alphaが0.5だったため、`tintProgress`が1(灰色化完了)に達した時�
   (スクリプトを書き換えながらPlay Modeを継続する場合特有の話であり、通常のビルド/プレイでは
   ドメインリロードは発生しない)。
 - コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 演出変更: 気絶した味方スライムの見た目を「横倒し+薄い灰色」に
+
+上記の修正後、ユーザーから「味方スライムがまだ黒っぽく残っている」との指摘。仕様確認したところ、
+気絶した味方は村に戻るまで表示し続ける仕様通りの動作だったが、`FaintedTint`のRGB(0.45)が暗すぎて
+「死亡した/まだ壊れている」ように見えてしまっていたことが判明。「気絶=死亡ではない」という
+GDD/CLAUDE.mdの仕様(ルール5)を色だけでなくポーズでも伝えたいとのユーザー要望を受け、以下を実装。
+
+### 実装内容
+- **`BattleUnitView.cs`**: `FaintedTint`のRGBを0.45→0.75(より明るい灰色)に変更。
+- `SetFainted()`で、見た目子(`Visual`)を`FaintedRotationDegrees`(90度)だけZ軸回転させ、
+  横に倒れたポーズにする。倒れる向きは`visualRenderer.flipX`(直前に向いていた方向)に合わせて
+  左右どちらに倒すかを決める。`Bind()`側は従来通り`visual.localRotation = Quaternion.identity`で
+  リセットするため、次にこのViewインスタンスが別個体の表示に再利用されても正しく直立に戻る。
+
+### テスト
+Unity_RunCommandでPlay Mode中に新規`BattleUnitView`を生成し、`Bind()`→`SetFainted()`→
+`SendMessage("Update")`で疑似フレーム送りした結果、`Visual`の色が`RGBA(0.750, 0.750, 0.750, 1.000)`、
+Z軸回転が90度になっていることを確認した。コンパイルエラー・警告なしを確認(Unity Console)。

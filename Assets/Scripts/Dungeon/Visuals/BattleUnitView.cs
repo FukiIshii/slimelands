@@ -45,7 +45,11 @@ namespace Slimelands.Dungeon
         // 表示し続ける仕様のため、ここのalphaが1未満だと「フェードアウトの途中で止まって
         // 残り続けている」ように見えてしまう(実際に発生していた不具合)。敵側のフェードアウトは
         // 下記のtinted.a計算で不透明(1)から0まで自前で減衰させるため、この定数自体は常に不透明でよい。
-        private static readonly Color FaintedTint = new(0.45f, 0.45f, 0.45f, 1f);
+        // RGBは「気絶しているだけで死んでいない」と一目で伝わるよう、黒に近すぎない薄めの灰色にする。
+        private static readonly Color FaintedTint = new(0.75f, 0.75f, 0.75f, 1f);
+        // 気絶時に見た目を横に倒す角度(度)。「気絶=死亡ではない」ことを色だけでなくポーズでも
+        // 伝えるための演出(ユーザー要望)。
+        private const float FaintedRotationDegrees = 90f;
 
         private Transform visual;
         private SpriteRenderer visualRenderer;
@@ -182,7 +186,7 @@ namespace Slimelands.Dungeon
             meleeAnimTimer = 0f;
         }
 
-        /// <summary>戦闘不能(HP0)になった際の見た目(グレーアウト、敵側はその後フェードアウト)へ切り替える。</summary>
+        /// <summary>戦闘不能(HP0)になった際の見た目(横に倒れてグレーアウト、敵側はその後フェードアウト)へ切り替える。</summary>
         public void SetFainted()
         {
             isFaintedVisual = true;
@@ -191,6 +195,8 @@ namespace Slimelands.Dungeon
             meleePhase = MeleeAnimPhase.Idle;
             transform.position = homePosition;
             visual.localScale = Vector3.one;
+            // 倒れる向き(左右)は最後に向いていた方向に合わせる(flipXしている=左向きなら右へ倒す)。
+            visual.localRotation = Quaternion.Euler(0f, 0f, visualRenderer.flipX ? -FaintedRotationDegrees : FaintedRotationDegrees);
         }
 
         private void Update()
