@@ -51,12 +51,17 @@ namespace Slimelands.Dungeon
         // 伝えるための演出(ユーザー要望)。
         private const float FaintedRotationDegrees = 90f;
 
+        private Transform visualScaleRoot;
         private Transform visual;
         private SpriteRenderer visualRenderer;
         private SpriteRenderer hpBarFillRenderer;
         private Transform hpBarFillTransform;
         private GameObject hpBarBackgroundGo;
         private GameObject hpBarFillGo;
+        // BattleBalanceData.UnitVisualScale(Bind時に渡される)。HPバーはこの倍率の影響を受けず、
+        // スプライトのサイズだけを一括で拡大縮小できるようvisualScaleRoot経由で適用する
+        // (visualのlocalScaleはホップ/突進の潰れ・伸びアニメーション専用のまま維持するため)。
+        private float baseVisualScale = 1f;
 
         private BattleUnit boundUnit;
         private SlimeAttackType attackType;
@@ -86,8 +91,12 @@ namespace Slimelands.Dungeon
 
         private void Awake()
         {
+            var scaleRootGo = new GameObject("VisualScaleRoot");
+            scaleRootGo.transform.SetParent(transform, false);
+            visualScaleRoot = scaleRootGo.transform;
+
             var visualGo = new GameObject("Visual", typeof(SpriteRenderer));
-            visualGo.transform.SetParent(transform, false);
+            visualGo.transform.SetParent(visualScaleRoot, false);
             visual = visualGo.transform;
             visualRenderer = visualGo.GetComponent<SpriteRenderer>();
             visualRenderer.sortingOrder = 10;
@@ -111,8 +120,12 @@ namespace Slimelands.Dungeon
             hpBarFillGo = fillGo;
         }
 
-        /// <summary>この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。初期位置はunit.Positionをそのまま使う。</summary>
-        public void Bind(BattleUnit unit)
+        /// <summary>
+        /// この見た目インスタンスを1体のBattleUnitに紐付け、初期表示を行う。初期位置はunit.Positionを
+        /// そのまま使う。visualScaleはBattleBalanceData.UnitVisualScale(ダンジョン内でのスライム表示
+        /// サイズの倍率)を渡す想定で、HPバーはこの倍率の影響を受けずスプライトのみ拡大縮小される。
+        /// </summary>
+        public void Bind(BattleUnit unit, float visualScale = 1f)
         {
             boundUnit = unit;
             attackType = unit.AttackType;
@@ -123,8 +136,11 @@ namespace Slimelands.Dungeon
             isFaintedVisual = false;
             faintTimer = 0f;
             faintRemovalNotified = false;
+            baseVisualScale = visualScale > 0f ? visualScale : 1f;
+            visualScaleRoot.localScale = Vector3.one * baseVisualScale;
             visual.localRotation = Quaternion.identity;
             visual.localScale = Vector3.one;
+            hpBarBackgroundGo.transform.localPosition = new Vector3(0f, HpBarYOffset * baseVisualScale, 0f);
             hpBarBackgroundGo.SetActive(true);
             hpBarFillGo.SetActive(true);
 
@@ -362,7 +378,7 @@ namespace Slimelands.Dungeon
 
             hpBarFillTransform.localScale = new Vector3(HpBarWidth * ratio, HpBarHeight * 0.7f, 1f);
             hpBarFillTransform.localPosition =
-                new Vector3(-HpBarWidth * 0.5f * (1f - ratio), HpBarYOffset, 0f);
+                new Vector3(-HpBarWidth * 0.5f * (1f - ratio), HpBarYOffset * baseVisualScale, 0f);
             hpBarFillRenderer.color = Color.Lerp(new Color(0.85f, 0.2f, 0.2f), new Color(0.3f, 0.85f, 0.3f), ratio);
         }
     }

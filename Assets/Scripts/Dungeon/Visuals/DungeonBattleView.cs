@@ -230,7 +230,7 @@ namespace Slimelands.Dungeon
                 typeof(BattleUnitView), typeof(CircleCollider2D), typeof(BattleUnitHurtbox));
             go.transform.SetParent(EnsureVisualsRoot(), false);
             BattleUnitView view = go.GetComponent<BattleUnitView>();
-            view.Bind(unit);
+            view.Bind(unit, controller != null ? controller.UnitVisualScale : 1f);
             view.OnFaintVisualCompleted += HandleFaintVisualCompleted;
             views[unit] = view;
 

@@ -77,6 +77,8 @@ namespace Slimelands.Dungeon
 
         /// <summary>必殺技の範囲攻撃(コライダー)が検出対象とする、各ユニットのBattleUnitHurtbox半径。</summary>
         public float HurtboxRadius => balanceData != null ? balanceData.HurtboxRadius : 0.5f;
+        /// <summary>ダンジョン戦闘中に表示するスライムのスプライトサイズの倍率。見た目側(BattleUnitView)がBind時に参照する。</summary>
+        public float UnitVisualScale => balanceData != null ? balanceData.UnitVisualScale : 1f;
         /// <summary>プレイヤー側ユニットのBattleUnitHurtboxに使うレイヤー番号。見た目側(DungeonBattleView)がコライダー生成時に参照する。</summary>
         public int PlayerHurtboxLayer => EnsurePlayerHurtboxLayer();
         /// <summary>敵側ユニットのBattleUnitHurtboxに使うレイヤー番号。見た目側(DungeonBattleView)がコライダー生成時に参照する。</summary>

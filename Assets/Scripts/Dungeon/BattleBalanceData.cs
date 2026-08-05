@@ -49,6 +49,11 @@ namespace Slimelands.Dungeon
                  "必殺技の範囲攻撃(Circle/Line/Sweep)がPhysics2Dのクエリで命中対象を検出する際に使う。")]
         [SerializeField] private float hurtboxRadius = 0.5f;
 
+        [Header("見た目(仮値、要調整)")]
+        [Tooltip("ダンジョン戦闘中に表示するスライムのスプライトサイズの倍率。HPバーはこの倍率の" +
+                 "影響を受けず、スプライトのみ拡大縮小される。")]
+        [SerializeField] private float unitVisualScale = 1.6f;
+
         public float NormalAttackInterval => normalAttackInterval;
         public int NormalAttackPower => normalAttackPower;
         public float WanderSpeed => wanderSpeed;
@@ -60,5 +65,6 @@ namespace Slimelands.Dungeon
         public float MeleeHitDelay => meleeHitDelay;
         public float RangedAttackRange => rangedAttackRange;
         public float HurtboxRadius => hurtboxRadius;
+        public float UnitVisualScale => unitVisualScale;
     }
 }

@@ -2718,3 +2718,31 @@ GDD/CLAUDE.mdの仕様(ルール5)を色だけでなくポーズでも伝えた�
 Unity_RunCommandでPlay Mode中に新規`BattleUnitView`を生成し、`Bind()`→`SetFainted()`→
 `SendMessage("Update")`で疑似フレーム送りした結果、`Visual`の色が`RGBA(0.750, 0.750, 0.750, 1.000)`、
 Z軸回転が90度になっていることを確認した。コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 実装: ダンジョン内のスライム表示サイズを拡大
+
+「ダンジョンでのスライムのサイズを大きくしてほしい」との依頼。
+
+### 実装内容
+- **`BattleUnitView.cs`**: `Visual`(スプライト)の親として新たに`VisualScaleRoot`を追加し、
+  階層を`transform → VisualScaleRoot → Visual`にした。`Visual`自体の`localScale`はホップ/突進の
+  潰れ・伸びアニメーション専用のまま一切変更せず、`VisualScaleRoot.localScale`にBind時の
+  `visualScale`引数(倍率)だけを設定することで、既存のアニメーションロジックに影響を与えずに
+  スプライト全体のサイズだけを拡大できるようにした。HPバー(`HpBarBackground`/`HpBarFill`)は
+  この倍率の対象外(スケールされない)だが、Y方向の表示位置(`HpBarYOffset`)だけは倍率に応じて
+  引き離す(`HpBarYOffset * baseVisualScale`)ことで、スライムが大きくなってもHPバーが頭に
+  めり込まないようにした。
+- **`BattleBalanceData.cs`**: `unitVisualScale`(仮値1.6)を追加。CLAUDE.mdルール2(バランス値の
+  ハードコード禁止)に従い、Inspectorで調整可能なScriptableObject値として実装。
+- **`DungeonRunController.cs`**: `UnitVisualScale`プロパティを追加し、`balanceData`から見た目側
+  (`DungeonBattleView`)へ橋渡しする。
+- **`DungeonBattleView.cs`**: `CreateView`で`view.Bind(unit, controller.UnitVisualScale)`のように
+  倍率を渡すよう変更。
+
+### テスト
+Unity_RunCommandで`BattleBalanceData.asset`の`UnitVisualScale`が新規フィールドのデフォルト値
+(1.6)で正しく読み込まれることを確認。新規`BattleUnitView`を生成し`Bind(unit, 1.6)`した結果、
+`VisualScaleRoot.localScale=(1.6,1.6,1.6)`・`Visual.localScale=(1,1,1)`(潰れ・伸びアニメーション用の
+基準値は不変)・`HpBarBackground.localPosition.y=1.2`(0.75×1.6)になることを確認した。実際に
+ダンジョン戦闘を1件構築し、Unity_SceneView_Capture2DScreenshotでスプライトが大きく表示されて
+いることも目視で確認した。コンパイルエラー・警告なしを確認(Unity Console)。
