@@ -2761,3 +2761,21 @@ Unity_RunCommandで`BattleBalanceData.asset`の`UnitVisualScale`が新規フィ�
 Unity_RunCommandでPlay Mode中にプレイヤー側・敵側それぞれの`BattleUnitView`を生成し`SetFainted()`を
 呼んだ結果、プレイヤー側は`Visual`のZ回転が90度、敵側は0度(無回転)のままであることを確認した。
 コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 修正: スライム拡大に合わせてコライダー(当たり判定)も拡大
+
+「スライムのサイズ変えたけど、コライダーはそれに合わせた大きさにした?」との指摘。
+`UnitVisualScale`はスプライトの見た目(VisualScaleRoot)にしか反映しておらず、当たり判定用の
+`BattleUnitHurtbox`(`CircleCollider2D`)の半径は`BattleBalanceData.HurtboxRadius`のまま据え置きで、
+見た目だけ大きくなって当たり判定はそのまま、という不一致があった。
+
+### 実装内容
+- **`DungeonBattleView.cs`**: `CreateView`で`hurtbox.Bind(unit, controller.HurtboxRadius, layer)`と
+  していたのを`hurtbox.Bind(unit, controller.HurtboxRadius * controller.UnitVisualScale, layer)`に
+  変更。見た目のスプライトサイズと近接/遠距離射程判定・必殺技範囲攻撃が使うコライダーの大きさが
+  常に連動するようにした。
+
+### テスト
+Unity_RunCommandで実際にダンジョン戦闘を1件構築し、生成された`BattleUnitHurtbox`(プレイヤー・敵
+両方)の`CircleCollider2D.radius`が期待通り0.8(=`HurtboxRadius`0.5×`UnitVisualScale`1.6)になって
+いることを確認した。コンパイルエラー・警告なしを確認(Unity Console)。

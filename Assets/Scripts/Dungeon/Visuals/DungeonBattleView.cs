@@ -236,11 +236,14 @@ namespace Slimelands.Dungeon
 
             // 全攻撃(近接・遠距離の通常攻撃、単体対象必殺技、範囲必殺技)のコライダーベースの当たり判定に
             // 使うトリガーコライダー。見た目の描画位置(このGameObjectのtransform)をそのまま当たり判定に使う。
+            // 半径はUnitVisualScaleを掛けて、見た目のスプライトサイズと当たり判定の大きさがずれない
+            // ようにする(スプライトだけ拡大してコライダーが小さいままだと、見た目より判定が
+            // シビアになってしまうため)。
             if (controller != null)
             {
                 BattleUnitHurtbox hurtbox = go.GetComponent<BattleUnitHurtbox>();
                 int layer = unit.IsPlayerSide ? controller.PlayerHurtboxLayer : controller.EnemyHurtboxLayer;
-                hurtbox.Bind(unit, controller.HurtboxRadius, layer);
+                hurtbox.Bind(unit, controller.HurtboxRadius * controller.UnitVisualScale, layer);
             }
         }
 
