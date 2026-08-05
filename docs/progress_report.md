@@ -2779,3 +2779,37 @@ Unity_RunCommandでPlay Mode中にプレイヤー側・敵側それぞれの`Bat
 Unity_RunCommandで実際にダンジョン戦闘を1件構築し、生成された`BattleUnitHurtbox`(プレイヤー・敵
 両方)の`CircleCollider2D.radius`が期待通り0.8(=`HurtboxRadius`0.5×`UnitVisualScale`1.6)になって
 いることを確認した。コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 修正: 月齢停止中にマナクリスタルをスタックのまま給餌するとスタックが分離し操作不能になる不具合
+
+「月齢変化時の停止状態のときに、マナクリスタルをスタック状態でスライムに与えると、スタックの
+一番下とそれ以外が分離し、一番下だったもの以外のマナクリスタルが触れなくなる」との報告。
+
+### 原因
+`CardBoard.TryBeginBatchFeed`(まとめ給餌)は`dropped.TakeAll()`で対象スタックの全カードを
+開始時点で一括して盤面上の単独カードとして切り離し、`FeedQueueSequentially`コルーチンが
+1枚ずつ`targetStack`(スライム側)へ乗せては`CardCraftProcess.IsComplete`を待つ、を繰り返す設計
+だった。ところが月齢停止中(食料不足で`CardCraftProcess.ProductionPaused = true`)は、経験値付与
+レシピ(食料ストック系ではない)の`CardCraftProcess.Update()`が早期returnし続けて`IsComplete`に
+永遠に到達しない。その結果コルーチンが1枚目を乗せた直後の`while (!process.IsComplete)`で
+無限に停止し、`TakeAll()`で最初に単独カード化されていた2枚目以降が、所属スタックを失ったまま
+(`ParentStack == null`)盤面に取り残されてしまっていた。カードの選択・ドラッグは`ParentStack`
+経由のスタック単位で行われるため、この状態のカードは事実上操作不能になる。
+
+### 実装内容
+- **`CardBoard.cs`**: `TryBeginBatchFeed`で`dropped.TakeAll()`により先頭で全カードを切り離すのを
+  やめ、`dropped`スタック自身を`FeedQueueSequentially`に渡すように変更。コルーチン内では
+  1回のループごとに`dropped`の一番下(`Cards[0]`)を`CardStack.Remove()`で1枚だけ取り除く
+  (`Remove`は取り除いた1枚だけを切り離し、残りは詰め直した上で引き続き有効なスタックとして
+  保持する仕様)。これにより、月齢停止でコルーチンが途中で長時間止まっても、まだ給餌していない
+  残りのマナクリスタルは通常のスタックとして盤面に残り、引き続きドラッグ・クリック可能なままになる。
+
+### テスト
+このツール実行環境では実際のマウスドラッグ&ドロップの入力シミュレーションができないため
+(`CardBoard`は新Input Systemの`Mouse.current`を直接参照しており、`TryBeginBatchFeed`/
+`FeedQueueSequentially`自体もprivateで直接呼び出せない)、修正の中核となる仕組みを直接検証した。
+`CardStack`に3枚のマナクリスタルカードを積んだ状態で一番下の1枚を`Remove()`した結果、
+残り2枚が引き続き`ParentStack != null`かつ同じ`CardStack`の子として有効に保持されることを
+確認した(以前の`TakeAll()`ベースの実装ではこの時点で全カードが`ParentStack == null`になり、
+今回の不具合が再現する状態だった)。コンパイルエラー・警告なしを確認(Unity Console)。実際の
+ドラッグ操作を伴う最終確認はユーザー側でのPlay Mode手動テストが必要。

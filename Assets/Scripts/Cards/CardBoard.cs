@@ -339,35 +339,47 @@ namespace Slimelands.Cards
                 }
             }
 
-            List<CardController> queue = dropped.TakeAll();
-            StartCoroutine(FeedQueueSequentially(targetStack, queue, recipe, repeatedData));
+            int queueCount = dropped.Count;
+            StartCoroutine(FeedQueueSequentially(targetStack, dropped, queueCount, recipe, repeatedData));
             return true;
         }
 
         /// <summary>
-        /// キューにあるカードを対象スタックへ1枚ずつ乗せてはCardCraftProcessの完了を待つ、を繰り返す。
+        /// droppedスタックの一番下から1枚ずつ対象スタックへ乗せてはCardCraftProcessの完了を待つ、を
+        /// 繰り返す。まだ給餌していない残りのカードは、給餌される瞬間まで意図的にdropped自身の中に
+        /// 残したままにする(CardStack.Removeは取り除いた1枚だけを切り離し、残りは詰め直した上で
+        /// 引き続き有効なスタックとして保持する)。以前は開始時にTakeAllで全カードを一括して盤面へ
+        /// 単独カードとして切り離していたが、月齢停止中(CardCraftProcess.ProductionPaused)は
+        /// 経験値付与のようなレシピの合成がいつまでも完了せずこのコルーチンが止まり続けるため、
+        /// 「1枚目だけスライムに合体し、残りは所属スタックを失ったまま操作不能な状態で盤面に取り残される」
+        /// 不具合が起きていた。droppedを生かしたまま1枚ずつ取り出す方式にすることで、コルーチンが
+        /// 止まっている間も残りのカードは引き続き通常のスタックとしてドラッグ・クリックできる。
         /// CardCraftProcessのDestroy()はフレーム末まで反映が遅延されるため、次のカードを乗せる前に
         /// 必ず1フレーム待ってから進める(同一フレーム内で複数のCardCraftProcessが同居し、
         /// GetComponentの参照が曖昧になるのを避けるため)。1枚ごとのポップアップ表示はOnCraftCompleted側で
         /// 抑止し、全て給餌し終えたところで合計値をまとめて1回だけポップアップ表示する。
         /// </summary>
-        private IEnumerator FeedQueueSequentially(CardStack targetStack, List<CardController> queue, CardRecipeData recipe,
-            CardData repeatedData)
+        private IEnumerator FeedQueueSequentially(CardStack targetStack, CardStack sourceStack, int queueCount,
+            CardRecipeData recipe, CardData repeatedData)
         {
             int fedCount = 0;
 
-            foreach (CardController card in queue)
+            for (int i = 0; i < queueCount; i++)
             {
-                if (targetStack == null)
+                if (targetStack == null || sourceStack == null || sourceStack.Count == 0)
                 {
                     yield break;
                 }
 
                 yield return null;
-                if (targetStack == null)
+                if (targetStack == null || sourceStack == null || sourceStack.Count == 0)
                 {
                     yield break;
                 }
+
+                // 一番下(index 0)から取り出す=TakeAll済みのキューをforeachしていた頃と同じ順序。
+                CardController card = sourceStack.Cards[0];
+                sourceStack.Remove(card);
 
                 AssignAscendingSortingOrders(new List<CardController> { card });
                 targetStack.AddToTop(card);
