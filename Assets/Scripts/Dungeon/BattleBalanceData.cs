@@ -38,6 +38,12 @@ namespace Slimelands.Dungeon
                  "見た目側の突進(接近)モーションの所要時間もこれに合わせて同期される。")]
         [SerializeField] private float meleeHitDelay = 0.25f;
 
+        [Header("遠距離攻撃(仮値、要調整)")]
+        [Tooltip("遠距離攻撃(通常攻撃・必殺技とも)が実際に届く最大距離。近接と同じくコライダーベースの" +
+                 "射程判定に使う。デフォルトは行動帯を十分カバーする大きめの値にしてあり、通常プレイでは" +
+                 "常に射程内(=従来通り必ず命中)になるが、値を絞ればあえて距離を離されると外れる仕様にも調整できる。")]
+        [SerializeField] private float rangedAttackRange = 20f;
+
         [Header("必殺技の範囲攻撃(コライダー、仮値・要調整)")]
         [Tooltip("各ユニットが持つ当たり判定用コライダー(BattleUnitHurtbox)の半径。" +
                  "必殺技の範囲攻撃(Circle/Line/Sweep)がPhysics2Dのクエリで命中対象を検出する際に使う。")]
@@ -52,6 +58,7 @@ namespace Slimelands.Dungeon
         public float CombatMovementSpeed => combatMovementSpeed;
         public float MeleeAttackRange => meleeAttackRange;
         public float MeleeHitDelay => meleeHitDelay;
+        public float RangedAttackRange => rangedAttackRange;
         public float HurtboxRadius => hurtboxRadius;
     }
 }

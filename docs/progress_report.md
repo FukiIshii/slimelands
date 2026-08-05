@@ -2619,3 +2619,48 @@ Play Modeで`BattleUnitView`を生成し`Bind()`した直後は`slime_0`固定�
 Play Modeで`BattleUnitView`を生成し、`BattleUnit.Position`を直接書き換えて`SendMessage("Update")`
 で疑似フレーム送りしながら`flipX`を確認: 左へ移動→`flipX=true`、右へ移動→`flipX=false`、
 左側の対象へ`PlayAttackMotion`→`flipX=true`、いずれも期待通りの結果を確認した。
+
+## 実装: 遠距離タイプの通常攻撃もコライダーで当たり判定するように変更
+
+「全攻撃つまり、通常攻撃も、コライダーで当たり判定をするように変えて」との依頼。従来、近接タイプの
+通常攻撃・必殺技、および必殺技の範囲攻撃(Circle/Line/Sweep)は`BattleUnitHurtbox`
+(`CircleCollider2D`のトリガー)を`Physics2D.OverlapCircleAll`/`OverlapBoxAll`で検出するコライダー
+ベースの判定だったが、遠距離タイプの通常攻撃だけはコライダー判定を一切行わず、選択中の対象へ
+無条件でダメージを適用していた。この非対称を解消し、全攻撃種別を同じコライダーベースの判定に統一した。
+
+### 実装内容
+- **`BattleBalanceData.cs`**: 近接の`meleeAttackRange`と対になる`rangedAttackRange`(仮値20f)を
+  追加。行動帯(デフォルト`movementBandWidth`=11 × `movementBandHeight`=3)の対角線長より
+  十分大きい値をデフォルトにしており、通常プレイでは従来通り「射程に関係なく必ず命中する」挙動を
+  変えずに、判定の仕組みだけをコライダーベースへ揃えている。値を絞れば、あえて距離を離されると
+  遠距離攻撃も外れる仕様に調整することも可能(Inspectorで調整可能)。
+- **`DungeonRunController.cs`**:
+  - `IsMeleeTargetInRange`を`IsTargetInAttackRange`に一般化し、`GetAttackRange(attacker)`で
+    近接/遠距離それぞれの射程値を選んだ上で、従来と同じ`Physics2D.OverlapCircleAll`+
+    `BattleUnitHurtbox`の判定を行うようにした。
+  - `IsMeleeOutOfRange`(近接タイプのみ対象)を`IsAttackOutOfRange`に一般化し、`TickBattle`の
+    通常攻撃ループ(プレイヤー・敵とも)で近接/遠距離を区別せず同じ射程外ガードを通すようにした。
+  - `PerformNormalAttack`の遠距離分岐は、直前の`IsAttackOutOfRange`でコライダー判定を通過済みの
+    前提でダメージを確定させる(近接と異なり接近モーションによる時間差がないため、判定と着弾を
+    同一フレームで完結させる設計は維持)。
+- **`BattleUnitHurtbox.cs`** / **`DungeonBattleView.cs`**: 「必殺技の範囲攻撃専用」としていた
+  古いドキュメントコメントを、実態(全攻撃種別で共用)に合わせて更新した。
+
+### テスト
+Unity_RunCommandでPlay Mode中に、遠距離タイプ(ファイヤースライム)1体 vs 近接タイプ(スライム)1体の
+戦闘を実際にランタイム構築して検証した。
+- `DungeonBattleView`の`OnEnable`は`controller`フィールドがnullでないことを前提にイベント購読する
+  設計のため、`GameObject.AddComponent`直後(まだ`SerializedObject`で`controller`を設定する前)に
+  `OnEnable`が走ると購読に失敗し、`BattleUnitHurtbox`が1つも生成されない罠があった
+  (`GetComponentsInChildren<BattleUnitHurtbox>`が0件)。テスト側で`GameObject`を非アクティブの
+  状態で生成→フィールド設定→アクティブ化、の順に直すことで解消(実際のシーン/プレハブ運用では
+  Inspectorで事前に`controller`参照が設定済みのため、この罠は本番構成では発生しない)。
+- このツール実行環境ではPlay Mode中でも実時間経過でフレームが自動進行しない
+  (`Time.frameCount`が実時間5秒経過後も2のまま)ため、`DungeonRunController.Update()`だけでなく
+  子の各`BattleUnitView.Update()`(`BattleUnitHurtbox`のコライダー位置をBattleUnit.Positionへ
+  同期する処理)も`SendMessage`で明示的にポンプする必要があった。
+- 上記を修正した上でシミュレーションを実行した結果、遠距離ユニットの通常攻撃が2回コライダー判定を
+  通過してヒット(13ダメージ×2)、近接ユニットの通常攻撃も従来通り1回ヒット(1ダメージ)し、
+  敵が気絶してダンジョンクリアに至ることを確認した。近接側の既存挙動に回帰がないことも合わせて
+  確認できた。
+- コンパイルエラー・警告なしを確認(Unity Console)。

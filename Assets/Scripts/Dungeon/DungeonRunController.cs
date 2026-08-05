@@ -586,9 +586,9 @@ namespace Slimelands.Dungeon
                     {
                         unit.NormalAttackTimer = balanceData.NormalAttackInterval;
                     }
-                    else if (IsMeleeOutOfRange(unit, target))
+                    else if (IsAttackOutOfRange(unit, target))
                     {
-                        // 近接タイプが射程外: 攻撃は発動せず接近を続ける(TickMovementが追尾する)。
+                        // 射程外(近接=接近中、遠距離=距離を離されている等): 攻撃は発動せず様子を見る。
                         // タイマーはリセットしない=射程に入った瞬間に即座に攻撃できるようにする。
                     }
                     else
@@ -617,9 +617,9 @@ namespace Slimelands.Dungeon
                         continue;
                     }
 
-                    if (IsMeleeOutOfRange(enemy, target))
+                    if (IsAttackOutOfRange(enemy, target))
                     {
-                        // 近接タイプが射程外: 攻撃は発動せず接近を続ける(TickMovementが追尾する)。
+                        // 射程外(近接=接近中、遠距離=距離を離されている等): 攻撃は発動せず様子を見る。
                         continue;
                     }
 
@@ -663,21 +663,30 @@ namespace Slimelands.Dungeon
             return null;
         }
 
-        /// <summary>近接タイプの攻撃者がtargetに対して射程(MeleeAttackRange)外にいるかどうか。遠距離タイプは常にfalse。</summary>
-        private bool IsMeleeOutOfRange(BattleUnit attacker, BattleUnit target)
+        /// <summary>attackerがtargetに対して射程外にいるかどうか(近接・遠距離共通、コライダーベース判定)。</summary>
+        private bool IsAttackOutOfRange(BattleUnit attacker, BattleUnit target)
         {
-            return attacker.AttackType == SlimeAttackType.Melee && !IsMeleeTargetInRange(attacker, target);
+            return !IsTargetInAttackRange(attacker, target);
+        }
+
+        /// <summary>attackerのタイプに応じた攻撃射程(近接=MeleeAttackRange、遠距離=RangedAttackRange)。</summary>
+        private float GetAttackRange(BattleUnit attacker)
+        {
+            return attacker.AttackType == SlimeAttackType.Melee
+                ? balanceData.MeleeAttackRange
+                : balanceData.RangedAttackRange;
         }
 
         /// <summary>
-        /// 近接攻撃の射程判定(通常攻撃・必殺技共通)。attackerの実座標を中心とした半径MeleeAttackRangeの
-        /// 範囲をPhysics2D.OverlapCircleAllで検出し、その中にtargetのBattleUnitHurtboxが含まれるかで
-        /// 判定する(必殺技の範囲攻撃と同じコライダーベースの当たり判定に統一するため、数学的な距離比較は行わない)。
+        /// 通常攻撃・必殺技共通の射程判定(近接・遠距離とも)。attackerの実座標を中心とした半径
+        /// (GetAttackRange)の範囲をPhysics2D.OverlapCircleAllで検出し、その中にtargetのBattleUnitHurtboxが
+        /// 含まれるかで判定する(必殺技の範囲攻撃と同じコライダーベースの当たり判定に統一するため、
+        /// 数学的な距離比較は行わない)。
         /// </summary>
-        private bool IsMeleeTargetInRange(BattleUnit attacker, BattleUnit target)
+        private bool IsTargetInAttackRange(BattleUnit attacker, BattleUnit target)
         {
             Physics2D.SyncTransforms();
-            Collider2D[] results = Physics2D.OverlapCircleAll(attacker.Position, balanceData.MeleeAttackRange,
+            Collider2D[] results = Physics2D.OverlapCircleAll(attacker.Position, GetAttackRange(attacker),
                 GetOpposingHurtboxMask(attacker));
             foreach (Collider2D col in results)
             {
@@ -699,6 +708,9 @@ namespace Slimelands.Dungeon
                 return;
             }
 
+            // 遠距離タイプ: 直前のTickBattleでのIsAttackOutOfRangeによりコライダーベースの射程判定
+            // (IsTargetInAttackRange)を通過済みのため、ここでは改めて判定せず確定した命中として扱う。
+            // 近接と違い接近モーションによる時間差がないため、判定と着弾を同一フレームで完結させる。
             int damage = BattleFormulas.CalculateDamage(attacker.Stats.attack, target.Stats.defense,
                 balanceData.NormalAttackPower, attacker.Type, target.Type, affinityData);
             target.ApplyDamage(damage);
@@ -710,14 +722,14 @@ namespace Slimelands.Dungeon
 
         /// <summary>
         /// 近接攻撃(通常攻撃・必殺技共通)。attackerを中心としたBattleUnitHurtboxのコライダー判定
-        /// (IsMeleeTargetInRange)でtargetに実際に届くかを判定し、届かない場合は「接近が間に合わず
+        /// (IsTargetInAttackRange)でtargetに実際に届くかを判定し、届かない場合は「接近が間に合わず
         /// 攻撃が届かない」ものとしてミス(ダメージ0)にする。命中/ミスいずれの場合も、実際の決着
         /// (ダメージ反映)はMeleeHitDelay秒後まで遅延させ、見た目側の接近モーションが完了するタイミング
         /// と同期させる。
         /// </summary>
         private void BeginMeleeAttack(BattleUnit attacker, BattleUnit target, int power, bool isUltimate, string skillName)
         {
-            bool willHit = IsMeleeTargetInRange(attacker, target);
+            bool willHit = IsTargetInAttackRange(attacker, target);
             int damage = willHit
                 ? BattleFormulas.CalculateDamage(attacker.Stats.attack, target.Stats.defense, power,
                     attacker.Type, target.Type, affinityData)

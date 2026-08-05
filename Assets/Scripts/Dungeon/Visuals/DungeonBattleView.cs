@@ -234,8 +234,8 @@ namespace Slimelands.Dungeon
             view.OnFaintVisualCompleted += HandleFaintVisualCompleted;
             views[unit] = view;
 
-            // 必殺技の範囲攻撃(コライダーベースの当たり判定)専用のトリガーコライダー。
-            // 見た目の描画位置(このGameObjectのtransform)をそのまま当たり判定に使う。
+            // 全攻撃(近接・遠距離の通常攻撃、単体対象必殺技、範囲必殺技)のコライダーベースの当たり判定に
+            // 使うトリガーコライダー。見た目の描画位置(このGameObjectのtransform)をそのまま当たり判定に使う。
             if (controller != null)
             {
                 BattleUnitHurtbox hurtbox = go.GetComponent<BattleUnitHurtbox>();
