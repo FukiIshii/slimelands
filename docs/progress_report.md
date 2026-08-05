@@ -2572,3 +2572,28 @@ Editor編集モード下でのAwake未実行によりテストハーネス側で
 これはBind()呼び出し前提のhpバー初期化(Awake内)がPlay Mode専用であることに起因するテスト
 環境側の制約であり、`BattleSprite`の参照解決自体は正しく行われていることを確認済み。
 実際のダンジョン画面での見た目確認は次回Unity接続時のPlay Modeテストで実施予定。
+
+## 実装: ダンジョンのスライムをコマ送りアニメーションに変更
+
+前回`slime.png`(実体は5コマの走行アニメーション用スプライトシート`slime_0`〜`slime_4`)の
+1枚目のみを静止表示していたが、「アニメーションにして」との依頼を受け、全コマを使った
+ループ再生に対応した。
+
+### 実装内容
+- **`SlimeSpeciesData.cs`**: `battleAnimationFrames`(`Sprite[]`, 任意)を追加。2枚以上設定されて
+  いる場合のみアニメーション対象になる。未設定(0〜1枚)の場合は従来通り`battleSprite`を
+  静止画表示する完全後方互換。
+- **`BattleUnitView.cs`**: コルーチンを使わず(このツール実行環境でPlay Mode中にコルーチンが
+  自動進行しない制約は既知のため、既存のTickIdleHop/TickMeleeAnimと同じUpdate()内の経過時間
+  加算方式を踏襲)、`TickAnimation()`で一定間隔(`AnimationFrameDuration`=0.12秒、仮値)ごとに
+  `battleAnimationFrames`を巡回して`visualRenderer.sprite`を差し替える。気絶中(`isFaintedVisual`)
+  はアニメーションを止める。ホップ/突進の位置・拡縮モーションとは独立して常時進行するため、
+  待機中・攻撃中を問わず途切れずループする。
+- 4種族(Slime/FireSlime/MagmaSlime/CrystalSlime)全てに`slime_0`〜`slime_4`の5コマを
+  `Unity_RunCommand`(`SerializedObject`経由、配列プロパティを`arraySize`+`GetArrayElementAtIndex`
+  で設定)で割り当てた。
+
+### テスト
+Play Modeで`BattleUnitView`を生成し`Bind()`した直後は`slime_0`固定であることを確認。
+その後`SendMessage("Update", ...)`で疑似フレーム送りを40回行うと`slime_1`へ進行することを
+ログで確認し、コマ送りロジックが正しく動作していることを検証した。

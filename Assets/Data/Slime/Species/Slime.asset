@@ -16,6 +16,12 @@ MonoBehaviour:
   slimeType: 0
   attackType: 0
   battleSprite: {fileID: 368543389579951487, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  battleAnimationFrames:
+  - {fileID: 368543389579951487, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  - {fileID: -458641133534639524, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  - {fileID: 2542698315722941828, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  - {fileID: -3711818451352614709, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
+  - {fileID: -6875693984060724655, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
   baseStats:
     maxHp: 20
     attack: 5

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Slimelands.Slime;
 
@@ -34,6 +35,8 @@ namespace Slimelands.Dungeon
         private const float HpBarWidth = 0.9f;
         private const float HpBarHeight = 0.14f;
         private const float HpBarYOffset = 0.75f;
+        // SlimeSpeciesData.BattleAnimationFramesのコマ送り速度(仮値、要調整)。気絶中は止める。
+        private const float AnimationFrameDuration = 0.12f;
 
         private static readonly Color FaintedTint = new(0.45f, 0.45f, 0.45f, 0.5f);
 
@@ -55,6 +58,9 @@ namespace Slimelands.Dungeon
         private bool isFaintedVisual;
         private float faintTimer;
         private bool faintRemovalNotified;
+        private IReadOnlyList<Sprite> animationFrames;
+        private int animationFrameIndex;
+        private float animationTimer;
 
         /// <summary>現在の基準位置(ロジック側のBattleUnit.Positionをそのまま反映)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
         public Vector3 CurrentPosition => homePosition;
@@ -110,7 +116,15 @@ namespace Slimelands.Dungeon
             hpBarBackgroundGo.SetActive(true);
             hpBarFillGo.SetActive(true);
 
-            Sprite sprite = unit.Species != null ? unit.Species.BattleSprite : null;
+            animationFrames = unit.Species != null ? unit.Species.BattleAnimationFrames : null;
+            animationFrameIndex = 0;
+            animationTimer = 0f;
+
+            Sprite sprite = animationFrames != null && animationFrames.Count > 0 ? animationFrames[0] : null;
+            if (sprite == null)
+            {
+                sprite = unit.Species != null ? unit.Species.BattleSprite : null;
+            }
             if (sprite == null)
             {
                 sprite = RuntimeSpriteFactory.GetCircleSprite(
@@ -206,6 +220,8 @@ namespace Slimelands.Dungeon
                 return;
             }
 
+            TickAnimation();
+
             if (meleePhase != MeleeAnimPhase.Idle)
             {
                 // 突進中はロジック側の座標追従を止め、突進アニメーションのみ進行させる
@@ -227,6 +243,29 @@ namespace Slimelands.Dungeon
             {
                 TickIdleHop();
             }
+        }
+
+        /// <summary>
+        /// SlimeSpeciesData.BattleAnimationFramesが2枚以上設定されている場合のみ、一定間隔で
+        /// コマを進めてループ再生する(1枚以下なら何もしない=従来通りの静止画表示)。
+        /// ホップ/突進の位置・拡縮アニメーションとは独立して、常時進行させる。
+        /// </summary>
+        private void TickAnimation()
+        {
+            if (animationFrames == null || animationFrames.Count < 2)
+            {
+                return;
+            }
+
+            animationTimer += Time.deltaTime;
+            if (animationTimer < AnimationFrameDuration)
+            {
+                return;
+            }
+
+            animationTimer -= AnimationFrameDuration;
+            animationFrameIndex = (animationFrameIndex + 1) % animationFrames.Count;
+            visualRenderer.sprite = animationFrames[animationFrameIndex];
         }
 
         /// <summary>

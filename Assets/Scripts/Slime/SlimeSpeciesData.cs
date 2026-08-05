@@ -17,8 +17,12 @@ namespace Slimelands.Slime
         [SerializeField] private SlimeType slimeType;
         [Tooltip("基本攻撃の方式(GDD確定仕様)。近接=突進、遠距離=スライム弾。ダンジョン戦闘の見た目にも使う。")]
         [SerializeField] private SlimeAttackType attackType = SlimeAttackType.Melee;
-        [Tooltip("ダンジョン戦闘中に表示するスプライト。未設定の場合はタイプに応じたプレースホルダー形状で代替する。")]
+        [Tooltip("ダンジョン戦闘中に表示するスプライト。battleAnimationFramesが未設定の場合の静止画として、" +
+            "また両方未設定の場合はタイプに応じたプレースホルダー形状で代替する。")]
         [SerializeField] private Sprite battleSprite;
+        [Tooltip("ダンジョン戦闘中にループ再生するアニメーションのコマ(2枚以上でアニメーション有効)。" +
+            "空の場合はbattleSpriteを静止画として表示する。")]
+        [SerializeField] private Sprite[] battleAnimationFrames;
 
         [Header("基本ステータス(Lv1時点)")]
         [SerializeField] private SlimeStats baseStats;
@@ -54,6 +58,7 @@ namespace Slimelands.Slime
         public SlimeType Type => slimeType;
         public SlimeAttackType AttackType => attackType;
         public Sprite BattleSprite => battleSprite;
+        public IReadOnlyList<Sprite> BattleAnimationFrames => battleAnimationFrames;
         public SlimeStats BaseStats => baseStats;
         public SlimeStats StatsGrowthPerLevel => statsGrowthPerLevel;
         public int ExpPerLevel => expPerLevel;
