@@ -41,7 +41,11 @@ namespace Slimelands.Dungeon
         // (浮動小数点誤差で左右に細かくちらつくのを防ぐ)。
         private const float FacingChangeThreshold = 0.001f;
 
-        private static readonly Color FaintedTint = new(0.45f, 0.45f, 0.45f, 0.5f);
+        // 不透明(alpha=1)にしておく。プレイヤー側はこの色のままフェードアウトせず村に戻るまで
+        // 表示し続ける仕様のため、ここのalphaが1未満だと「フェードアウトの途中で止まって
+        // 残り続けている」ように見えてしまう(実際に発生していた不具合)。敵側のフェードアウトは
+        // 下記のtinted.a計算で不透明(1)から0まで自前で減衰させるため、この定数自体は常に不透明でよい。
+        private static readonly Color FaintedTint = new(0.45f, 0.45f, 0.45f, 1f);
 
         private Transform visual;
         private SpriteRenderer visualRenderer;
