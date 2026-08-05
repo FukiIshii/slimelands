@@ -202,7 +202,11 @@ namespace Slimelands.Dungeon
             meleeAnimTimer = 0f;
         }
 
-        /// <summary>戦闘不能(HP0)になった際の見た目(横に倒れてグレーアウト、敵側はその後フェードアウト)へ切り替える。</summary>
+        /// <summary>
+        /// 戦闘不能(HP0)になった際の見た目(グレーアウト、敵側はその後フェードアウト)へ切り替える。
+        /// 横倒しのポーズは村に戻るまで表示し続けるプレイヤー側のみ(「気絶=死亡ではない」ことを
+        /// 伝える演出)で、消えていくだけの敵側では不要なので回転させない。
+        /// </summary>
         public void SetFainted()
         {
             isFaintedVisual = true;
@@ -211,8 +215,12 @@ namespace Slimelands.Dungeon
             meleePhase = MeleeAnimPhase.Idle;
             transform.position = homePosition;
             visual.localScale = Vector3.one;
-            // 倒れる向き(左右)は最後に向いていた方向に合わせる(flipXしている=左向きなら右へ倒す)。
-            visual.localRotation = Quaternion.Euler(0f, 0f, visualRenderer.flipX ? -FaintedRotationDegrees : FaintedRotationDegrees);
+
+            if (boundUnit != null && boundUnit.IsPlayerSide)
+            {
+                // 倒れる向き(左右)は最後に向いていた方向に合わせる(flipXしている=左向きなら右へ倒す)。
+                visual.localRotation = Quaternion.Euler(0f, 0f, visualRenderer.flipX ? -FaintedRotationDegrees : FaintedRotationDegrees);
+            }
         }
 
         private void Update()

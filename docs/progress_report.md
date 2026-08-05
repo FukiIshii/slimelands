@@ -2746,3 +2746,18 @@ Unity_RunCommandで`BattleBalanceData.asset`の`UnitVisualScale`が新規フィ�
 基準値は不変)・`HpBarBackground.localPosition.y=1.2`(0.75×1.6)になることを確認した。実際に
 ダンジョン戦闘を1件構築し、Unity_SceneView_Capture2DScreenshotでスプライトが大きく表示されて
 いることも目視で確認した。コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 修正: 気絶時の横倒し演出はプレイヤー側のみに限定
+
+「敵がやられたときは、90回転しなくてよい」との指摘。気絶時の横倒しポーズ(前回実装)は
+「気絶=死亡ではない」ことを、村に戻るまで表示し続けるプレイヤー側に伝えるための演出だったが、
+消えて(フェードアウトして)いくだけの敵側にも一律適用されていたため、敵側では不要な演出になっていた。
+
+### 実装内容
+- **`BattleUnitView.cs`**: `SetFainted()`内の回転処理を`boundUnit.IsPlayerSide`のときのみ実行する
+  よう修正。敵側は従来通り回転せず(向きそのまま)グレーアウト→フェードアウトする。
+
+### テスト
+Unity_RunCommandでPlay Mode中にプレイヤー側・敵側それぞれの`BattleUnitView`を生成し`SetFainted()`を
+呼んだ結果、プレイヤー側は`Visual`のZ回転が90度、敵側は0度(無回転)のままであることを確認した。
+コンパイルエラー・警告なしを確認(Unity Console)。
