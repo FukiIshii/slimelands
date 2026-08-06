@@ -284,7 +284,10 @@ namespace Slimelands.Dungeon
 
             if (attackType == SlimeAttackType.Ranged)
             {
-                visual.Rotate(Vector3.forward, -RollSpeedDegreesPerSecond * Time.deltaTime, Space.Self);
+                // 転がる向きを移動方向に合わせる。flipX(直前のUpdateFacingFromMovementで更新済み)が
+                // falseなら右へ移動中、trueなら左へ移動中を表すため、そのまま回転方向の符号に流用する。
+                float rollDirection = visualRenderer.flipX ? 1f : -1f;
+                visual.Rotate(Vector3.forward, rollDirection * RollSpeedDegreesPerSecond * Time.deltaTime, Space.Self);
             }
             else
             {

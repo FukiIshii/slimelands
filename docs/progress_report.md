@@ -2860,3 +2860,22 @@ Play Mode中に`BattleUnitView`を新規生成し`FireSlime`をBindした結果�
 `SpriteRenderer.sprite`が`slime_ball_0`になっていることを確認。Unity_SceneView_Capture2DSceneで
 実際に丸いスライムボール型の見た目が表示されていることも目視で確認した。コンパイルエラー・
 警告なしを確認(Unity Console)。
+
+## 修正: 遠距離タイプの回転方向を移動方向に合わせる
+
+「遠距離タイプのキャラは、移動方向に合わせて回転方向が変わるようにして」との依頼。以前から
+遠距離タイプの待機中の徘徊移動には「転がる」演出(`visual.Rotate`を毎フレーム一定速度で回す)が
+実装済みだったが、回転方向は常に固定(`-RollSpeedDegreesPerSecond`)で、左右どちらへ移動していても
+同じ向きに回り続けており、ボール(slime_ball)が実際に転がっている向きと視覚的に矛盾していた。
+
+### 実装内容
+- **`BattleUnitView.cs`**: 遠距離タイプの回転処理で、回転方向の符号を`visualRenderer.flipX`
+  (同じUpdate()内で直前に`UpdateFacingFromMovement`が更新済みの、直前フレームからのX移動方向を
+  表す値。false=右へ移動中、true=左へ移動中)から決めるようにした。右移動中は従来通りの向き、
+  左移動中は逆向きに回転する。新たな状態を追加せず、既存のflipX判定をそのまま流用している。
+
+### テスト
+Play Mode中に`BattleUnitView`(遠距離タイプ)を生成し、`BattleUnit.Position`を右方向へ10フレーム
+動かした後の回転(Z)と、続けて左方向へ10フレーム動かした後の回転を比較した結果、右移動中は
+角度が減少方向、左移動中は増加方向へ変化し、移動方向の切り替えに応じて回転方向が正しく反転する
+ことを確認した。コンパイルエラー・警告なしを確認(Unity Console)。
