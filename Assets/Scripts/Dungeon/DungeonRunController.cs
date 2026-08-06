@@ -187,7 +187,7 @@ namespace Slimelands.Dungeon
             foreach (BattleUnit unit in playerUnits)
             {
                 unit.Position = PickRandomPointInBounds(bounds);
-                unit.WanderTarget = PickRandomPointInBounds(bounds);
+                unit.WanderTarget = PickWanderTarget(unit.Position, bounds);
             }
 
             remainingWaves = new Queue<EncounterWaveData>(dungeon.Waves);
@@ -996,12 +996,30 @@ namespace Slimelands.Dungeon
             // 目標に到達したら静止せず即座に次の目標を選び直す(常に動き回っているように見せる)。
             if (distance <= balanceData.WanderArriveThreshold)
             {
-                unit.WanderTarget = PickRandomPointInBounds(bounds);
+                unit.WanderTarget = PickWanderTarget(unit.Position, bounds);
                 return;
             }
 
             Vector2 step = toTarget.normalized * (balanceData.WanderSpeed * dt);
             unit.Position = step.sqrMagnitude >= toTarget.sqrMagnitude ? unit.WanderTarget : unit.Position + step;
+        }
+
+        /// <summary>
+        /// 徘徊の次の目標を選ぶ。現在位置のすぐ近くが選ばれると、ほとんど移動していないのに
+        /// 進行方向(見た目側の向き・回転)だけが反転して見える不具合になるため、現在位置から
+        /// ある程度離れた点が出るまで数回だけ再抽選する(狭い行動帯では毎回条件を満たすとは
+        /// 限らないため、規定回数で妥協して最後に抽選した点を使う)。
+        /// </summary>
+        private static Vector2 PickWanderTarget(Vector2 currentPosition, Rect bounds)
+        {
+            float minDistance = Mathf.Max(bounds.width, bounds.height) * 0.4f;
+            Vector2 candidate = PickRandomPointInBounds(bounds);
+            for (int attempt = 0; attempt < 8 && Vector2.Distance(candidate, currentPosition) < minDistance; attempt++)
+            {
+                candidate = PickRandomPointInBounds(bounds);
+            }
+
+            return candidate;
         }
 
         private void CompleteDungeon(bool cleared)
