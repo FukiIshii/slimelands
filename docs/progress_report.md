@@ -2969,3 +2969,18 @@ Unity_RunCommandで実際にダンジョンを起動し、`DungeonRunController`
 - 3000フレームにわたる長時間実行でも移動方向・flipX・回転方向の矛盾は発生しなかった
   (慣性を追加してもロジック層の追従自体は依然として正確)。
 - コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 修正: 遠距離タイプの転がる回転の慣性を撤廃
+
+「慣性はなくしてみて」との依頼。直前の修正で追加した`rollVelocityDegPerSec`(目標速度への
+`Mathf.MoveTowards`追従)を撤廃し、実際に進んだ距離にその場で比例させる方式(慣性なし・
+瞬時追従)に戻した。`RollAccelerationDegPerSecSq`定数、`rollVelocityDegPerSec`フィールド、
+`Bind()`でのリセット処理もあわせて削除した(前々回のコミットで導入した
+`distanceMoved × RollDegreesPerWorldUnit`を毎フレームそのまま回転量として適用する形と同じ)。
+なお、徘徊目標が現在位置のすぐ近くに選ばれないようにする`PickWanderTarget`の修正は
+そのまま維持している。
+
+### テスト
+コンパイルエラー・警告なしを確認(Unity Console)。挙動の変更自体は前々回のコミットへの
+差し戻しであり、そちらのテストで既に距離比例の回転が正しく動作することを確認済みのため、
+今回はコンパイル確認のみとした。

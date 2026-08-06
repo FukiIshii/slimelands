@@ -26,9 +26,6 @@ namespace Slimelands.Dungeon
         // 遠距離タイプが1ワールド単位移動するごとに転がる角度(度)。移動速度に比例して回転する
         // ようTickWander/TickMovement側の実移動距離に掛け合わせて使う(仮値、要調整)。
         private const float RollDegreesPerWorldUnit = 480f;
-        // 転がる速度(rollVelocityDegPerSec)が目標値に追従する加速度(度/秒^2)。値が大きいほど
-        // 反応が速くなる(仮値、要調整)。
-        private const float RollAccelerationDegPerSecSq = 4000f;
         private const float MeleeDashBackDuration = 0.12f;
         private const float IdleHopPeriod = 0.55f;
         private const float IdleHopHeight = 0.16f;
@@ -83,11 +80,6 @@ namespace Slimelands.Dungeon
         private int animationFrameIndex;
         private float animationTimer;
         private float lastFacingTrackedX;
-        // 遠距離タイプの転がり回転の現在速度(度/秒、符号付き)。目標速度への追従にMoveTowardsで
-        // 慣性をかけ、徘徊目標到達直後の反転や後退中の壁際停止からの復帰など、移動方向が
-        // 1フレームで反転する場面でも回転が一瞬でフル速度の逆回転にならないようにする
-        // (慣性なしだと、実際の移動方向は正しいのに見た目上「右左が入れ替わった」ように見えてしまう)。
-        private float rollVelocityDegPerSec;
 
         /// <summary>現在の基準位置(ロジック側のBattleUnit.Positionをそのまま反映)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
         public Vector3 CurrentPosition => homePosition;
@@ -150,7 +142,6 @@ namespace Slimelands.Dungeon
             visualScaleRoot.localScale = Vector3.one * baseVisualScale;
             visual.localRotation = Quaternion.identity;
             visual.localScale = Vector3.one;
-            rollVelocityDegPerSec = 0f;
             hpBarBackgroundGo.transform.localPosition = new Vector3(0f, HpBarYOffset * baseVisualScale, 0f);
             hpBarBackgroundGo.SetActive(true);
             hpBarFillGo.SetActive(true);
@@ -302,16 +293,7 @@ namespace Slimelands.Dungeon
                 // 直接参照せずに再現できる。回転方向は移動方向に合わせたflipXの符号を流用する。
                 float distanceMoved = Vector3.Distance(homePosition, previousHomePosition);
                 float rollDirection = visualRenderer.flipX ? 1f : -1f;
-                float targetRollVelocity = Time.deltaTime > 0f
-                    ? rollDirection * (distanceMoved / Time.deltaTime) * RollDegreesPerWorldUnit
-                    : 0f;
-                // 徘徊目標到達直後の反転や、後退中に壁際で止まっていた対象が急に徘徊へ切り替わる
-                // 場面など、移動方向が1フレームで反転することがある。慣性なしで即座にフル速度の
-                // 逆回転にすると、実際の移動方向自体は正しいのに見た目上「一瞬で右左が入れ替わった」
-                // ように見えてしまうため、目標速度へMoveTowardsで滑らかに追従させる。
-                rollVelocityDegPerSec = Mathf.MoveTowards(rollVelocityDegPerSec, targetRollVelocity,
-                    RollAccelerationDegPerSecSq * Time.deltaTime);
-                visual.Rotate(Vector3.forward, rollVelocityDegPerSec * Time.deltaTime, Space.Self);
+                visual.Rotate(Vector3.forward, rollDirection * distanceMoved * RollDegreesPerWorldUnit, Space.Self);
             }
             else
             {
