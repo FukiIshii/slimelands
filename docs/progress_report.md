@@ -2879,3 +2879,35 @@ Play Mode中に`BattleUnitView`(遠距離タイプ)を生成し、`BattleUnit.Po
 動かした後の回転(Z)と、続けて左方向へ10フレーム動かした後の回転を比較した結果、右移動中は
 角度が減少方向、左移動中は増加方向へ変化し、移動方向の切り替えに応じて回転方向が正しく反転する
 ことを確認した。コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 修正: 徘徊移動を常に継続させる(停止しない)
+
+「遠距離タイプのキャラが止まってるときには回転しないようにして」との依頼から着手したが、
+根本を辿ると徘徊目標に到達するたびに`WanderPauseMin`~`WanderPauseMax`(0.3〜1.5秒)のランダムな
+静止時間が発生する仕様そのものが「止まって見える」原因だったため、ユーザーと合意の上、
+「ダンジョン内のキャラは常に動きまわるようにして」という、より根本的な方針に変更した。
+さらに続けて「ダンジョンクリア後もキャラが動き続けるようにして」との依頼があり、
+クリア後の結果表示中(`DungeonState.Cleared`)は`Update()`が何も処理していなかった
+(徘徊シミュレーション自体が止まっていた)ことも合わせて修正した。
+
+### 実装内容
+- **`DungeonRunController.TickWander`**: 徘徊目標に到達した際、静止時間を挟まず即座に次の
+  ランダムな目標を選び直すように変更(静止時間の待機ロジックを撤廃)。
+- 未使用になった`BattleUnit.WanderPauseTimer`、`BattleBalanceData.WanderPauseMin`/
+  `WanderPauseMax`、および各所の`WanderPauseTimer`書き込み(パーティー召喚時・敵召喚時・
+  交戦時接近時)を削除した。
+- **`DungeonRunController.Update()`**: `switch(State)`に`DungeonState.Cleared`のケースを追加し、
+  `TickMovement(dt)`のみを呼び続けるようにした。クリア時点で`aliveEnemies`は既に空のため、
+  敵側の移動処理は何もせず、プレイヤー側スライムの徘徊だけが村へ戻るまで継続する。
+  `DungeonState.Failed`は元々全滅した状態(生存プレイヤーがいない)であり、`TickMovement`内で
+  `!unit.IsFainted`のガードにより動きようがないため対応不要と判断した。
+
+### テスト
+Unity_RunCommandで`DungeonRunController`+`DungeonBattleView`を実際に生成し検証した。
+- 徘徊のみ(`WaitingForEncounter`→`InBattle`の間): 240フレーム中、位置が変化しなかった
+  連続フレーム数は最大1フレーム(目標到達した瞬間のみ)で、常に動き続けていることを確認した。
+- クリア後の継続移動: 1体だけの弱い敵を配置した一時的な`DungeonData`アセットで実際にダンジョンを
+  クリアさせ、`DungeonState.Cleared`到達後さらに200フレーム分`Update()`を実行した結果、
+  同様に最大1フレームしか静止せず、プレイヤースライムが動き続けることを確認した(検証用の
+  一時アセット・GameObjectはテスト後に削除済み)。
+- コンパイルエラー・警告なしを確認(Unity Console)。

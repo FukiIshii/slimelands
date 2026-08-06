@@ -17,12 +17,9 @@ namespace Slimelands.Dungeon
         [Header("行動帯での徘徊(仮値、要調整)")]
         [Tooltip("徘徊移動の速度(ワールド単位/秒)。")]
         [SerializeField] private float wanderSpeed = 1.2f;
-        [Tooltip("徘徊目標に到達したとみなす距離。")]
+        [Tooltip("徘徊目標に到達したとみなす距離。到達すると静止せず即座に次の目標を選び直す" +
+                 "(常に動き回っているように見せるため、目標到達後の待機時間は設けていない)。")]
         [SerializeField] private float wanderArriveThreshold = 0.15f;
-        [Tooltip("徘徊目標に到達してから次の目標を選ぶまでの静止時間(最小)。")]
-        [SerializeField] private float wanderPauseMin = 0.3f;
-        [Tooltip("徘徊目標に到達してから次の目標を選ぶまでの静止時間(最大)。")]
-        [SerializeField] private float wanderPauseMax = 1.5f;
 
         [Header("交戦中の移動速度(仮値、要調整)")]
         [Tooltip("攻撃対象となる敵がいるときの移動速度(ワールド単位/秒)。近接タイプの接近(追尾)・" +
@@ -58,8 +55,6 @@ namespace Slimelands.Dungeon
         public int NormalAttackPower => normalAttackPower;
         public float WanderSpeed => wanderSpeed;
         public float WanderArriveThreshold => wanderArriveThreshold;
-        public float WanderPauseMin => wanderPauseMin;
-        public float WanderPauseMax => wanderPauseMax;
         public float CombatMovementSpeed => combatMovementSpeed;
         public float MeleeAttackRange => meleeAttackRange;
         public float MeleeHitDelay => meleeHitDelay;

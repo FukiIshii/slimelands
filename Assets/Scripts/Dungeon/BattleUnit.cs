@@ -30,7 +30,6 @@ namespace Slimelands.Dungeon
         /// </summary>
         public Vector2 Position { get; set; }
         public Vector2 WanderTarget { get; set; }
-        public float WanderPauseTimer { get; set; }
 
         public bool IsFainted => CurrentHp <= 0;
         public bool HasUltimate => UltimateSkill != null;

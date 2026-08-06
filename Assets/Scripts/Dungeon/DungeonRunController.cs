@@ -187,8 +187,7 @@ namespace Slimelands.Dungeon
             foreach (BattleUnit unit in playerUnits)
             {
                 unit.Position = PickRandomPointInBounds(bounds);
-                unit.WanderTarget = unit.Position;
-                unit.WanderPauseTimer = UnityEngine.Random.Range(balanceData.WanderPauseMin, balanceData.WanderPauseMax);
+                unit.WanderTarget = PickRandomPointInBounds(bounds);
             }
 
             remainingWaves = new Queue<EncounterWaveData>(dungeon.Waves);
@@ -489,6 +488,13 @@ namespace Slimelands.Dungeon
                     TickActiveSweeps(dt);
                     TickBattle(dt);
                     break;
+
+                case DungeonState.Cleared:
+                    // クリア後の結果表示中も、村へ戻るまでプレイヤー側スライムが画面に残り続けるため、
+                    // 停止した見た目にならないよう徘徊移動だけは継続させる(敵は既にいないので
+                    // aliveEnemiesは空、TickMovement内の敵側ループは何もしない)。
+                    TickMovement(dt);
+                    break;
             }
         }
 
@@ -547,7 +553,6 @@ namespace Slimelands.Dungeon
                 // 設定する。これによりTickWanderが毎フレーム自然に「歩いて登場する」動きを生む。
                 enemyUnit.Position = GetEnemyEntrancePosition(bounds);
                 enemyUnit.WanderTarget = PickRandomPointInBounds(bounds);
-                enemyUnit.WanderPauseTimer = 0f;
 
                 aliveEnemies.Add(enemyUnit);
                 spawned.Add(enemyUnit);
@@ -871,9 +876,9 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 行動帯の中を、各ユニットが持つ徘徊目標に向かって歩き続けさせる。到達すると少し静止してから
-        /// 次の目標を選び直す。見た目側(BattleUnitView)は同期を取らずBattleUnit.Positionを毎フレーム
-        /// そのまま参照するだけでよい。
+        /// 行動帯の中を、各ユニットが持つ徘徊目標に向かって歩き続けさせる。到達すると静止せず
+        /// 即座に次の目標を選び直す。見た目側(BattleUnitView)は同期を取らずBattleUnit.Positionを
+        /// 毎フレームそのまま参照するだけでよい。
         /// </summary>
         private void TickMovement(float dt)
         {
@@ -957,7 +962,6 @@ namespace Slimelands.Dungeon
 
             Vector2 direction = toTarget / distance;
             unit.WanderTarget = target.Position - direction * standoff;
-            unit.WanderPauseTimer = 0f;
 
             float travel = Mathf.Min(balanceData.CombatMovementSpeed * dt, distance - standoff);
             unit.Position += direction * travel;
@@ -989,15 +993,10 @@ namespace Slimelands.Dungeon
             Vector2 toTarget = unit.WanderTarget - unit.Position;
             float distance = toTarget.magnitude;
 
+            // 目標に到達したら静止せず即座に次の目標を選び直す(常に動き回っているように見せる)。
             if (distance <= balanceData.WanderArriveThreshold)
             {
-                unit.WanderPauseTimer -= dt;
-                if (unit.WanderPauseTimer <= 0f)
-                {
-                    unit.WanderTarget = PickRandomPointInBounds(bounds);
-                    unit.WanderPauseTimer = UnityEngine.Random.Range(balanceData.WanderPauseMin, balanceData.WanderPauseMax);
-                }
-
+                unit.WanderTarget = PickRandomPointInBounds(bounds);
                 return;
             }
 
