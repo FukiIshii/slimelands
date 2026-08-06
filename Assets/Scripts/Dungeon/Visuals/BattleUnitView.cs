@@ -23,7 +23,9 @@ namespace Slimelands.Dungeon
             DashBack,
         }
 
-        private const float RollSpeedDegreesPerSecond = 220f;
+        // 遠距離タイプが1ワールド単位移動するごとに転がる角度(度)。移動速度に比例して回転する
+        // ようTickWander/TickMovement側の実移動距離に掛け合わせて使う(仮値、要調整)。
+        private const float RollDegreesPerWorldUnit = 480f;
         private const float MeleeDashBackDuration = 0.12f;
         private const float IdleHopPeriod = 0.55f;
         private const float IdleHopHeight = 0.16f;
@@ -278,16 +280,20 @@ namespace Slimelands.Dungeon
             }
 
             // 待機中は、ロジック側が徘徊シミュレーションで更新したBattleUnit.Positionをそのまま反映する。
+            Vector3 previousHomePosition = homePosition;
             homePosition = new Vector3(boundUnit.Position.x, boundUnit.Position.y, 0f);
             transform.position = homePosition;
             UpdateFacingFromMovement(homePosition.x);
 
             if (attackType == SlimeAttackType.Ranged)
             {
-                // 転がる向きを移動方向に合わせる。flipX(直前のUpdateFacingFromMovementで更新済み)が
-                // falseなら右へ移動中、trueなら左へ移動中を表すため、そのまま回転方向の符号に流用する。
+                // 転がる速さを実際の移動速度に合わせる。徘徊/交戦中の接近・後退で移動速度が
+                // 異なっていても、このフレームで実際に進んだ距離(distanceMoved)に比例させることで
+                // ボールが転がる物理的な見た目(速く動くほど速く回転する)を、移動速度の値を
+                // 直接参照せずに再現できる。回転方向は移動方向に合わせたflipXの符号を流用する。
+                float distanceMoved = Vector3.Distance(homePosition, previousHomePosition);
                 float rollDirection = visualRenderer.flipX ? 1f : -1f;
-                visual.Rotate(Vector3.forward, rollDirection * RollSpeedDegreesPerSecond * Time.deltaTime, Space.Self);
+                visual.Rotate(Vector3.forward, rollDirection * distanceMoved * RollDegreesPerWorldUnit, Space.Self);
             }
             else
             {
