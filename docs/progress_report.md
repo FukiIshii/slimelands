@@ -3226,3 +3226,43 @@ Unity_RunCommandでPlay Mode中に5枚のWoodカードの山を作り、`AssignA
 直接Spriteを生成するため、そのまま`AssetDatabase.LoadAllAssetsAtPath`経由で問題なく参照できた。
 Play Mode上でスクリーンショットを撮り、5種類すべてのフレームが意図通りの色・カードに
 反映されていることを確認した。
+
+## 更新: フォントをTextMesh Proへ移行し、美咲フォントを追加
+
+「フォントを追加したい」という依頼を機に、これまで使っていたレガシーの`TextMesh`
+(`FloatingNumberPopup`のダメージ等ポップアップ、`CardController`のスライムゲート残り枚数
+ラベルの2箇所)をTextMesh Pro(`TMPro.TextMeshPro`、3D/ワールド空間、Canvas不要)へ移行し、
+ユーザーが指定したドット絵フォント「美咲フォント」(`misaki_gothic_2nd.ttf`)を追加した。
+
+### 実装内容
+- `Assets/Fonts/misaki_gothic_2nd.ttf`としてフォントファイルを追加。
+- `TMP_FontAsset.CreateFontAsset`で美咲フォント用のTMPフォントアセットを生成し、
+  `Assets/Resources/Fonts/MisakiGothic2nd SDF.asset`として保存した。ドット絵フォントの
+  ため、SDFではなく`GlyphRenderMode.RASTER`(等倍ラスタ)で生成し、アトラスの
+  `filterMode`を`Point`にしてドットが滲まないようにした。日本語は文字数が多いため、
+  事前に全グリフを焼き込まず必要な文字だけを動的に生成する`AtlasPopulationMode.Dynamic`を
+  採用した。
+- `Assets/Scripts/UI/FontRegistry.cs`(新規): コード生成のワールド空間テキストが共通で
+  参照するTMPフォントアセットを`Resources.Load`経由でキャッシュする静的クラス。
+  `FloatingNumberPopup`/`CardController`はいずれもプレハブ経由ではなく`AddComponent`で
+  動的にテキストを生成するため、Inspectorでの配線ができない。そのための共通参照口として
+  新設した。
+- `FloatingNumberPopup.cs`/`CardController.cs`: `TextMesh`→`TextMeshPro`に置き換え、
+  `FontRegistry.MisakiGothic`を割り当てた。`CardController.EnsureRequirementLabel`は、
+  シーンに事前配置されたカード(旧`TextMesh`版のラベルを持つ)でも新しいラベルと
+  二重表示にならないよう、旧`TextMesh`コンポーネントを検出したら`DestroyImmediate`で
+  取り除いてから`TextMeshPro`を追加する自己修復ロジックを追加した。
+
+### 副次対応
+シーン(`SampleScene.unity`)に既に配置済みだったスライムゲートのカードは、保存済みシーン
+データが旧`TextMesh`のラベルを持ったままだった(Play Mode中の変更は保存されないため)。
+Edit Mode上で該当カードの`Initialize()`を呼び直して新ラベルへ置き換えたうえでシーンを
+保存し直した。またこの機会にTMP Essential Resources(`Assets/TextMesh Pro/`、シェーダー・
+デフォルトフォント等)がこれまでgit管理下になかったことに気づき、あわせてコミットした
+(他の環境でクローンした際にTMP関連の参照が壊れるのを防ぐため)。
+
+### テスト
+Play Mode上で実際にポップアップ(`FloatingNumberPopup.Spawn`)とスライムゲートの残り枚数
+ラベルを表示させ、スクリーンショットでドット絵フォントが滲まずに正しく描画されている
+ことを確認した。あわせてシーン上のスライムゲートのラベルが`TextMeshPro`コンポーネントに
+置き換わっており、旧`TextMesh`が残っていないことをコード側からも確認した。

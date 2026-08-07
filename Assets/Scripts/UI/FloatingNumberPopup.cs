@@ -1,10 +1,11 @@
+using TMPro;
 using UnityEngine;
 
 namespace Slimelands.UI
 {
     /// <summary>
     /// ワールド空間の指定位置の周辺に数値を表示し、上昇しながらフェードアウトして消える
-    /// 簡易ポップアップ。TextMesh(軽量テキスト)を使い、専用のフォント/UI素材は追加しない。
+    /// 簡易ポップアップ。TextMeshPro(3D/ワールド空間、Canvas不要)を使う。
     /// ダメージ量・経験値付与量など、村・ダンジョン双方の「何かの数値が増減したことを示す」
     /// 演出で共通して使う想定の汎用コンポーネント(特定パートの内部実装には依存しない)。
     /// 生成はSpawnからのみ行う想定で、寿命が尽きると自身でDestroyする。
@@ -19,7 +20,7 @@ namespace Slimelands.UI
             "1=最後の瞬間だけフェード)。")]
         [SerializeField, Range(0f, 1f)] private float fadeStartRatio = 0.35f;
 
-        private TextMesh textMesh;
+        private TextMeshPro textMesh;
         private Color baseColor;
         private float elapsed;
 
@@ -37,13 +38,12 @@ namespace Slimelands.UI
 
         private void Initialize(int value, Color color)
         {
-            textMesh = gameObject.AddComponent<TextMesh>();
+            textMesh = gameObject.AddComponent<TextMeshPro>();
+            textMesh.font = FontRegistry.MisakiGothic;
             textMesh.text = value.ToString();
-            textMesh.characterSize = 0.12f;
-            textMesh.fontSize = 48;
-            textMesh.fontStyle = FontStyle.Bold;
-            textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.alignment = TextAlignment.Center;
+            textMesh.fontSize = 6f;
+            textMesh.fontStyle = FontStyles.Bold;
+            textMesh.alignment = TextAlignmentOptions.Center;
             textMesh.color = color;
 
             MeshRenderer meshRenderer = GetComponent<MeshRenderer>();

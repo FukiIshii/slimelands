@@ -1,5 +1,7 @@
+using TMPro;
 using UnityEngine;
 using Slimelands.Slime;
+using Slimelands.UI;
 
 namespace Slimelands.Cards
 {
@@ -30,7 +32,7 @@ namespace Slimelands.Cards
 
         private SpriteRenderer frameRenderer;
         private SpriteRenderer iconRenderer;
-        private TextMesh requirementLabel;
+        private TextMeshPro requirementLabel;
         // -1は未初期化を表す(EnsureGachaChargesInitializedでGachaGateCardData.RequiredCrystalCountから
         // 初期化する)。
         private int gachaChargesRemaining = -1;
@@ -140,7 +142,7 @@ namespace Slimelands.Cards
         {
             if (data is GachaGateCardData)
             {
-                TextMesh label = EnsureRequirementLabel();
+                TextMeshPro label = EnsureRequirementLabel();
                 label.text = Mathf.Max(0, gachaChargesRemaining).ToString();
                 label.gameObject.SetActive(true);
             }
@@ -150,7 +152,7 @@ namespace Slimelands.Cards
             }
         }
 
-        private TextMesh EnsureRequirementLabel()
+        private TextMeshPro EnsureRequirementLabel()
         {
             if (requirementLabel != null)
             {
@@ -166,15 +168,22 @@ namespace Slimelands.Cards
 
             go.transform.localPosition = new Vector3(0f, requirementLabelYOffset, 0f);
 
-            requirementLabel = go.GetComponent<TextMesh>();
+            // 旧実装(レガシーTextMesh)で事前に配置されたシーン上のカードは、ここで取り除かないと
+            // 新しいTextMeshProと二重に表示されてしまう。
+            TextMesh legacyTextMesh = go.GetComponent<TextMesh>();
+            if (legacyTextMesh != null)
+            {
+                DestroyImmediate(legacyTextMesh);
+            }
+
+            requirementLabel = go.GetComponent<TextMeshPro>();
             if (requirementLabel == null)
             {
-                requirementLabel = go.AddComponent<TextMesh>();
-                requirementLabel.characterSize = 0.1f;
-                requirementLabel.fontSize = 48;
-                requirementLabel.fontStyle = FontStyle.Bold;
-                requirementLabel.anchor = TextAnchor.MiddleCenter;
-                requirementLabel.alignment = TextAlignment.Center;
+                requirementLabel = go.AddComponent<TextMeshPro>();
+                requirementLabel.font = FontRegistry.MisakiGothic;
+                requirementLabel.fontSize = 6f;
+                requirementLabel.fontStyle = FontStyles.Bold;
+                requirementLabel.alignment = TextAlignmentOptions.Center;
                 requirementLabel.color = Color.black;
             }
 
