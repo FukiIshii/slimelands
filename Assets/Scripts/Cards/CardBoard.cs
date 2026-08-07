@@ -339,6 +339,11 @@ namespace Slimelands.Cards
                 }
             }
 
+            // droppedはドロップされた時点のマウス位置(≒当たり判定が閾値以上重なっていただけの位置)に
+            // そのまま留まるため、targetStackの真上へスナップしておかないと、供給し終わっていない
+            // 残りのカードの山がゲートから少しずれた位置に取り残されて見えてしまう。
+            dropped.transform.position = targetStack.transform.position;
+
             int queueCount = dropped.Count;
             StartCoroutine(FeedQueueSequentially(targetStack, dropped, queueCount, recipe, repeatedData));
             return true;
