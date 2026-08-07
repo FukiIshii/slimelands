@@ -384,6 +384,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ff4c0813d83226143b6af626f72d3828, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &60443960
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -722,6 +725,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ff4c0813d83226143b6af626f72d3828, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &150824177
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1015,6 +1021,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &228770861
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1322,6 +1331,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 9cb5f4c5114b7ce448cd457d2dd798e5, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &264097660
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -2603,6 +2615,7 @@ GameObject:
   - component: {fileID: 519420031}
   - component: {fileID: 519420029}
   - component: {fileID: 519420030}
+  - component: {fileID: 519420033}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -2728,6 +2741,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &519420033
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 519420028}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11b9b6c376803674d8a4596cb7d435ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.CameraControls.CameraZoomController
+  zoomSpeed: 2
+  minOrthographicSize: 2
+  maxOrthographicSize: 10
 --- !u!1 &528855586
 GameObject:
   m_ObjectHideFlags: 0
@@ -2843,7 +2871,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4278190080
   m_fontColor: {r: 0, g: 0, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -2856,7 +2884,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -3031,6 +3059,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 8b3fa6634a87b0c4d9cd35177699568a, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &540229815
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -3187,6 +3218,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ff4c0813d83226143b6af626f72d3828, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &542030914
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -3343,6 +3377,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &565458191
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -3975,6 +4012,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &712438384
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -4700,6 +4740,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: a5e6dc28e0580e5418983791b4c996f6, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &938397957
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -4901,6 +4944,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &976043430
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -5057,6 +5103,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &985584370
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -5258,6 +5307,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ff4c0813d83226143b6af626f72d3828, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1011149340
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -5414,6 +5466,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 6d8f993117a45524dbccb800c81a7925, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1055436784
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -5615,6 +5670,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ff4c0813d83226143b6af626f72d3828, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1078664366
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -5863,6 +5921,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1126699290
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -6019,6 +6080,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1128034307
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -6723,6 +6787,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: d8645d5fabcc68542ae74386584a3abe, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1317872363
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -6924,6 +6991,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1359330497
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -7258,6 +7328,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1483661439
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -7533,6 +7606,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1537538289
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -7689,6 +7765,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 2bcb7eb72bd74fd47bef982f93afff76, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1569164941
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -8072,6 +8151,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 8b3fa6634a87b0c4d9cd35177699568a, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1642481458
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -8365,6 +8447,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1688047545
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -8730,6 +8815,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1736928880
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -8886,6 +8974,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1832049157
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -9087,6 +9178,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 8fa1b1fe562ee274082db1f19e10909a, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1867973240
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -9243,6 +9337,9 @@ MonoBehaviour:
   iconFillRatio: 0.7
   data: {fileID: 11400000, guid: 424a3f9ab177fc94e918d950e8c32d58, type: 2}
   requirementLabelYOffset: -0.62
+  nameLabelCenterYRatio: 0.432
+  nameLabelHeightRatio: 0.094
+  nameLabelWidthRatio: 0.85
 --- !u!61 &1877660771
 BoxCollider2D:
   m_ObjectHideFlags: 0

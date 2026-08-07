@@ -3328,3 +3328,21 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
 - テスト: `Unity_RunCommand`で実際のカードに対し`SetSortingOrder(1000)`を呼び出し、
   Frame=1000, Icon=1001, NameLabel=1002となることを確認。さらにPlay Mode上のスクリーン
   ショットで複数カードの名前欄が正常に表示され続けることを確認した。
+
+## 実装: マウスホイールでのカメラ拡大縮小
+
+- 新規スクリプト`Assets/Scripts/Camera/CameraZoomController.cs`(`Slimelands.CameraControls`名前空間)を
+  追加し、Main Cameraにアタッチした。`Mouse.current.scroll.value.y`(新Input System、
+  `CardBoard`と同じ入力方式)を読み、`Camera.orthographicSize`を増減させる。
+- 村パート・ダンジョンパートどちらのシーンでも使えるよう、`CardBoard`等の内部実装には
+  依存しない汎用コンポーネントとして実装(対象の`Camera`にアタッチするだけで動作する)。
+- ズーム速度・拡大縮小できる範囲(orthographicSizeの最小/最大)はCLAUDE.mdルール2に
+  従いInspectorで調整可能な`SerializeField`にした(`zoomSpeed=2`, `minOrthographicSize=2`,
+  `maxOrthographicSize=10`)。
+- テスト: 新Input Systemの`InputSystem.QueueDeltaStateEvent`でスクロール入力の注入を
+  試みたが、Play Mode中の本来のゲームループが同じフレームでスクロール量をリセットして
+  しまい、`Unity_RunCommand`側からは安定して観測できなかった(タイミング競合)。ロジック
+  自体は`CardBoard`で既に実績のある`Mouse.current`の読み取りパターンをそのまま踏襲した
+  単純な計算(`orthographicSize -= scroll.y * zoomSpeed * 0.01f`をclamp)であるため、
+  コードレビューベースで妥当性を確認した。実際のマウスでの動作確認はユーザー側で
+  お願いしたい。
