@@ -24,16 +24,34 @@ namespace Slimelands.Cards
         [SerializeField, Range(0.1f, 1f)] private float iconFillRatio = 0.7f;
 
         [SerializeField] private CardData data;
-        [Tooltip("GachaGateCardDataのRequiredCrystalCount表示ラベルを、カード下端からどれだけ" +
+        [Tooltip("GachaGateCardDataの残りガチャクリスタル数の表示ラベルを、カード下端からどれだけ" +
             "下にずらして配置するか(ワールド単位)。")]
         [SerializeField] private float requirementLabelYOffset = -0.62f;
 
         private SpriteRenderer frameRenderer;
         private SpriteRenderer iconRenderer;
         private TextMesh requirementLabel;
+        // -1は未初期化を表す(EnsureGachaChargesInitializedでGachaGateCardData.RequiredCrystalCountから
+        // 初期化する)。
+        private int gachaChargesRemaining = -1;
 
         public CardData Data => data;
         public CardStack ParentStack { get; private set; }
+
+        /// <summary>
+        /// GachaGateCardDataの場合のみ意味を持つ、次にスライムが生まれるまでの残りガチャクリスタル数。
+        /// 1個消費されるたびにCardBoard側からこの値を1減らし、0になった時点でランダムなスライムを
+        /// 生成してからRequiredCrystalCountへ戻す(セッターでカード下部の表示ラベルも自動更新される)。
+        /// </summary>
+        public int GachaChargesRemaining
+        {
+            get => gachaChargesRemaining;
+            set
+            {
+                gachaChargesRemaining = value;
+                RefreshRequirementLabel();
+            }
+        }
 
         /// <summary>
         /// このカードがスライムカードの場合、対応する個体(SlimeIndividual)。
@@ -58,6 +76,7 @@ namespace Slimelands.Cards
         /// </summary>
         private void Awake()
         {
+            EnsureGachaChargesInitialized();
             RefreshVisual();
         }
 
@@ -65,7 +84,21 @@ namespace Slimelands.Cards
         {
             data = cardData;
             name = data != null ? $"Card_{data.CardName}" : "Card";
+            EnsureGachaChargesInitialized();
             RefreshVisual();
+        }
+
+        /// <summary>
+        /// GachaGateCardDataの場合、残りガチャクリスタル数(gachaChargesRemaining)が未初期化(-1)の
+        /// ときだけRequiredCrystalCountから初期化する。シーンに直接配置されたカード(Initializeを
+        /// 経由しない)でも、Awakeで自己修復的に初期化されるようにするため。
+        /// </summary>
+        private void EnsureGachaChargesInitialized()
+        {
+            if (data is GachaGateCardData gate && gachaChargesRemaining < 0)
+            {
+                gachaChargesRemaining = gate.RequiredCrystalCount;
+            }
         }
 
         /// <summary>
@@ -100,15 +133,15 @@ namespace Slimelands.Cards
         }
 
         /// <summary>
-        /// GachaGateCardDataの場合のみ、カード下部に必要なガチャクリスタルの枚数を表示する。
-        /// それ以外のカードでは非表示にする(スライムゲート専用の演出のため個別分岐にしている)。
+        /// GachaGateCardDataの場合のみ、カード下部に残りガチャクリスタル数(gachaChargesRemaining)を
+        /// 表示する。それ以外のカードでは非表示にする(スライムゲート専用の演出のため個別分岐にしている)。
         /// </summary>
         private void RefreshRequirementLabel()
         {
-            if (data is GachaGateCardData gate)
+            if (data is GachaGateCardData)
             {
                 TextMesh label = EnsureRequirementLabel();
-                label.text = gate.RequiredCrystalCount.ToString();
+                label.text = Mathf.Max(0, gachaChargesRemaining).ToString();
                 label.gameObject.SetActive(true);
             }
             else if (requirementLabel != null)

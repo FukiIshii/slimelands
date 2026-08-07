@@ -218,12 +218,16 @@ Stacklands(カード積み重ね式の村運営)と「ゆっくり育ててい�
 - えさ場
 - 鉱山
 - 神殿(独自要素:気絶したスライムを復活させる)
-- スライムゲート(独自要素:ガチャクリスタルを重ねて引くガチャ専用の建物カード。必要枚数は
-  `GachaGateCardData.RequiredCrystalCount`でInspector調整可能、カード下部に必要枚数を表示する。
-  実際の消費判定は対応する`CardRecipeData`のガチャクリスタル素材枠の数で決まるため、
-  両者の数値は一致させて運用する。結果は固定の`result`ではなく`CardRecipeData.RandomResultPool`
-  (`GachaPoolData`)からSlimeSpeciesData.GachaWeightに基づく重み付き抽選で選ぶ。既存の
-  UIボタン式ガチャ(`GachaManager`)と抽選ロジック自体は共通化(`GachaPoolData.PickWeighted`))
+- スライムゲート(独自要素:ガチャクリスタルを1個重ねるたびにカード下部の残り回数表示が1減り、
+  0になった瞬間にスライムが1体ランダムに現れる建物カード。初期値(何個で発動するか)は
+  `GachaGateCardData.RequiredCrystalCount`でInspector調整可能。残り回数自体はカードインスタンス
+  ごとの実行時状態(`CardController.GachaChargesRemaining`)として持ち、0に達すると
+  `RequiredCrystalCount`へ自動的に戻って次の周期が始まる。レシピ(`CardRecipeData`)自体は
+  「スライムゲート+ガチャクリスタル1個」の消費のみを表し、残り回数の管理・0到達時の抽選は
+  `CardBoard.OnCraftCompleted`側の専用処理(`TryHandleGachaGateCharge`)が担う。結果は固定の
+  `result`ではなく`CardRecipeData.RandomResultPool`(`GachaPoolData`)からSlimeSpeciesData.GachaWeight
+  に基づく重み付き抽選で選ぶ。既存のUIボタン式ガチャ(`GachaManager`)と抽選ロジック自体は
+  共通化(`GachaPoolData.PickWeighted`))
 - (他、村運営に必要な施設を今後追加検討)
 
 ### えさ場への素材投入(食料化)

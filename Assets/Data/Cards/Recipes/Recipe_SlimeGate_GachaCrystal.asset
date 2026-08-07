@@ -22,26 +22,10 @@ MonoBehaviour:
     specificCard: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
     category: 0
     isConsumed: 1
-  - mode: 0
-    specificCard: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
-    category: 0
-    isConsumed: 1
-  - mode: 0
-    specificCard: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
-    category: 0
-    isConsumed: 1
-  - mode: 0
-    specificCard: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
-    category: 0
-    isConsumed: 1
-  - mode: 0
-    specificCard: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
-    category: 0
-    isConsumed: 1
   result: {fileID: 0}
   randomResultPool: {fileID: 11400000, guid: 01835bd55291adb408356c04c88386f9, type: 2}
   resultCount: 1
-  craftDuration: 3
+  craftDuration: 0.4
   foodStockAmount: 0
   useIngredientFoodSupplyValue: 0
   expGrantAmount: 0

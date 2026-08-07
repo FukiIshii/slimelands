@@ -617,6 +617,11 @@ namespace Slimelands.Cards
                     FloatingNumberPopup.Spawn(anchorPosition, recipe.ExpGrantAmount, expPopupColor);
                 }
             }
+            else if (recipe.RandomResultPool != null && TryHandleGachaGateCharge(ingredients, consumed, recipe, anchorPosition))
+            {
+                // スライムゲートのような「消費されない側のカードが残り回数を持ち、0になった時だけ
+                // 結果を抽選する」レシピとして処理済み(TryHandleGachaGateCharge内で完結)。
+            }
             else
             {
                 for (int i = 0; i < recipe.ResultCount; i++)
@@ -645,6 +650,53 @@ namespace Slimelands.Cards
             {
                 TryStartCraftIfMatches(stack);
             }
+        }
+
+        /// <summary>
+        /// スライムゲート(GachaGateCardData)のように、消費されない側のカード自身が
+        /// 「次に結果が出るまでの残り回数」を持つレシピの完了処理。ガチャクリスタル1枚を
+        /// 消費するたびにゲートカードの残り回数(CardController.GachaChargesRemaining、
+        /// カード下部の表示ラベルと連動)を1減らし、0になった瞬間だけRandomResultPoolから
+        /// 1体抽選して生成し、残り回数をGachaGateCardData.RequiredCrystalCountへ戻す。
+        /// ingredientsの中にGachaGateCardDataかつ消費されなかった(consumedに含まれない)
+        /// カードが無い場合は対象外としてfalseを返す(呼び出し側が通常の即時結果生成にフォールバックする)。
+        /// </summary>
+        private bool TryHandleGachaGateCharge(IReadOnlyList<CardController> ingredients,
+            List<CardController> consumed, CardRecipeData recipe, Vector3 anchorPosition)
+        {
+            CardController gateCard = null;
+            foreach (CardController ingredient in ingredients)
+            {
+                if (!consumed.Contains(ingredient) && ingredient.Data is GachaGateCardData)
+                {
+                    gateCard = ingredient;
+                    break;
+                }
+            }
+
+            if (gateCard == null || !(gateCard.Data is GachaGateCardData gateData))
+            {
+                return false;
+            }
+
+            gateCard.GachaChargesRemaining = Mathf.Max(0, gateCard.GachaChargesRemaining - 1);
+            if (gateCard.GachaChargesRemaining > 0)
+            {
+                return true;
+            }
+
+            SlimeCardData resultData = recipe.RandomResultPool.PickWeighted();
+            gateCard.GachaChargesRemaining = gateData.RequiredCrystalCount;
+
+            if (resultData != null)
+            {
+                CardController resultCard = CreateLooseCard(resultData);
+                resultCard.transform.position = anchorPosition;
+                resultCard.SetSortingOrder(NextSortingOrder());
+                PlaceResultCard(resultCard, anchorPosition, resultData);
+            }
+
+            return true;
         }
 
         /// <summary>
