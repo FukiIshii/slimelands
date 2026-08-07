@@ -30,9 +30,20 @@ namespace Slimelands.Cards
             "下にずらして配置するか(ワールド単位)。")]
         [SerializeField] private float requirementLabelYOffset = -0.62f;
 
+        [Header("名前欄")]
+        [Tooltip("frame画像上部の名前欄(上端の枠線と区切り線の間の帯)の中心Y座標。" +
+            "frameの高さに対する比率(0=中心、0.5=上端)。cardframe_resources/crystals/" +
+            "resourceNodes/slimes/buildingいずれも同じ帯位置で作られているため共通の値を使う。")]
+        [SerializeField, Range(0f, 0.5f)] private float nameLabelCenterYRatio = 0.432f;
+        [Tooltip("名前欄の高さ。frameの高さに対する比率。")]
+        [SerializeField, Range(0.01f, 0.3f)] private float nameLabelHeightRatio = 0.094f;
+        [Tooltip("名前欄の幅。frameの幅に対する比率(左右の枠線ぶんの余白を残すため1未満にする)。")]
+        [SerializeField, Range(0.1f, 1f)] private float nameLabelWidthRatio = 0.85f;
+
         private SpriteRenderer frameRenderer;
         private SpriteRenderer iconRenderer;
         private TextMeshPro requirementLabel;
+        private TextMeshPro nameLabel;
         // -1は未初期化を表す(EnsureGachaChargesInitializedでGachaGateCardData.RequiredCrystalCountから
         // 初期化する)。
         private int gachaChargesRemaining = -1;
@@ -131,7 +142,74 @@ namespace Slimelands.Cards
             icon.sortingLayerID = frame.sortingLayerID;
             icon.sortingOrder = frame.sortingOrder + 1;
 
+            Vector2 frameRenderedSize = frame.sprite != null
+                ? (Vector2)frame.sprite.bounds.size * frameScale
+                : new Vector2(frameTargetSize, frameTargetSize);
+            RefreshNameLabel(frameRenderedSize);
             RefreshRequirementLabel();
+        }
+
+        /// <summary>
+        /// frame画像上部の名前欄にカード名を表示する。frame未設定のカード(data.Frame == null)では
+        /// 表示する場所の基準がないため非表示にする。
+        /// </summary>
+        private void RefreshNameLabel(Vector2 frameRenderedSize)
+        {
+            if (data == null || data.Frame == null)
+            {
+                if (nameLabel != null)
+                {
+                    nameLabel.gameObject.SetActive(false);
+                }
+                return;
+            }
+
+            TextMeshPro label = EnsureNameLabel();
+            label.text = data.CardName;
+            label.gameObject.SetActive(true);
+
+            label.transform.localPosition = new Vector3(0f, frameRenderedSize.y * nameLabelCenterYRatio, 0f);
+            label.rectTransform.sizeDelta = new Vector2(
+                frameRenderedSize.x * nameLabelWidthRatio,
+                frameRenderedSize.y * nameLabelHeightRatio);
+        }
+
+        private TextMeshPro EnsureNameLabel()
+        {
+            if (nameLabel != null)
+            {
+                return nameLabel;
+            }
+
+            Transform existing = transform.Find("NameLabel");
+            GameObject go = existing != null ? existing.gameObject : new GameObject("NameLabel");
+            if (existing == null)
+            {
+                go.transform.SetParent(transform, false);
+            }
+
+            nameLabel = go.GetComponent<TextMeshPro>();
+            if (nameLabel == null)
+            {
+                nameLabel = go.AddComponent<TextMeshPro>();
+                nameLabel.font = FontRegistry.MisakiGothic;
+                nameLabel.fontStyle = FontStyles.Bold;
+                nameLabel.alignment = TextAlignmentOptions.Center;
+                nameLabel.color = Color.black;
+                nameLabel.enableWordWrapping = false;
+                nameLabel.overflowMode = TextOverflowModes.Truncate;
+                nameLabel.enableAutoSizing = true;
+                nameLabel.fontSizeMin = 0.3f;
+                nameLabel.fontSizeMax = 2.5f;
+            }
+
+            MeshRenderer meshRenderer = go.GetComponent<MeshRenderer>();
+            if (meshRenderer != null)
+            {
+                meshRenderer.sortingOrder = EnsureFrameRenderer().sortingOrder + 2;
+            }
+
+            return nameLabel;
         }
 
         /// <summary>
