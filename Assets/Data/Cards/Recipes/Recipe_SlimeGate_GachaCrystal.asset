@@ -25,7 +25,7 @@ MonoBehaviour:
   result: {fileID: 0}
   randomResultPool: {fileID: 11400000, guid: 01835bd55291adb408356c04c88386f9, type: 2}
   resultCount: 1
-  craftDuration: 0.4
+  craftDuration: 0
   foodStockAmount: 0
   useIngredientFoodSupplyValue: 0
   expGrantAmount: 0
