@@ -3304,3 +3304,27 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
 スクリーンショットで確認し、いずれも名前欄の帯内に収まって読める大きさで表示される
 ことを確認した。buildingフレームのpivot修正についても、修正前後で`frame.bounds.center`と
 カードの`transform.position`が一致するようになったことをコードから確認した。
+
+## 修正: カードを触る(ドラッグする)と名前が消える不具合
+
+- 症状: カードを掴んで動かすと、名前欄の文字が見えなくなる。
+- 原因: `CardController.SetSortingOrder(order)`(`CardBoard`がドラッグ時・カード移動時に
+  呼び出し、Frame/Icon/RequirementLabelのsortingOrderを更新する)が、名前欄
+  (`nameLabel`)のsortingOrderだけ更新対象に含まれていなかった。`nameLabel`のsortingOrderは
+  生成時(`EnsureNameLabel()`)に一度だけ`frame.sortingOrder + 2`として設定されるが、その後
+  カードがドラッグされて`SetSortingOrder`が呼ばれるとFrame/IconのsortingOrderだけが
+  大きく更新され、名前欄は古い(相対的に低い)値のまま取り残される。結果としてFrameの
+  不透明な背景スプライトが名前欄のテキストより手前に描画され、文字が隠れてしまっていた。
+- また、1枚のカードが実際に消費するsortingOrderの枠(Frame/Icon/NameLabel/
+  RequirementLabelの4つ)に対して、`CardBoard.NextSortingOrder()`は3つ分しか
+  空けて発行していなかった(名前欄の実装追加時に更新し忘れていた)ため、次のカードの
+  Frameが前のカードのRequirementLabel等と衝突する可能性も残っていた。
+- 修正:
+  - `CardController.SetSortingOrder()`に名前欄の更新を追加(`order + 2`)。
+  - RequirementLabelのオフセットを`order + 2`から`order + 3`へずらし、名前欄と
+    衝突しないようにした(`EnsureRequirementLabel()`の生成時の値も合わせて変更)。
+  - `CardBoard.NextSortingOrder()`とAwakeの初期値算出を、1カードあたり3枠から
+    4枠(Frame/Icon/NameLabel/RequirementLabel)を空ける計算に変更。
+- テスト: `Unity_RunCommand`で実際のカードに対し`SetSortingOrder(1000)`を呼び出し、
+  Frame=1000, Icon=1001, NameLabel=1002となることを確認。さらにPlay Mode上のスクリーン
+  ショットで複数カードの名前欄が正常に表示され続けることを確認した。

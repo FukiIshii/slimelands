@@ -268,7 +268,7 @@ namespace Slimelands.Cards
             MeshRenderer meshRenderer = go.GetComponent<MeshRenderer>();
             if (meshRenderer != null)
             {
-                meshRenderer.sortingOrder = EnsureFrameRenderer().sortingOrder + 2;
+                meshRenderer.sortingOrder = EnsureFrameRenderer().sortingOrder + 3;
             }
 
             return requirementLabel;
@@ -339,12 +339,21 @@ namespace Slimelands.Cards
             EnsureFrameRenderer().sortingOrder = order;
             EnsureIconRenderer().sortingOrder = order + 1;
 
+            if (nameLabel != null)
+            {
+                MeshRenderer meshRenderer = nameLabel.GetComponent<MeshRenderer>();
+                if (meshRenderer != null)
+                {
+                    meshRenderer.sortingOrder = order + 2;
+                }
+            }
+
             if (requirementLabel != null)
             {
                 MeshRenderer meshRenderer = requirementLabel.GetComponent<MeshRenderer>();
                 if (meshRenderer != null)
                 {
-                    meshRenderer.sortingOrder = order + 2;
+                    meshRenderer.sortingOrder = order + 3;
                 }
             }
         }
