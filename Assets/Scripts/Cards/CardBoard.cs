@@ -91,7 +91,9 @@ namespace Slimelands.Cards
 
             // シーンに最初から置かれているカードの描画順は、このカウンター(Playのたびに0から始まる)とは
             // 無関係な値を持っている可能性があるため、既存の最大値より後ろから始めて逆転を防ぐ。
-            nextSortingOrder = FindHighestExistingSortingOrder() + 1;
+            // +3としているのは、その最大値を持つカード自身のIcon(+1)/RequirementLabel(+2)の
+            // sortingOrderとも重複しないようにするため(NextSortingOrderが3つ分ずつ発行するのと合わせる)。
+            nextSortingOrder = FindHighestExistingSortingOrder() + 3;
 
             if (cardPrefab != null && cardPrefab.TryGetComponent(out BoxCollider2D prefabCollider))
             {
@@ -204,6 +206,13 @@ namespace Slimelands.Cards
             else if (draggedStack != null && mouse.leftButton.isPressed)
             {
                 draggedStack.UpdateDrag(GetPointerWorldPosition(mouse));
+
+                // 持ち上げた瞬間に一度だけ最前面(最も大きいsortingOrder)を割り当てても、
+                // ドラッグを続けている間に盤面の他の場所で生産完了・結果カード生成などが起きると、
+                // そちらに新しく発行されたsortingOrderの方が大きくなり、ドラッグ中のカードが
+                // 途中から他のカードの背後に隠れてしまう(逆に、他のカードが手前に出すぎて見える)。
+                // ドラッグしている間は毎フレーム最前面を再取得し続けることでこれを防ぐ。
+                AssignAscendingSortingOrders(draggedStack.Cards);
             }
         }
 
@@ -1099,7 +1108,14 @@ namespace Slimelands.Cards
 
         private int NextSortingOrder()
         {
-            return nextSortingOrder++;
+            // CardController.SetSortingOrder(order)は実際にはorder(Frame)/order+1(Icon)/order+2
+            // (GachaGateCardDataのRequirementLabel)の3つのsortingOrderを消費する。1ずつしか
+            // 進めないと、直後に呼ばれる次のカードのFrameが前のカードのIcon/Labelと同じ値になり、
+            // 描画順が不定(タイ)になってしまう(ドラッグ中のカードのアイコンが本来手前にあるはずの
+            // カードの背後や前後に不安定に表示される不具合の原因だった)。常に3つ分空けて発行する。
+            int order = nextSortingOrder;
+            nextSortingOrder += 3;
+            return order;
         }
     }
 }
