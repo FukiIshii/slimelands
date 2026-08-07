@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: d7d2db5ac02317b43ba9230a1fe4d94b
+guid: af68f147bc123ad4eb6024d7a9110dc0
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 6431239780024713301
-    second: Cradframe_resourse_0
+      213: 2404987146927264857
+    second: cardframe_slimes_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Cradframe_resourse_0
+      name: cardframe_slimes_0
       rect:
         serializedVersion: 2
-        x: 32
-        y: 14
-        width: 352
-        height: 588
+        x: 0
+        y: 0
+        width: 128
+        height: 192
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 5500cb9718a504950800000000000000
-      internalID: 6431239780024713301
+      spriteID: 954daf5611b306120800000000000000
+      internalID: 2404987146927264857
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Cradframe_resourse_0: 6431239780024713301
+      cardframe_slimes_0: 2404987146927264857
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

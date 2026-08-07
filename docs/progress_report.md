@@ -3206,3 +3206,23 @@ Unity_RunCommandでPlay Mode中に5枚のWoodカードの山を作り、`AssignA
 修正後は512,513,515,516,518,519,521,522,524,525のように3つ間隔で重複なく発行されることを
 確認)。最終的にはユーザー自身に実際のガチャクリスタルの山を使って再現・確認してもらい、
 「直りました」との確認を得た。
+
+## 更新: カードフレーム画像の刷新(5種類に再分類)
+
+ユーザーが`Assets/Picture/Cradframe`に新しいフレーム画像(`cardframe_resources`/
+`cardframe_resourceNodes`/`cardframe_crystals`/`cardframe_slimes`/`cardframe_building`、
+いずれも.aseprite+.png)を追加し、旧フレーム(`Cradframe_resourse`/`cardframe_Building`/
+`cardframe_dark`/`cardframe_fire`/`cardframe_glass`/`cardframe_light`/`cardframe_water`)を
+削除した。旧フレームを参照していた全16種類のCardDataアセットが壊れた参照になっていたため、
+名前から判断した以下の対応関係で`frame`フィールドを一括更新した:
+- `cardframe_resources`: 木材・石材・板材(素の資源)
+- `cardframe_crystals`: マナクリスタル・水晶・ガチャクリスタル・ファイアクリスタル(結晶系資源)
+- `cardframe_resourceNodes`: 採石場・伐採場(資源を採取する施設)
+- `cardframe_building`: スライムゲート・マナだまり・えさ場(その他の施設)
+- `cardframe_slimes`: スライム・マグマスライム・ファイヤースライム・クリスタルスライム(全スライム種族、
+  従来は種族ごとに個別のフレームだったが今回から統一)
+
+`cardframe_building`は.pngが未書き出しだったが、UnityのAsepriteインポーターが.asepriteから
+直接Spriteを生成するため、そのまま`AssetDatabase.LoadAllAssetsAtPath`経由で問題なく参照できた。
+Play Mode上でスクリーンショットを撮り、5種類すべてのフレームが意図通りの色・カードに
+反映されていることを確認した。

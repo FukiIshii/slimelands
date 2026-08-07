@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Cards.SlimeCardData
   cardName: "\u30D5\u30A1\u30A4\u30E4\u30FC\u30B9\u30E9\u30A4\u30E0"
   icon: {fileID: 368543389579951487, guid: 0fdce7814df72f6458f99fae6db4e0ca, type: 3}
-  frame: {fileID: -2910668644179700036, guid: 44850a9620a4b2c439e75500ff049a73, type: 3}
+  frame: {fileID: 2404987146927264857, guid: af68f147bc123ad4eb6024d7a9110dc0, type: 3}
   description: 
   species: {fileID: 11400000, guid: 0a5313a299c2a0b409416e5be2a80cd8, type: 2}

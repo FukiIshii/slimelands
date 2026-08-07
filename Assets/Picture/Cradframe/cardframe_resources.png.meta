@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 663750c44cba43346bb0281641df762f
+guid: 2b51783ce8ed6ac4f9621f961ba5f409
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 3026567197475498296
-    second: cardframe_glass-removebg-preview_0
+      213: -5347207488719934009
+    second: cardframe_resources_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: cardframe_glass-removebg-preview_0
+      name: cardframe_resources_0
       rect:
         serializedVersion: 2
-        x: 25
-        y: 34
-        width: 354
-        height: 546
+        x: 0
+        y: 0
+        width: 128
+        height: 192
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 8396066a4d6800a20800000000000000
-      internalID: 3026567197475498296
+      spriteID: 7cd2a86ae17eac5b0800000000000000
+      internalID: -5347207488719934009
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      cardframe_glass-removebg-preview_0: 3026567197475498296
+      cardframe_resources_0: -5347207488719934009
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
