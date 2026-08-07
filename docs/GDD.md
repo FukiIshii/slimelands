@@ -218,6 +218,12 @@ Stacklands(カード積み重ね式の村運営)と「ゆっくり育ててい�
 - えさ場
 - 鉱山
 - 神殿(独自要素:気絶したスライムを復活させる)
+- スライムゲート(独自要素:ガチャクリスタルを重ねて引くガチャ専用の建物カード。必要枚数は
+  `GachaGateCardData.RequiredCrystalCount`でInspector調整可能、カード下部に必要枚数を表示する。
+  実際の消費判定は対応する`CardRecipeData`のガチャクリスタル素材枠の数で決まるため、
+  両者の数値は一致させて運用する。結果は固定の`result`ではなく`CardRecipeData.RandomResultPool`
+  (`GachaPoolData`)からSlimeSpeciesData.GachaWeightに基づく重み付き抽選で選ぶ。既存の
+  UIボタン式ガチャ(`GachaManager`)と抽選ロジック自体は共通化(`GachaPoolData.PickWeighted`))
 - (他、村運営に必要な施設を今後追加検討)
 
 ### えさ場への素材投入(食料化)

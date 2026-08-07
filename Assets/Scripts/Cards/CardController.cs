@@ -24,9 +24,13 @@ namespace Slimelands.Cards
         [SerializeField, Range(0.1f, 1f)] private float iconFillRatio = 0.7f;
 
         [SerializeField] private CardData data;
+        [Tooltip("GachaGateCardDataのRequiredCrystalCount表示ラベルを、カード下端からどれだけ" +
+            "下にずらして配置するか(ワールド単位)。")]
+        [SerializeField] private float requirementLabelYOffset = -0.62f;
 
         private SpriteRenderer frameRenderer;
         private SpriteRenderer iconRenderer;
+        private TextMesh requirementLabel;
 
         public CardData Data => data;
         public CardStack ParentStack { get; private set; }
@@ -91,6 +95,63 @@ namespace Slimelands.Cards
             ApplyUniformFitScale(icon, frameShortSide * iconFillRatio);
             icon.sortingLayerID = frame.sortingLayerID;
             icon.sortingOrder = frame.sortingOrder + 1;
+
+            RefreshRequirementLabel();
+        }
+
+        /// <summary>
+        /// GachaGateCardDataの場合のみ、カード下部に必要なガチャクリスタルの枚数を表示する。
+        /// それ以外のカードでは非表示にする(スライムゲート専用の演出のため個別分岐にしている)。
+        /// </summary>
+        private void RefreshRequirementLabel()
+        {
+            if (data is GachaGateCardData gate)
+            {
+                TextMesh label = EnsureRequirementLabel();
+                label.text = gate.RequiredCrystalCount.ToString();
+                label.gameObject.SetActive(true);
+            }
+            else if (requirementLabel != null)
+            {
+                requirementLabel.gameObject.SetActive(false);
+            }
+        }
+
+        private TextMesh EnsureRequirementLabel()
+        {
+            if (requirementLabel != null)
+            {
+                return requirementLabel;
+            }
+
+            Transform existing = transform.Find("RequirementLabel");
+            GameObject go = existing != null ? existing.gameObject : new GameObject("RequirementLabel");
+            if (existing == null)
+            {
+                go.transform.SetParent(transform, false);
+            }
+
+            go.transform.localPosition = new Vector3(0f, requirementLabelYOffset, 0f);
+
+            requirementLabel = go.GetComponent<TextMesh>();
+            if (requirementLabel == null)
+            {
+                requirementLabel = go.AddComponent<TextMesh>();
+                requirementLabel.characterSize = 0.1f;
+                requirementLabel.fontSize = 48;
+                requirementLabel.fontStyle = FontStyle.Bold;
+                requirementLabel.anchor = TextAnchor.MiddleCenter;
+                requirementLabel.alignment = TextAlignment.Center;
+                requirementLabel.color = Color.black;
+            }
+
+            MeshRenderer meshRenderer = go.GetComponent<MeshRenderer>();
+            if (meshRenderer != null)
+            {
+                meshRenderer.sortingOrder = EnsureFrameRenderer().sortingOrder + 2;
+            }
+
+            return requirementLabel;
         }
 
         /// <summary>
@@ -157,6 +218,15 @@ namespace Slimelands.Cards
         {
             EnsureFrameRenderer().sortingOrder = order;
             EnsureIconRenderer().sortingOrder = order + 1;
+
+            if (requirementLabel != null)
+            {
+                MeshRenderer meshRenderer = requirementLabel.GetComponent<MeshRenderer>();
+                if (meshRenderer != null)
+                {
+                    meshRenderer.sortingOrder = order + 2;
+                }
+            }
         }
 
         public void SetParentStack(CardStack stack)

@@ -2984,3 +2984,61 @@ Unity_RunCommandで実際にダンジョンを起動し、`DungeonRunController`
 コンパイルエラー・警告なしを確認(Unity Console)。挙動の変更自体は前々回のコミットへの
 差し戻しであり、そちらのテストで既に距離比例の回転が正しく動作することを確認済みのため、
 今回はコンパイル確認のみとした。
+
+## 実装: スライムゲート(カードを重ねて引くガチャ)
+
+「スライムゲートというカードを新しく配置してほしい。ガチャを引くためのカードで、ガチャクリスタルを
+n個(nはInspectorで調整可能)重ねるとスライムが1体ランダムに出現する。カード下部に必要な
+ガチャクリスタルの個数を表示してほしい」との依頼。既存のガチャ(`GachaManager`、UIボタン式)とは
+別に、カード積み重ね(Stacklands風)の操作でガチャを引ける仕組みを新設した。
+
+### 実装内容
+- **`GachaPoolData.cs`**: `GachaManager`が持っていた重み付き抽選ロジック(`PickWeighted`)を
+  `GachaPoolData`側の公開メソッドとして切り出した(`GachaManager`と新設のカード合成経路の
+  両方から共通利用するため。抽選ロジックの二重実装を避ける)。`GachaManager.cs`はこれを
+  呼び出すだけに変更。
+- **`CardRecipeData.cs`**: `randomResultPool`(`GachaPoolData`、任意設定)フィールドを追加。
+  設定されている場合、`CardBoard.OnCraftCompleted`は結果カード生成時に固定の`result`ではなく
+  `randomResultPool.PickWeighted()`で毎回抽選した結果を使う(既存の合成完了処理へ4行程度の
+  分岐を足すだけで対応。個別のガチャ専用コードパスを新設していない)。
+- **`GachaGateCardData.cs`**(新規、`BuildingCardData`を継承): `RequiredCrystalCount`(int、
+  Inspectorで調整可能)のみを持つ。実際の消費判定自体はこのフィールドを直接参照せず、
+  対応するレシピのガチャクリスタル素材枠の数(=既存の汎用レシピ照合が「カード何枚と過不足なく
+  一致するか」を判定する仕組みをそのまま使い、素材枠を同じ種類でN個並べれば「ちょうどN枚」の
+  判定になる。木材2枚→板材のレシピと同じ仕組み)で決まる。このフィールドは表示専用。
+- **`CardController.cs`**: `data`が`GachaGateCardData`の場合のみ、カード下部に
+  `RequiredCrystalCount`を表示する`TextMesh`ラベル(`RequirementLabel`)を表示する
+  (`FloatingNumberPopup`と同じTextMesh活用パターン)。それ以外のカードでは非表示。
+  スタック内での重なり順変更(`SetSortingOrder`)にもラベルの描画順を追従させる。
+- データアセット: `Assets/Data/Cards/Building/SlimeGate.asset`(`GachaGateCardData`、
+  `RequiredCrystalCount=5`、フレームは既存の建物カード共通フレームを再利用)、
+  `Assets/Data/Cards/Recipes/Recipe_SlimeGate_GachaCrystal.asset`(素材枠: スライムゲート
+  ×1(消費されない)+ガチャクリスタル×5(消費される)、`randomResultPool`=既存の`GachaPool.asset`、
+  `resultCount=1`、`craftDuration=3`(仮値))を作成し、`CardRecipeBook.asset`に登録した。
+  シーン(`SampleScene`)にもスライムゲートのカードを1枚配置済み(座標(6,-1))。
+- `docs/GDD.md`の「村の施設」一覧にスライムゲートを追加記載。
+
+### テスト
+Unity_RunCommandでPlay Mode中に実データ・実クラスを使って検証した。
+- `CardRecipeData.Matches()`(公開API)で、スライムゲート+ガチャクリスタル5枚は一致(True)、
+  4枚・6枚・他素材混在・ゲートなしはいずれも不一致(False)になることを確認(過不足ない
+  N枚判定が正しく機能している)。
+- `GachaPoolData.PickWeighted()`が有効な`SlimeCardData`を返すことを確認。
+- 実際の`CardRecipeData`・実際の材料`CardController`群を使って`CardCraftProcess.Begin()`を
+  呼び、`craftDuration=3`秒後に`IsComplete`がtrueになりコールバックが発火することを確認
+  (進行バーのタイミング機構自体は既存のまま流用しているため、この経路でも正しく動作する)。
+- シーンに配置したスライムゲートカードの`RequirementLabel`が実際に"5"を表示し、
+  他のカード(えさ場等)には表示されないことを確認。ラベルの文字色を初期実装の白から
+  黒に修正(白背景に対して視認性が低かったため)し、Unity_SceneView_Capture2DSceneで
+  実際の見た目(カード下部に黒文字で"5")を目視確認した。
+- ドラッグ&ドロップ自体(実際にガチャクリスタルをスライムゲートへ重ねる操作)はこの環境では
+  マウス入力をシミュレートできないため未検証。上記の通り、判定ロジック・抽選ロジック・
+  合成タイマー・ラベル表示という構成要素それぞれを個別に実データで検証した。
+- コンパイルエラー・警告なしを確認(Unity Console)。
+
+### 未対応・要確認事項
+- スライムゲート専用のアイコン画像は未設定(既存の建物共通フレームのみ)。専用の絵を
+  用意する場合は`SlimeGate.asset`の`icon`に設定する。
+- ガチャクリスタル自体の入手手段(採取・ドロップ等)は今回のスコープ外で、既存のまま
+  未実装(GDD上はダンジョンクリア報酬として設計されているが、対応するダンジョンの
+  ドロップ設定はまだ用意されていない)。

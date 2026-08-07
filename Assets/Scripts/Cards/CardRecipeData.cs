@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Slimelands.Village;
 
 namespace Slimelands.Cards
 {
@@ -14,6 +15,10 @@ namespace Slimelands.Cards
         [SerializeField] private CardRecipeType recipeType = CardRecipeType.Production;
         [SerializeField] private List<CardIngredient> ingredients = new();
         [SerializeField] private CardData result;
+        [Tooltip("設定されている場合、結果カードとしてresultではなく、この排出テーブルから" +
+            "SlimeSpeciesData.GachaWeightに基づく重み付き抽選で毎回選んだスライムカードを使う" +
+            "(例: スライムゲート+ガチャクリスタル→ランダムなスライム)。resultはこの用途では未設定にする。")]
+        [SerializeField] private GachaPoolData randomResultPool;
         [SerializeField] private int resultCount = 1;
         [Tooltip("合成が完了するまでにかかる時間(秒)。0以下なら即時完了。")]
         [SerializeField] private float craftDuration = 0f;
@@ -33,6 +38,7 @@ namespace Slimelands.Cards
         public CardRecipeType RecipeType => recipeType;
         public IReadOnlyList<CardIngredient> Ingredients => ingredients;
         public CardData Result => result;
+        public GachaPoolData RandomResultPool => randomResultPool;
         public int ResultCount => resultCount;
         public float CraftDuration => craftDuration;
         public int FoodStockAmount => foodStockAmount;

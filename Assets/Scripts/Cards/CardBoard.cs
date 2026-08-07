@@ -621,10 +621,20 @@ namespace Slimelands.Cards
             {
                 for (int i = 0; i < recipe.ResultCount; i++)
                 {
-                    CardController resultCard = CreateLooseCard(recipe.Result);
+                    // RandomResultPoolが設定されているレシピ(例: スライムゲート+ガチャクリスタル)は、
+                    // 固定のresultではなく毎回重み付き抽選で結果を選ぶ(結果Nの場合は1体ずつ個別に抽選する)。
+                    CardData resultData = recipe.RandomResultPool != null
+                        ? recipe.RandomResultPool.PickWeighted()
+                        : recipe.Result;
+                    if (resultData == null)
+                    {
+                        continue;
+                    }
+
+                    CardController resultCard = CreateLooseCard(resultData);
                     resultCard.transform.position = anchorPosition;
                     resultCard.SetSortingOrder(NextSortingOrder());
-                    PlaceResultCard(resultCard, anchorPosition, recipe.Result);
+                    PlaceResultCard(resultCard, anchorPosition, resultData);
                 }
             }
 

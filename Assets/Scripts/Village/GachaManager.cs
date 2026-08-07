@@ -56,7 +56,7 @@ namespace Slimelands.Village
                 return false;
             }
 
-            SlimeCardData picked = PickWeighted();
+            SlimeCardData picked = gachaPool.PickWeighted();
             if (picked == null)
             {
                 OnGachaFailed?.Invoke("排出対象の重みが全て0以下です");
@@ -66,41 +66,6 @@ namespace Slimelands.Village
             cardBoard.SpawnStack(picked, spawnPosition);
             OnGachaDrawn?.Invoke(picked);
             return true;
-        }
-
-        private SlimeCardData PickWeighted()
-        {
-            int totalWeight = 0;
-            foreach (SlimeCardData entry in gachaPool.Entries)
-            {
-                if (entry != null && entry.Species != null)
-                {
-                    totalWeight += Mathf.Max(0, entry.Species.GachaWeight);
-                }
-            }
-
-            if (totalWeight <= 0)
-            {
-                return null;
-            }
-
-            int roll = UnityEngine.Random.Range(0, totalWeight);
-            int cumulative = 0;
-            foreach (SlimeCardData entry in gachaPool.Entries)
-            {
-                if (entry == null || entry.Species == null)
-                {
-                    continue;
-                }
-
-                cumulative += Mathf.Max(0, entry.Species.GachaWeight);
-                if (roll < cumulative)
-                {
-                    return entry;
-                }
-            }
-
-            return null;
         }
     }
 }
