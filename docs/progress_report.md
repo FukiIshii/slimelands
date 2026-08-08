@@ -3548,3 +3548,21 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
 - テスト: Play Mode上で盤面の「伐採場」「採石場」カード(いずれもスライムを乗せた
   スタックの下側にあり見た目では隠れているため)、`CardController.Data.Icon.name`を
   直接確認し、それぞれ`Wood`/`Stone`が割り当てられていることを確認した。
+
+## 修正: 伐採場・採石場の専用アイコンを適用(Wood/Stone流用から差し替え)
+
+- 直後にユーザーから「quarry(採石場)とlumberyard(伐採場)というのを適用してほしい」と
+  依頼。この時点では該当ファイルが見つからなかったためAskUserQuestionで確認したところ、
+  ちょうど`Assets/Picture/Building/`に`quarry.png`/`quarry.aseprite`/`lumberyard.png`/
+  `lumberyard.aseprite`(いずれも64x64)が追加されたタイミングだったと判明。
+- 前項で暫定的にWood/Stoneを流用していたのを、この専用アイコンに差し替えた。手順は
+  資源アイコンのときと同様: 新しいpngのバイト内容を既存プレースホルダーと同じパス
+  (`Assets/Art/Cards/Placeholders/Building/{Quarry,LumberCamp}.png`)へ上書きし、
+  既存の`.meta`(GUID)をそのまま維持。`LumberCamp.asset`/`Quarry.asset`の`icon`
+  フィールドも、Wood/StoneのGUIDから元のQuarry/LumberCampのGUID(=新アイコンの実体)へ
+  戻した。aseprite元ファイルは`AssetDatabase.MoveAsset`で同じフォルダへ移動し、
+  一時的な`Assets/Picture/Building/`フォルダ自体は空になったため削除した。
+- テスト: Play Mode上で`CardController.Data.Icon.name`が`Quarry`/`LumberCamp`に
+  なっていることを確認。さらに、確認用に一時的にスライムをスタックから外して
+  (Play Mode内のみの操作、シーンには保存されない)、専用アイコン(採石場: 岩山、
+  伐採場: 切り株と木)が正しく表示されていることをスクリーンショットで確認した。
