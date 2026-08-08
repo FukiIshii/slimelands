@@ -11,12 +11,13 @@ namespace Slimelands.CameraControls
     [RequireComponent(typeof(Camera))]
     public class CameraZoomController : MonoBehaviour
     {
-        [Tooltip("スクロール量に対してorthographicSizeをどれだけ変化させるか。")]
-        [SerializeField] private float zoomSpeed = 2f;
+        [Header("拡大縮小倍率")]
+        [Tooltip("スクロール量に対してorthographicSizeをどれだけ変化させるか。大きいほど1スクロールあたりの拡大縮小が速くなる。")]
+        [SerializeField, Range(0.1f, 10f)] private float zoomSpeed = 2f;
         [Tooltip("最も拡大したときのorthographicSize(値が小さいほど寄る)。")]
-        [SerializeField] private float minOrthographicSize = 2f;
+        [SerializeField, Range(0.5f, 20f)] private float minOrthographicSize = 2f;
         [Tooltip("最も縮小したときのorthographicSize(値が大きいほど引く)。")]
-        [SerializeField] private float maxOrthographicSize = 10f;
+        [SerializeField, Range(0.5f, 20f)] private float maxOrthographicSize = 10f;
 
         private Camera targetCamera;
 

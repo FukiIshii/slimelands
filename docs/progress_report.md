@@ -3363,3 +3363,12 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
 - テスト: Play Mode上で`GameScreenController.ShowDungeonTree()`→`ReturnToVillage()`を
   実際に呼び出し、`CameraZoomController.enabled`が村画面でtrue、ダンジョンツリー画面で
   falseに切り替わることを確認した。
+
+## 修正: カメラ拡大縮小倍率をInspectorのスライダーで調整可能に
+
+- `CameraZoomController`の`zoomSpeed`/`minOrthographicSize`/`maxOrthographicSize`は
+  元から`SerializeField`でInspector編集は可能だったが、数値入力欄のみで調整しづらかった
+  ため、`[Range]`属性を追加してスライダー表示にした(`zoomSpeed`: 0.1〜10、
+  `minOrthographicSize`/`maxOrthographicSize`: 0.5〜20)。`[Header("拡大縮小倍率")]`も
+  追加し、Inspector上でひとまとまりに見えるようにした。既存の`SerializeField`値
+  (zoomSpeed=2, min=2, max=10)は変更していない。
