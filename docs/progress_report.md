@@ -3507,3 +3507,33 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   完全な自動検証はできなかった。ロジック自体は既存の合成結果カードの飛行演出
   (`FlyThenCreateStack`等)と全く同じパターンであるため、コードレビューベースで
   妥当性を確認した。
+
+## 整理: Cradframeフォルダに混在していたアイコン画像をPlaceholdersへ移動・適用
+
+- 依頼: 「`Assets/Picture/Cradframe`にいろいろ画像を追加したんだけど、cardframe以外もそこに
+  入れちゃったので整理してほしい。そして画像を適用してほしい」。
+- `Cradframe`フォルダにはカードフレーム画像(`cardframe_*.png/.aseprite`)専用のはずが、
+  資源アイコンの手描き線画5点(`wood`/`stone`/`stick`/`plank`/`brick`、いずれも64x64)が
+  追加されていた。
+- 事前確認: `wood`/`stone`/`plank`は既存のResourceCardData(木材/石材/板材)に対応する
+  ため適用対象、`stick`(木の枝?)と`brick`(レンガ)には対応する既存カードが無いため、
+  ユーザーに確認したところ「画像だけ整理してカード適用は保留」との回答。新規カードは
+  作成せず、画像の整理のみ行った。
+- 適用(wood/stone/plank): 新しい画像を、既存プレースホルダーアイコン
+  (`Assets/Art/Cards/Placeholders/Resource/{Wood,Stone,Plank}.png`)と全く同じファイルパスへ
+  上書きコピーした。これにより既存の`.meta`(GUID・スプライトインポート設定)がそのまま
+  維持され、`WoodCardData`等の`icon`フィールドを一切変更せずに新しい絵柄が反映される
+  (CardDataアセット側の変更が不要)。
+- 整理(stick/brick): 対応カードが無いため、`Assets/Art/Cards/Placeholders/Resource/`へ
+  新規ファイルとして`Stick.png`/`Brick.png`の名前でコピーし、他のプレースホルダーアイコンと
+  同じインポート設定(Sprite/Single/PPU64/Point Filter/alphaIsTransparency)を適用した
+  (未使用のまま温存。カードへの適用は保留)。
+- 元の`.aseprite`ソースファイル(5点とも)は`AssetDatabase.MoveAsset`で
+  `Assets/Art/Cards/Placeholders/Resource/`へ移動し、対応するPNGと同じ場所に残した
+  (今後の再編集用)。`Cradframe`フォルダに残っていた旧pngファイル(コピー元、既に
+  内容を複製済みで不要)は削除した。
+- テスト: Play Mode上で盤面の「木材」「板材」カードのアイコンが新しい線画に変わっている
+  ことをスクリーンショットで確認。「石材」は盤面に配置されたインスタンスが無かったため、
+  `Stone.asset`の`icon`フィールドのGUIDが再インポート後の`Stone.png`のGUIDと一致している
+  ことをファイル内容の直接確認で代替した。整理後、`Cradframe`フォルダの中身が
+  `cardframe_*`のみになっていることを確認した。
