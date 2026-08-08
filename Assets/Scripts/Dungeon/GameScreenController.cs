@@ -39,6 +39,8 @@ namespace Slimelands.Dungeon
         [SerializeField] private Behaviour dungeonEntranceUI;
         [Tooltip("盤面でカードを選択した際にその説明を表示するUI(CardDescriptionUI)。")]
         [SerializeField] private Behaviour cardDescriptionUI;
+        [Tooltip("マウスホイールでのカメラ拡大縮小(CameraZoomController)。村画面以外では無効化する。")]
+        [SerializeField] private Behaviour cameraZoomController;
 
         [Header("ダンジョンツリー/詳細/パーティー編成画面")]
         [SerializeField] private Behaviour dungeonTreeUI;
@@ -138,6 +140,7 @@ namespace Slimelands.Dungeon
             SetEnabledSafe(gachaUI, showVillage);
             SetEnabledSafe(dungeonEntranceUI, showVillage);
             SetEnabledSafe(cardDescriptionUI, showVillage);
+            SetEnabledSafe(cameraZoomController, showVillage);
 
             SetEnabledSafe(dungeonTreeUI, showTree);
             SetEnabledSafe(dungeonDetailUI, showDetail);

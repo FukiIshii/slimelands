@@ -1805,6 +1805,7 @@ MonoBehaviour:
   gachaUI: {fileID: 761239027}
   dungeonEntranceUI: {fileID: 761239028}
   cardDescriptionUI: {fileID: 761239029}
+  cameraZoomController: {fileID: 519420033}
   dungeonTreeUI: {fileID: 360021984}
   dungeonDetailUI: {fileID: 360021983}
   partyFormationUI: {fileID: 360021978}

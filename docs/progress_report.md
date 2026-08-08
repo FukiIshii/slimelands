@@ -3346,3 +3346,20 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   単純な計算(`orthographicSize -= scroll.y * zoomSpeed * 0.01f`をclamp)であるため、
   コードレビューベースで妥当性を確認した。実際のマウスでの動作確認はユーザー側で
   お願いしたい。
+
+## 修正: ダンジョンパートではカメラ拡大縮小を無効化
+
+- 依頼: 「ダンジョンパートでは拡大縮小できないようにして」。
+- `GameScreenController`が既に村画面専用のコンポーネント(`cardBoardInteraction`、
+  `villageHudDisplay`、`gachaUI`等)を`showVillage`に応じて`enabled`切り替えしている
+  パターンに倣い、`cameraZoomController`(Behaviour)フィールドを追加し、同じく
+  `showVillage`で有効/無効を切り替えるようにした。`CameraZoomController`自体は
+  CardBoard等の内部実装に依存しない汎用コンポーネントのまま変更していない
+  (画面遷移の制御は`GameScreenController`側の責務に閉じている)。
+  - シーン上の参照配線(`DungeonManagers`の`GameScreenController.cameraZoomController`
+    → `Main Camera`の`CameraZoomController`)は`Unity_ManageGameObject`の
+    `set_component_property`経由では原因不明のエラーで失敗したため、
+    `Unity_RunCommand`から`SerializedObject`/`SerializedProperty`で直接設定した。
+- テスト: Play Mode上で`GameScreenController.ShowDungeonTree()`→`ReturnToVillage()`を
+  実際に呼び出し、`CameraZoomController.enabled`が村画面でtrue、ダンジョンツリー画面で
+  falseに切り替わることを確認した。
