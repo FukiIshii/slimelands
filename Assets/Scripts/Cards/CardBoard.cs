@@ -88,6 +88,14 @@ namespace Slimelands.Cards
         /// </summary>
         public event System.Action<CardController> OnCardSelected;
 
+        /// <summary>
+        /// DungeonGateCardData(正門)にSlimeCardDataを重ねたときに発火する。ダンジョン画面への
+        /// 遷移そのものはこのクラスからは行わず、ダンジョン側の橋渡し役(VillageDungeonEntranceUI)が
+        /// これを購読してGameScreenController.ShowDungeonTree()を呼ぶ(CardBoardはDungeon名前空間に
+        /// 依存しない)。乗せたスライムカード自体は消費しない。
+        /// </summary>
+        public event System.Action OnSlimePlacedOnDungeonGate;
+
         private void Awake()
         {
             if (targetCamera == null)
@@ -325,6 +333,13 @@ namespace Slimelands.Cards
             if (droppedTopCard != null)
             {
                 TryStartCraftIfMatches(targetStack);
+
+                // 正門(DungeonGateCardData)にスライムを乗せた場合は合成ではなく画面遷移の合図。
+                // 乗せたスライムカードは消費せず、通常のスタック積みと同様に盤面へ残す。
+                if (droppedTopCard.Data is SlimeCardData && target.Data is DungeonGateCardData)
+                {
+                    OnSlimePlacedOnDungeonGate?.Invoke();
+                }
             }
         }
 

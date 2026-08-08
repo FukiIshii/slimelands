@@ -228,6 +228,15 @@ Stacklands(カード積み重ね式の村運営)と「ゆっくり育ててい�
   `result`ではなく`CardRecipeData.RandomResultPool`(`GachaPoolData`)からSlimeSpeciesData.GachaWeight
   に基づく重み付き抽選で選ぶ。既存のUIボタン式ガチャ(`GachaManager`)と抽選ロジック自体は
   共通化(`GachaPoolData.PickWeighted`))
+- 正門(独自要素:ダンジョン選択画面への入り口となる建物カード。`DungeonGateCardData`。
+  このカードにスライムカードを重ねると、`CardBoard.OnSlimePlacedOnDungeonGate`が発火し、
+  橋渡し役の`VillageDungeonEntranceUI`がそれを受けて`GameScreenController.ShowDungeonTree()`を
+  呼び、ダンジョンツリー画面(ダンジョン選択画面)へ遷移する。合成(配合)ではないため
+  `CardRecipeData`は使わず、乗せたスライムカード自体は消費されずそのまま盤面(正門の上)に
+  残る。パーティー編成は従来通り`VillageSlimeRoster`(在籍スライム名簿)から行うため、
+  どのスライムカードを乗せたかは編成候補に影響しない(画面遷移のトリガーのみの役割)。
+  既存の「ダンジョンへ」ボタン(`VillageDungeonEntranceUI`のOnGUIボタン)と機能は同じで、
+  操作手段が2通りになっている。
 - (他、村運営に必要な施設を今後追加検討)
 
 ### えさ場への素材投入(食料化)

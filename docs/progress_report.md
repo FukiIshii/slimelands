@@ -3418,3 +3418,39 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   スクリーンショットで確認し、名前欄が可読なまま、以前よりわずかに浅い重なりに
   なっていることを確認した。
 - 追加調整: ユーザーの指示により`-0.16`→`-0.15`→`-0.14`→`-0.13`とさらに微調整した。
+
+## 実装: 「正門」カード(スライムを乗せるとダンジョン選択画面へ遷移)
+
+- 依頼: 「正門というカードを追加して。そのカードにスライムを置くと、ダンジョン選択画面に
+  遷移して」。
+- 事前確認: 乗せたスライムカードを盤面から消費する(送り出す演出)か、盤面に残したまま
+  画面遷移のみ行うかをユーザーに確認したところ、後者(残したまま)を選択。理由:
+  パーティー編成は既存の`VillageSlimeRoster`(在籍スライム名簿)から行う仕組みで、
+  どの盤面カードを操作したかとは無関係なため、正門カードは純粋な画面遷移のショートカットで
+  よいと判断した。
+- 新規`DungeonGateCardData : BuildingCardData`(`Assets/Scripts/Cards/DungeonGateCardData.cs`)を
+  追加。`GachaGateCardData`と同じく型チェックのみで判定する専用建物カードとして扱い、
+  合成(配合)の対象にはしない(`CardRecipeData`は使わない)。
+- `CardBoard.EndDrag`で、ドロップしたカードが`SlimeCardData`かつドロップ先が
+  `DungeonGateCardData`の場合、新設した`OnSlimePlacedOnDungeonGate`イベントを発火するように
+  した。物理的なスタック積み自体は通常のドロップと同じ処理(`targetStack.AddRangeToTop`)を
+  そのまま通すため、スライムカードは消費されず正門カードの上に乗った状態で盤面に残る。
+- CLAUDE.mdの村・ダンジョン疎結合ルールに従い、`CardBoard`自体はDungeon名前空間に一切
+  依存しない。代わりに既存の橋渡し役`VillageDungeonEntranceUI`(村の「ダンジョンへ」ボタンの
+  実体、`DungeonRewardHandler`と同じ橋渡しパターン)に`CardBoard`への参照とイベント購読を追加し、
+  `OnSlimePlacedOnDungeonGate`を受けて`GameScreenController.ShowDungeonTree()`を呼ぶようにした。
+- カードアセット`Assets/Data/Cards/Building/DungeonGate.asset`(カード名「正門」)と、
+  プレースホルダーアイコン`Assets/Art/Cards/Placeholders/Building/DungeonGate.png`
+  (金色地に濃茶枠、他のBuildingカードのプレースホルダーと同じ64x64・単色+枠のスタイル)を
+  新規作成。フレームはSlimeGate等と同じ`cardframe_building`を使用。
+- シーンに「正門」カードを1枚配置(座標(6.5, 1.5)、盤面の空きスペース)し、
+  `VillageDungeonEntranceUI.cardBoard`を実際の`CardBoard`に配線した。
+- テスト: `Unity_RunCommand`から新Input Systemでスライムカード→正門カードへのドラッグ
+  (プレス→移動→リリース)を注入して自動検証を試みたが、前述のカメラパン/ズームの件と
+  同じ理由(Play Mode中の実際のフレーム更新が`Unity_RunCommand`呼び出しの合間に確実には
+  発生しないため`CardBoard.Update()`側がマウス操作を観測できない)で、自動テストでは
+  安定して確認できなかった(スライムカード位置・画面状態とも変化なし)。ロジック自体は
+  既存のドロップ処理(`EndDrag`)にすでに動作実績のある型チェック1つを追加しただけの
+  単純な変更であり、コードレビューベースで妥当性を確認した。実際のマウス操作での
+  動作確認はユーザー側でお願いしたい。
+- `docs/GDD.md`の「村の施設」に正門の仕様を追記した。
