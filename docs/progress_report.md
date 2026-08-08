@@ -3566,3 +3566,31 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   なっていることを確認。さらに、確認用に一時的にスライムをスタックから外して
   (Play Mode内のみの操作、シーンには保存されない)、専用アイコン(採石場: 岩山、
   伐採場: 切り株と木)が正しく表示されていることをスクリーンショットで確認した。
+
+## 修正: 一度食料切れになると、Play Modeをやり直しても合成が二度と始まらなくなる不具合
+
+- 依頼: 「合成システムがまともに機能してない気がする」→詳細確認したところ「カードを
+  重ねても合成が始まらない」。
+- 原因調査: `CardRecipeBook.TryFindRecipe`によるレシピ照合自体(木材+木材+スライム→
+  板材、伐採場+スライム→木材、等)はデータレベルでは正常に一致することを確認。
+  その後、`CardCraftProcess.ProductionPaused`(生産全体を止める`static bool`、
+  食料切れで`MoonCycleManager`がtrueにする)を確認したところ、フレッシュなPlay Mode
+  セッションにも関わらず`true`のまま止まっていた。
+- 根本原因: このプロジェクトは`ProjectSettings > Editor > Enter Play Mode Options`で
+  Domain Reloadが無効化されている(`EditorSettings.asset`の
+  `m_EnterPlayModeOptionsEnabled: 1`)。これによりPlay Modeを再生し直しても
+  C#の`static`フィールドはメモリ上にそのまま残り続ける。一方`MoonCycleManager.IsBlocked`
+  (インスタンスフィールド)はScene Reloadにより毎回`false`から始まる。過去に一度でも
+  食料切れで`ProductionPaused = true`になった後、`MoonCycleManager.RecheckBlock()`は
+  `!IsBlocked`(常にfalseからスタートするため真)で即return するため、新しいセッションでは
+  `ProductionPaused`を`false`に戻す経路が一切実行されない。結果、一度でも食料切れを
+  経験すると、それ以降は村の生産(食料関連レシピを除く全ての合成)がPlay Modeを
+  やり直しても永久に始まらなくなっていた。
+- 修正: `MoonCycleManager.OnEnable()`の先頭で`CardCraftProcess.ProductionPaused = IsBlocked`
+  (常に`false`)を明示的に同期するようにした。新しいセッション開始時に必ず
+  インスタンスフィールドとstaticフィールドの状態を一致させる。
+- テスト: `Unity_RunCommand`でPlay Mode開始直後に`CardCraftProcess.ProductionPaused`が
+  `False`であることを確認。さらに`CardBoard.SpawnStack`で木材2枚+スライム1枚を生成し、
+  `CardStack.AddRangeToTop`で1つのスタックに手動合体させた上で、`SendMessage`経由で
+  `TryStartCraftIfMatches`(private)を呼び出し、`CardCraftProcess`が正しく追加され
+  (`Recipe_Wood_Wood_AnySlime_Plank`)、進行が始まる状態になっていることを確認した。

@@ -40,6 +40,12 @@ namespace Slimelands.Village
 
         private void OnEnable()
         {
+            // CardCraftProcess.ProductionPausedはstaticフィールドのため、このプロジェクトの
+            // Enter Play Mode Options(Domain Reload無効)設定下ではPlay Modeをまたいで値が
+            // 残り続ける。IsBlocked(インスタンスフィールド、常にfalseで開始)との食い違いを防ぐため、
+            // 新しいセッションの開始時に必ず同期し直す。
+            CardCraftProcess.ProductionPaused = IsBlocked;
+
             if (slimeRoster != null)
             {
                 slimeRoster.OnRosterChanged += HandleConditionsMayHaveChanged;
