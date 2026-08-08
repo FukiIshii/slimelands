@@ -118,7 +118,15 @@ namespace Slimelands.Dungeon
         {
             SelectedDungeonForDetail = null;
             SetScreen(GameScreen.Village);
+            OnReturnedToVillage?.Invoke();
         }
+
+        /// <summary>
+        /// 村画面へ戻ったときに発火する。村パートの内部実装には依存せず、橋渡し役
+        /// (VillageDungeonEntranceUI)がこれを購読して盤面側の後始末(正門に乗ったままの
+        /// スライムカードを退避させる等)を行う(CLAUDE.mdの疎結合ルールに従う)。
+        /// </summary>
+        public event System.Action OnReturnedToVillage;
 
         private void SetScreen(GameScreen screen)
         {

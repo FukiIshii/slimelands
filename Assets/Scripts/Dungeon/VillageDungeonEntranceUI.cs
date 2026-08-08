@@ -21,6 +21,11 @@ namespace Slimelands.Dungeon
             {
                 cardBoard.OnSlimePlacedOnDungeonGate += HandleSlimePlacedOnDungeonGate;
             }
+
+            if (screenController != null)
+            {
+                screenController.OnReturnedToVillage += HandleReturnedToVillage;
+            }
         }
 
         private void OnDisable()
@@ -29,6 +34,11 @@ namespace Slimelands.Dungeon
             {
                 cardBoard.OnSlimePlacedOnDungeonGate -= HandleSlimePlacedOnDungeonGate;
             }
+
+            if (screenController != null)
+            {
+                screenController.OnReturnedToVillage -= HandleReturnedToVillage;
+            }
         }
 
         private void HandleSlimePlacedOnDungeonGate()
@@ -36,6 +46,18 @@ namespace Slimelands.Dungeon
             if (screenController != null)
             {
                 screenController.ShowDungeonTree();
+            }
+        }
+
+        /// <summary>
+        /// 村画面へ戻ったとき、正門に乗ったままのカードを退避させる(ダンジョン選択画面へ
+        /// 遷移する間ずっと正門の上に乗った見た目のままになっているのを解消するため)。
+        /// </summary>
+        private void HandleReturnedToVillage()
+        {
+            if (cardBoard != null)
+            {
+                cardBoard.ReleaseCardsFromDungeonGates();
             }
         }
 

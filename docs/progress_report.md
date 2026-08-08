@@ -3454,3 +3454,30 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   単純な変更であり、コードレビューベースで妥当性を確認した。実際のマウス操作での
   動作確認はユーザー側でお願いしたい。
 - `docs/GDD.md`の「村の施設」に正門の仕様を追記した。
+
+## 修正: ダンジョン選択画面から村に戻ると、正門に乗ったスライムが近くに退避する
+
+- 依頼: 「ダンジョン選択画面から村に戻るときは、スライムが正門に乗っている状態のはずだが、
+  それに乗らずに近くにいるようにしてほしい」。
+- `GameScreenController.ReturnToVillage()`に`OnReturnedToVillage`イベントを新設し、
+  発火するようにした。橋渡し役`VillageDungeonEntranceUI`がこれを購読し、
+  `CardBoard.ReleaseCardsFromDungeonGates()`(新設の公開メソッド)を呼ぶ。
+  `CardBoard`自体はDungeon名前空間に依存しないという既存の疎結合方針をそのまま維持している。
+- `ReleaseCardsFromDungeonGates()`は、盤面の全`CardStack`を走査し、`DungeonGateCardData`
+  (正門)を含むスタックでその上に何か乗っている場合、`CardStack.RemoveFrom`で正門より上を
+  すべて別スタックとして切り離す。
+- 切り離した後の再配置位置について: 当初は既存の重なり回避ヘルパー`SnapToValidPosition`
+  (`FindNearestFreePosition`)に任せる実装にしていたが、`Unity_RunCommand`で実際に
+  `Physics2D.OverlapBoxAll`を使って検証したところ、正門とほぼ重なった位置(中心間距離
+  0.35〜0.48、カード1枚分の判定サイズ0.9未満)を「空いている」と誤判定して返すケースを
+  確認した(`Physics2D.SyncTransforms()`を挟んでも再現)。原因の特定までは至らなかったが、
+  既存の広く使われているヘルパー関数に手を入れるのは影響範囲が読み切れないため、
+  今回の新機能側だけで確実に間隔を確保する方式(正門の真下へカード1枚分
+  (`cardFootprintSize.y`)ぶん固定オフセットで配置し、`ClampToBoard`で盤面内に収める)に
+  変更した。既存の`SnapToValidPosition`自体はデグレさせないよう変更していない。
+- テスト: `Unity_RunCommand`から、スライムカードを正門スタックへ直接重ねた状態を再現し、
+  `GameScreenController.ShowDungeonTree()`→`ReturnToVillage()`を呼び出して検証。
+  スライムカードは正門とは別スタックになり(`ParentStack`が変化)、正門から距離1.0
+  (カード1枚分)離れた位置に移動し、その位置で`Physics2D.OverlapBoxAll`しても正門は
+  ヒットしないことを確認した。スクリーンショットでも、正門の真下にスライムのスタックが
+  重ならず配置されていることを確認した。

@@ -1131,6 +1131,39 @@ namespace Slimelands.Cards
             return true;
         }
 
+        /// <summary>
+        /// DungeonGateCardData(正門)の上に乗ったままのカードを、正門とは別のスタックへ
+        /// 切り離し、重ならない近くの空き位置へ退避させる(消費はしない)。村画面へ戻った
+        /// タイミングで呼ばれる想定(ダンジョン選択画面に遷移する間、乗せたスライムカードが
+        /// 正門の上に乗った見た目のままになっているのを解消するため)。
+        /// </summary>
+        public void ReleaseCardsFromDungeonGates()
+        {
+            foreach (CardStack stack in FindObjectsByType<CardStack>(FindObjectsSortMode.None))
+            {
+                int gateIndex = -1;
+                for (int i = 0; i < stack.Cards.Count; i++)
+                {
+                    if (stack.Cards[i].Data is DungeonGateCardData)
+                    {
+                        gateIndex = i;
+                        break;
+                    }
+                }
+
+                if (gateIndex < 0 || gateIndex >= stack.Count - 1)
+                {
+                    continue;
+                }
+
+                // 正門の真下1枚分ぶん離れた位置へ退避させる(正門の上に留まったままにならないよう、
+                // FindNearestFreePosition任せにせず確実な間隔を確保する)。
+                Vector3 gatePosition = stack.transform.position;
+                CardStack lifted = stack.RemoveFrom(gateIndex + 1);
+                lifted.transform.position = ClampToBoard(gatePosition + new Vector3(0f, -cardFootprintSize.y, 0f));
+            }
+        }
+
         private CardController CreateLooseCard(CardData data)
         {
             CardController card = Instantiate(cardPrefab, Vector3.zero, Quaternion.identity, cardParent);
