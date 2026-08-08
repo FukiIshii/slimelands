@@ -12,7 +12,8 @@ namespace Slimelands.Cards
     {
         // 縦方向のみにずらして積む(Stacklands風)。後から乗せたカード(=前面)ほど下にずれ、
         // 手前のカードの上端から、後ろのカードの上端(名前部分)が少し覗く見た目になる。
-        private static readonly Vector3 CardOffset = new Vector3(0f, -0.18f, 0f);
+        // 元は-0.18だったが、重なりを0.02ぶん上にずらすため-0.16に調整した。
+        private static readonly Vector3 CardOffset = new Vector3(0f, -0.16f, 0f);
 
         private readonly List<CardController> cards = new();
 
