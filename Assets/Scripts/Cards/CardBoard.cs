@@ -1133,9 +1133,11 @@ namespace Slimelands.Cards
 
         /// <summary>
         /// DungeonGateCardData(正門)の上に乗ったままのカードを、正門とは別のスタックへ
-        /// 切り離し、重ならない近くの空き位置へ退避させる(消費はしない)。村画面へ戻った
-        /// タイミングで呼ばれる想定(ダンジョン選択画面に遷移する間、乗せたスライムカードが
-        /// 正門の上に乗った見た目のままになっているのを解消するため)。
+        /// 切り離し、合成結果カードと同じ「飛んでいく」演出(PlaceResultCardが使う
+        /// FindScatterLandingPosition/AnimateFlyPosition)で近くの空き位置へ退避させる
+        /// (消費はしない)。村画面へ戻ったタイミングで呼ばれる想定(ダンジョン選択画面に
+        /// 遷移する間、乗せたスライムカードが正門の上に乗った見た目のままになっているのを
+        /// 解消するため)。
         /// </summary>
         public void ReleaseCardsFromDungeonGates()
         {
@@ -1156,11 +1158,31 @@ namespace Slimelands.Cards
                     continue;
                 }
 
-                // 正門の真下1枚分ぶん離れた位置へ退避させる(正門の上に留まったままにならないよう、
-                // FindNearestFreePosition任せにせず確実な間隔を確保する)。
                 Vector3 gatePosition = stack.transform.position;
                 CardStack lifted = stack.RemoveFrom(gateIndex + 1);
-                lifted.transform.position = ClampToBoard(gatePosition + new Vector3(0f, -cardFootprintSize.y, 0f));
+                Vector3 landingPosition = FindScatterLandingPosition(gatePosition);
+                StartCoroutine(FlyStackTo(lifted, gatePosition, landingPosition));
+            }
+        }
+
+        /// <summary>
+        /// 既存のスタック(複数枚のこともある)をそのまま飛ばして着地させる。合成結果カード用の
+        /// FlyThenCreateStack/FlyThenMergeIntoStackは1枚の新規カードをスタックへ組み込みながら
+        /// 飛ばす前提のため、それらとは別に、既にスタックとして成立済みのカード群をまとめて
+        /// 飛ばす用にこちらを用意する。飛行中は掴めないよう全カードのコライダーを一時的に無効化する。
+        /// </summary>
+        private IEnumerator FlyStackTo(CardStack stack, Vector3 start, Vector3 end)
+        {
+            foreach (CardController card in stack.Cards)
+            {
+                SetColliderEnabled(card, false);
+            }
+
+            yield return AnimateFlyPosition(stack.transform, start, end);
+
+            foreach (CardController card in stack.Cards)
+            {
+                SetColliderEnabled(card, true);
             }
         }
 
