@@ -4694,6 +4694,7 @@ GameObject:
   - component: {fileID: 761239027}
   - component: {fileID: 761239028}
   - component: {fileID: 761239029}
+  - component: {fileID: 761239030}
   m_Layer: 0
   m_Name: VillageManagers
   m_TagString: Untagged
@@ -4830,6 +4831,26 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Village.CardDescriptionUI
   cardBoard: {fileID: 597705880}
+--- !u!114 &761239030
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 761239020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de3c61a8d826f9f41a0d40caa40dd52f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Village.ResourceHudDisplay
+  foodStockManager: {fileID: 761239024}
+  slimeRoster: {fileID: 761239023}
+  cardBoard: {fileID: 597705880}
+  manaCrystalData: {fileID: 11400000, guid: ef657492425c4ad4986a3aef5b7b2123, type: 2}
+  gachaCrystalData: {fileID: 11400000, guid: 9e0f47fca3317084ab2cfef74a7b42ed, type: 2}
+  foodIcon: {fileID: 2800000, guid: 812d813a0a2a8b140bc94ecf7dd4bca3, type: 3}
+  manaCrystalIcon: {fileID: 2800000, guid: ae47a2140e280854faaf0073ab68e62b, type: 3}
+  gachaCrystalIcon: {fileID: 2800000, guid: 3036cdec46dca784391a71f45487f3d5, type: 3}
 --- !u!1001 &799375535
 PrefabInstance:
   m_ObjectHideFlags: 0

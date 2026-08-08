@@ -3594,3 +3594,44 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   `CardStack.AddRangeToTop`で1つのスタックに手動合体させた上で、`SendMessage`経由で
   `TryStartCraftIfMatches`(private)を呼び出し、`CardCraftProcess`が正しく追加され
   (`Recipe_Wood_Wood_AnySlime_Plank`)、進行が始まる状態になっていることを確認した。
+
+## 追加: 食料スタック数・マナクリスタル・ガチャクリスタルのアイコン付きHUD表示
+
+- 依頼: 食料ストック数、マナクリスタル数、ガチャクリスタル数を、参考画像(パーチメント調の
+  ボックスに太字の数字とアイコンを並べたスタイル)のように画面上部へ表示したい。アイコン画像
+  (meat/manacrystal/gachacrystal)は`Assets/Picture`フォルダに用意済み。
+- 前提整理: マナクリスタル・ガチャクリスタルはグローバルな通貨カウンタではなく、既存の
+  `ResourceCardData`(`Assets/Data/Cards/Resource/ManaCrystal.asset` /
+  `GachaCrystal.asset`)として盤面に置かれる「カード」であることを確認(`GachaManager`が
+  ガチャ1回のコストとして`GachaCrystal`カードを実際に盤面から取り除いて消費している)。
+  そのため所持数は「盤面上にある該当カードの枚数」として都度カウントする方式にした。
+  食料は既存の`FoodStockManager.CurrentFood`(現在値)と`VillageSlimeRoster.
+  CalculateTotalMonthlyConsumption()`(月間消費量合計)を使い、参考画像の「117/12」の
+  ような表記に合わせて「現在値/月間消費量」の比率表示とした。
+- アイコン画像の整理: `Assets/Picture/{meat,manacrystal,gachacrystal}.png`
+  (+`.aseprite`)を、既存の`Assets/Art/UI`フォルダ(スプライト系UIアセットの置き場として
+  既に使われていた場所)へ`Meat.png`/`ManaCrystalIcon.png`/`GachaCrystalIcon.png`という
+  名前で移動。TextureType=Sprite、SpriteImportMode=Single、PPU=64、FilterMode=Point、
+  alphaIsTransparency=trueでインポート設定した。
+- `CardBoard.CountCards(CardData)`(新規、public)を追加。既存の`TryConsumeCards`と同じ
+  走査ロジックだが、カードを取り除かずに枚数だけ数える(`ParentStack != null`のカードのみ
+  対象、合成完了直後などでDestroy待ちの浮遊カードを除外する点も揃えた)。
+- `Assets/Scripts/Village/ResourceHudDisplay.cs`(新規、IMGUI)を追加。画面左上に
+  クリーム色のパネルを描画し、「食料(現在値/月間消費量)+meatアイコン」「マナクリスタル数+
+  アイコン」「ガチャクリスタル数+アイコン」を横一列に表示する。マナ/ガチャクリスタルの数は
+  毎フレーム`CardBoard.CountCards`で数え直す(盤面の増減にリアルタイムに追従する)。
+- シーン(`VillageManagers`)に`ResourceHudDisplay`コンポーネントを追加し、
+  `FoodStockManager`/`VillageSlimeRoster`/`CardBoard`/`ManaCrystal.asset`/
+  `GachaCrystal.asset`/3種のアイコンTexture2Dを`SerializedObject`経由で参照設定した。
+- テスト: Play Modeで`Unity_RunCommand`により`ResourceHudDisplay`が内部で使うのと同じ
+  呼び出し(`FoodStockManager.CurrentFood`、`VillageSlimeRoster.
+  CalculateTotalMonthlyConsumption()`、`CardBoard.CountCards(ManaCrystal/
+  GachaCrystal)`)を直接実行し、`food=20 consumption=33 manaCrystal=12 gachaCrystal=10`
+  が盤面の実際のカード枚数(シーン階層で確認した設置数)と一致することを確認した。また
+  OnGUIは毎フレーム呼ばれるにも関わらずPlay Mode中を通してコンソールに例外・エラーが
+  一切出力されなかったことも確認した。
+- 未検証の点: 本セッションのテスト環境では`Unity_Camera_Capture`がシーンビューしか
+  撮影できず(IMGUI/OnGUIはゲームビューの画面合成時にのみ描画されるため)、実際に
+  ボックスやアイコンが意図した位置・サイズ・重なりで見えているかは目視確認できていない。
+  ロジック(表示する数値の算出・参照配線・エラーの有無)は確認済みだが、レイアウトの
+  見た目については実際にゲームビューを開いて確認してもらう必要がある。

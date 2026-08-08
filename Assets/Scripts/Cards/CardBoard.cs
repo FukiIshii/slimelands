@@ -1092,6 +1092,29 @@ namespace Slimelands.Cards
         }
 
         /// <summary>
+        /// 盤面上にある指定カードの枚数を数える(取り除きはしない)。HUD表示など、現在の保有数を
+        /// 読み取りたいだけの用途に使う。
+        /// </summary>
+        public int CountCards(CardData data)
+        {
+            if (data == null)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            foreach (CardController card in FindObjectsByType<CardController>(FindObjectsInactive.Exclude))
+            {
+                if (card.Data == data && card.ParentStack != null)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
         /// 盤面上から指定カードをamount枚探して取り除く(ガチャのコスト消費などに使う)。
         /// amount枚に満たない場合は何も変更せずfalseを返す(全額支払えない限り消費しない)。
         /// </summary>
