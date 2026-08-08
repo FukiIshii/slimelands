@@ -75,7 +75,7 @@ namespace Slimelands.Village
                 + GroupGap + MeasureGroupWidth(manaCrystalText)
                 + GroupGap + MeasureGroupWidth(gachaCrystalText);
 
-            Rect panelRect = new(10f, 10f, panelWidth, PanelHeight);
+            Rect panelRect = new(Screen.width - panelWidth - 10f, 10f, panelWidth, PanelHeight);
             GUI.DrawTexture(panelRect, panelTexture);
             GUI.Box(panelRect, GUIContent.none);
 
