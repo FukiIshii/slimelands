@@ -3372,3 +3372,33 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   `minOrthographicSize`/`maxOrthographicSize`: 0.5〜20)。`[Header("拡大縮小倍率")]`も
   追加し、Inspector上でひとまとまりに見えるようにした。既存の`SerializeField`値
   (zoomSpeed=2, min=2, max=10)は変更していない。
+
+## 実装: 何もない場所をクリック&ドラッグして画面をパン
+
+- 依頼: 「画面をクリックしながら動かすことで、画面を動かせるようにして」。
+- `CardBoard.cs`に実装した(新規スクリプトを起こさず既存の入力処理に統合)。理由:
+  - `CardBoard.Update()`は既に左クリックの押下/解放/ホールドを一元管理しており、
+    「クリックした位置にカードがあるかどうか」を`TryBeginDrag`内の`FindTopCardAt`で
+    既に判定している。カメラパンを別コンポーネントに分離すると、同じフレーム内で
+    「カードが見つからなかった」ことをカメラ側が知る手段がなく、Update()の実行順序
+    (Script Execution Order)に依存する不安定な実装になってしまうため、同じ場所に
+    実装するのが最も安全。
+  - 副次的に、`GameScreenController`が村画面以外では`CardBoard`自体を無効化する
+    (`cardBoardInteraction`)既存の仕組みにそのまま乗るため、カメラズームの無効化と
+    同様、パンもダンジョンパートでは自動的に無効になる。
+- `TryBeginDrag`で`clickedCard == null`(何もない場所をクリック)の場合、従来は
+  何もせず`return`していたが、代わりに`isPanningCamera = true`とクリック位置の
+  ワールド座標(`cameraPanAnchorWorldPosition`)を記録するようにした。
+- ドラッグ中は毎フレーム、現在のカーソル位置のワールド座標と`cameraPanAnchorWorldPosition`
+  との差分ぶんだけ`targetCamera.transform.position`を動かす(「掴んで引っ張る」方式。
+  クリックした瞬間にカーソル下にあった世界座標が、ドラッグ中は常にカーソル直下に
+  留まり続ける)。カードドラッグ(`draggedStack != null`)とは排他的に扱い、
+  カードを持っている間はパンを開始しない。
+- テスト: 新Input Systemの`InputSystem.QueueStateEvent`でマウス位置・ボタン押下を
+  注入して自動検証を試みたが、前述のスクロールズームの件と同じ理由(Play Mode中の
+  実際のフレーム更新が`Unity_RunCommand`呼び出しの合間に確実には発生しないため、
+  `CardBoard.Update()`側がマウス操作を観測できない)で、自動テストでは安定して
+  確認できなかった。ロジック自体は同じ`Update()`内で既に実績のあるカードドラッグの
+  パターン(`GetPointerWorldPosition`を使った毎フレームの差分計算)を踏襲した単純な
+  実装であるため、コードレビューベースで妥当性を確認した。実際のマウス操作での
+  動作確認はユーザー側でお願いしたい。

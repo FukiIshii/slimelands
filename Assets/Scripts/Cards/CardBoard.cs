@@ -70,6 +70,12 @@ namespace Slimelands.Cards
         private int nextSortingOrder;
         private Vector2 cardFootprintSize = Vector2.one;
 
+        // 何もない場所を左クリックしたままドラッグすると、カードではなくカメラそのものを
+        // 動かす(画面のパン)。draggedStackと同時には成立しない(カードを持っている間は
+        // パンを開始しない)排他的な状態として扱う。
+        private bool isPanningCamera;
+        private Vector3 cameraPanAnchorWorldPosition;
+
         /// <summary>
         /// FeedQueueSequentially(まとめ給餌)の1枚ずつの合成完了中はtrueにし、OnCraftCompleted側の
         /// 単発ポップアップ表示を抑止する(まとめ給餌側で合計値のポップアップを1回だけ出すため)。
@@ -199,9 +205,14 @@ namespace Slimelands.Cards
                     TryBeginDrag(GetPointerWorldPosition(mouse));
                 }
             }
-            else if (draggedStack != null && mouse.leftButton.wasReleasedThisFrame)
+            else if (mouse.leftButton.wasReleasedThisFrame)
             {
-                EndDrag(GetPointerWorldPosition(mouse));
+                if (draggedStack != null)
+                {
+                    EndDrag(GetPointerWorldPosition(mouse));
+                }
+
+                isPanningCamera = false;
             }
             else if (draggedStack != null && mouse.leftButton.isPressed)
             {
@@ -214,6 +225,22 @@ namespace Slimelands.Cards
                 // ドラッグしている間は毎フレーム最前面を再取得し続けることでこれを防ぐ。
                 AssignAscendingSortingOrders(draggedStack.Cards);
             }
+            else if (isPanningCamera && mouse.leftButton.isPressed)
+            {
+                UpdateCameraPan(mouse);
+            }
+        }
+
+        /// <summary>
+        /// クリックした瞬間にワールド座標でカーソル下にあった位置(cameraPanAnchorWorldPosition)が
+        /// 常にカーソル直下に留まるよう、毎フレームその差分ぶんカメラを動かす(いわゆる「つかんで
+        /// 引っ張る」パン操作)。
+        /// </summary>
+        private void UpdateCameraPan(Mouse mouse)
+        {
+            Vector3 currentWorldPosition = GetPointerWorldPosition(mouse);
+            Vector3 delta = cameraPanAnchorWorldPosition - currentWorldPosition;
+            targetCamera.transform.position += delta;
         }
 
         private Vector3 GetPointerWorldPosition(Mouse mouse)
@@ -232,6 +259,10 @@ namespace Slimelands.Cards
 
             if (clickedCard == null)
             {
+                // カードが何もない場所をクリックした場合は、カードドラッグの代わりに
+                // カメラのパン操作を開始する。
+                isPanningCamera = true;
+                cameraPanAnchorWorldPosition = pointerWorldPosition;
                 return;
             }
 
