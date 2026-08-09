@@ -50,6 +50,16 @@ namespace Slimelands.Dungeon
                  "間は同じ向きを保持することで、瞬間的な位置のブレに過敏に反応しないようにする。")]
         [SerializeField] private float retreatDirectionRefreshInterval = 0.25f;
 
+        [Header("交戦中の待機時の周回移動(仮値、要調整)")]
+        [Tooltip("近接タイプが接触距離(MeleeContactDistance)まで、遠距離タイプが後退距離" +
+                 "(RangedRetreatDistance)まで到達した後、その場で完全に静止させず、対象を中心とした" +
+                 "円周上を低速(WanderSpeedを流用)で周回させ続けるための角速度(度/秒)。GDD「常に動き" +
+                 "続けている(バウンド/転がる)キャラクターのため、待機モーションは用意しない」方針上、" +
+                 "実座標が完全に止まると見た目も静止してしまうため(特に遠距離タイプは実移動量に応じて" +
+                 "転がるアニメーションのため顕著)、接近/後退が完了した後も低速で動き続けさせる。" +
+                 "0にすると従来通り完全静止に戻る。")]
+        [SerializeField] private float combatIdleOrbitAngularSpeed = 50f;
+
         [Header("敵の登場演出")]
         [Tooltip("敵が行動帯の外側のどちら側から歩いて登場するか。")]
         [SerializeField] private EnemyEntranceSide enemyEntranceSide = EnemyEntranceSide.Right;
@@ -1009,7 +1019,7 @@ namespace Slimelands.Dungeon
             {
                 if (unit.AttackType == SlimeAttackType.Melee)
                 {
-                    ApproachTargetWithStandoff(unit, attackTarget, meleeContactDistance, dt);
+                    ApproachTargetWithStandoff(unit, attackTarget, meleeContactDistance, bounds, dt);
                     return;
                 }
 
@@ -1034,57 +1044,59 @@ namespace Slimelands.Dungeon
         /// 近接タイプが対象へ向けて、standoff(接触とみなす距離)まで近づき続ける。射程外からの
         /// 接近(ChaseTarget)と射程内での微調整の両方をこの1メソッドに統一しており、攻撃の
         /// 発生タイミングに関わらず対象がいる間は常に近づこうとする。
-        /// 目標地点は対象の座標そのものではなく、対象を中心・半径standoffの円周上の点
-        /// (GetApproachPoint、ユニットごとに独立したランダムな角度)を使う。同じ対象を複数の
-        /// ユニットが狙った場合に、全員が対象の座標付近の一点へ完全収束するのを防ぐため。
-        /// ただし、対象自身も同時に動く(お互いが相手を追いかける)ため、目標地点は毎フレーム
-        /// わずかに動き続ける。目標地点への到達だけを止まる条件にすると、対象を追い越して
-        /// 反対側へ回り込もうとする動きが延々と続き、複数体が絡むと「相手を追い越そう」と
-        /// する動きが連鎖して収束せずに振動・発散してしまう不具合があった(気絶を無効化した
-        /// 状態で長時間シミュレートし、数百フレーム後に距離が離れ続ける・向きが細かく
-        /// 反転し続けることを確認して特定)。これを防ぐため、実際の対象との距離が既にstandoff
-        /// 以内まで縮まっていれば、目標地点への到達を待たずにそこで移動を止める(以前の実装が
-        /// 持っていた安定化条件と同じ)。
+        /// 目標地点は対象の実座標そのもの(target.Position)へ直進する。これは意図的な設計判断:
+        /// 以前は「対象を中心・半径standoffの円周上のオフセット点(ユニットごとに独立した
+        /// ランダムな角度)」へ向かう実装だったが、対象自身も同時に(自分の索敵結果に向けて)
+        /// 動く場合、このオフセット点は毎フレームずれ続ける「動く目標」になる。等速の2体が
+        /// 互いに「相手の実座標」を直接追い続ける場合は距離が幾何学的に必ず単調に縮まる
+        /// (三角不等式により収束が保証される)が、互いに「相手のオフセット点」を追い続ける
+        /// 場合はこの収束保証が成り立たない。特定の接近角度の組み合わせでは両者のオフセット点が
+        /// 常に相手の少し先を指し続けてしまい、距離が一切縮まらないまま同じ方向へ延々と
+        /// 並走し続ける(行動帯を大きく離れて彷徨い続ける)退化平衡状態に陥ることを実測で
+        /// 確認した(気絶とタイマーを無効化し、2体を相互に唯一の対象とさせた状態で数百フレーム
+        /// 疑似シミュレートし、距離がほぼ変化しないまま両者が同じ方向へ座標を伸ばし続ける
+        /// ことを確認して特定。攻撃射程内でのみオフセット点へ切り替える折衷案も試したが、
+        /// 射程内側でも同じ退化平衡が起こり得ることを再現テストで確認したため採用しなかった)。
+        /// 「同じ対象を複数体が狙っても一点に完全収束しない」という目的は、接近フェーズの
+        /// 目標地点ではなく、対象確定時に割り当てられる独立したランダム角度(EnsureApproachAngle)
+        /// と、standoffへ到達した後のOrbitAroundTarget(対象を中心に各ユニット独立の角度で
+        /// 周回し続ける)で満たされる。複数ユニットが同じ地点に同時到達しても、到達した瞬間から
+        /// 各々が独立の角度・角速度で周回を始めるため自然に分散する。
+        /// また、目標地点への到達だけを止まる条件にすると、対象を追い越して反対側へ回り込もうと
+        /// する動きが延々と続き、複数体が絡むと振動・発散してしまう不具合があったため、実際の
+        /// 対象との距離が既にstandoff以内まで縮まっていれば、目標地点への到達を待たずにそこで
+        /// 移動を止める。ただし完全に静止させるのではなく、OrbitAroundTargetで対象を中心に
+        /// 低速で周回させ続ける(GDD「常に動き続けている」方針、詳細はOrbitAroundTarget参照)。
         /// </summary>
-        private void ApproachTargetWithStandoff(BattleUnit unit, BattleUnit target, float standoff, float dt)
+        private void ApproachTargetWithStandoff(BattleUnit unit, BattleUnit target, float standoff, Rect bounds, float dt)
         {
-            if (Vector2.Distance(unit.Position, target.Position) <= standoff)
+            float distance = Vector2.Distance(unit.Position, target.Position);
+            if (distance <= standoff)
             {
+                OrbitAroundTarget(unit, target, standoff, bounds, dt);
                 return;
             }
 
-            Vector2 approachPoint = GetApproachPoint(unit, target, standoff);
-            Vector2 toApproachPoint = approachPoint - unit.Position;
-            float distance = toApproachPoint.magnitude;
-            if (distance <= 0.0001f)
-            {
-                return;
-            }
+            Vector2 direction = (target.Position - unit.Position) / distance;
+            unit.WanderTarget = target.Position;
 
-            Vector2 direction = toApproachPoint / distance;
-            unit.WanderTarget = approachPoint;
-
+            // distanceからstandoffを差し引いた残り距離でtravelをキャップすると、standoff直前で
+            // 歩幅が無限に小さくなり続け(距離が縮むほど1ステップの移動量も縮む)、実際には
+            // distance<=standoffの停止条件に到達できないまま無限に足踏みし続けてしまう
+            // (ゼノンのパラドックスと同型の不具合、実測でOrbitAroundTargetが一度も発動せず
+            // 完全に静止したままになることを確認して特定)。対象の実座標へ向けて単純に
+            // distance分でキャップすることで、1ステップでstandoffを飛び越えて対象の目の前まで
+            // 進むことを許容し、次のフレームでdistance<=standoffの停止条件(→Orbit)に
+            // 確実に到達できるようにする。
             float travel = Mathf.Min(balanceData.CombatMovementSpeed * dt, distance);
             unit.Position += direction * travel;
         }
 
         /// <summary>
-        /// selfがtargetへ接近する際の目標地点。target中心・半径standoffの円周上の点で、
-        /// どの角度を使うかはEnsureApproachAngle(GetCurrentTarget/PickAlivePlayerUnitで
-        /// ターゲット確定時に呼ばれる)が対象ごとに決めて保持する。ここでも念のため
-        /// EnsureApproachAngleを呼び、角度が未設定のまま使われることがないようにする。
-        /// </summary>
-        private Vector2 GetApproachPoint(BattleUnit self, BattleUnit target, float standoff)
-        {
-            EnsureApproachAngle(self, target);
-            Vector2 offset = new(Mathf.Cos(self.ApproachAngleRadians), Mathf.Sin(self.ApproachAngleRadians));
-            return target.Position + offset * standoff;
-        }
-
-        /// <summary>
         /// 遠距離タイプが対象から離れる方向へ後退する(行動帯の外へは出ないようクランプする)。
-        /// 既にRangedRetreatDistance以上離れていれば後退をやめてその場に留まる。この停止条件が
-        /// ないと、対象(特に接近をやめて静止している近接タイプ)のわずかな位置補正のたびに、
+        /// 既にRangedRetreatDistance以上離れていれば後退をやめ、OrbitAroundTargetによる
+        /// 低速の周回移動に切り替える(完全静止にはしない、GDD「常に動き続けている」方針)。
+        /// この停止条件がないと、対象(特に接近をやめて静止している近接タイプ)のわずかな位置補正のたびに、
         /// 既に十分離れているにも関わらず全速力で反対方向へ移動し直そうとしてしまい、対象が
         /// 自分の左右どちらにいるかが毎フレーム入れ替わって高速に振り向き続ける不具合になる
         /// (近接タイプのApproachTargetWithStandoffが持つ「対象に十分近づいたら止まる」条件と
@@ -1101,6 +1113,7 @@ namespace Slimelands.Dungeon
         {
             if (Vector2.Distance(unit.Position, target.Position) >= rangedRetreatDistance)
             {
+                OrbitAroundTarget(unit, target, rangedRetreatDistance, bounds, dt);
                 return;
             }
 
@@ -1125,6 +1138,49 @@ namespace Slimelands.Dungeon
 
             Vector2 step = unit.RetreatDirection * (balanceData.CombatMovementSpeed * dt);
             Vector2 newPosition = unit.Position + step;
+            newPosition.x = Mathf.Clamp(newPosition.x, bounds.xMin, bounds.xMax);
+            newPosition.y = Mathf.Clamp(newPosition.y, bounds.yMin, bounds.yMax);
+            unit.Position = newPosition;
+        }
+
+        /// <summary>
+        /// 近接タイプの接近(ApproachTargetWithStandoff)・遠距離タイプの後退(RetreatFromTarget)が
+        /// それぞれの目標距離(standoff/rangedRetreatDistance)に達した後、その場で完全静止させず、
+        /// 対象を中心・半径radiusの円周上を低速で周回させ続ける処理(共通化)。GDD「常に動き続けている
+        /// (バウンド/転がる)キャラクターのため、待機モーションは用意しない」方針上、実座標が完全に
+        /// 止まると見た目も静止してしまう(特に遠距離タイプは実移動量に応じて転がるアニメーションの
+        /// ため顕著)。
+        /// 周回の目標地点は、対象を確定した際にランダムに割り当てられる接近角度
+        /// (BattleUnit.ApproachAngleRadians、EnsureApproachAngle参照)を毎フレーム少しずつ
+        /// 進めることで作る。追従速度はCombatMovementSpeedではなくWanderSpeed(徘徊と同じ低速)を
+        /// 使う。以前、接近目標(相手も同時に動く移動点)を高速(CombatMovementSpeed)で追い続けると
+        /// 追い越し・振動が連鎖して発散する不具合があったため(ApproachTargetWithStandoffのコメント
+        /// 参照)、周回では常に低速側を使い、同じ発散を起こさないようにしている。
+        /// 座標は行動帯の外へ出ないようクランプする(対象が帯の端付近にいる場合、周回目標地点が
+        /// 帯の外に出ることがあるため)。
+        /// </summary>
+        private void OrbitAroundTarget(BattleUnit unit, BattleUnit target, float radius, Rect bounds, float dt)
+        {
+            EnsureApproachAngle(unit, target);
+
+            unit.ApproachAngleRadians += combatIdleOrbitAngularSpeed * Mathf.Deg2Rad * dt;
+            if (unit.ApproachAngleRadians > Mathf.PI * 2f)
+            {
+                unit.ApproachAngleRadians -= Mathf.PI * 2f;
+            }
+
+            Vector2 offset = new(Mathf.Cos(unit.ApproachAngleRadians), Mathf.Sin(unit.ApproachAngleRadians));
+            Vector2 orbitPoint = target.Position + offset * radius;
+            Vector2 toOrbitPoint = orbitPoint - unit.Position;
+            float distance = toOrbitPoint.magnitude;
+            if (distance <= 0.0001f)
+            {
+                return;
+            }
+
+            Vector2 direction = toOrbitPoint / distance;
+            float travel = Mathf.Min(balanceData.WanderSpeed * dt, distance);
+            Vector2 newPosition = unit.Position + direction * travel;
             newPosition.x = Mathf.Clamp(newPosition.x, bounds.xMin, bounds.xMax);
             newPosition.y = Mathf.Clamp(newPosition.y, bounds.yMin, bounds.yMax);
             unit.Position = newPosition;
