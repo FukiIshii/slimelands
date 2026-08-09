@@ -1002,16 +1002,28 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 近接タイプが対象へ向けて、standoff(接触とみなす距離)まで近づき続ける。既に目標地点に
-        /// 到達していれば移動しない(スプライト同士が完全に重ならないよう、対象の座標そのものへは
-        /// 詰め切らない)。射程外からの接近(ChaseTarget)と射程内での微調整の両方をこの1メソッドに
-        /// 統一しており、攻撃の発生タイミングに関わらず対象がいる間は常に近づこうとする。
+        /// 近接タイプが対象へ向けて、standoff(接触とみなす距離)まで近づき続ける。射程外からの
+        /// 接近(ChaseTarget)と射程内での微調整の両方をこの1メソッドに統一しており、攻撃の
+        /// 発生タイミングに関わらず対象がいる間は常に近づこうとする。
         /// 目標地点は対象の座標そのものではなく、対象を中心・半径standoffの円周上の点
         /// (GetApproachPoint、ユニットごとに独立したランダムな角度)を使う。同じ対象を複数の
         /// ユニットが狙った場合に、全員が対象の座標付近の一点へ完全収束するのを防ぐため。
+        /// ただし、対象自身も同時に動く(お互いが相手を追いかける)ため、目標地点は毎フレーム
+        /// わずかに動き続ける。目標地点への到達だけを止まる条件にすると、対象を追い越して
+        /// 反対側へ回り込もうとする動きが延々と続き、複数体が絡むと「相手を追い越そう」と
+        /// する動きが連鎖して収束せずに振動・発散してしまう不具合があった(気絶を無効化した
+        /// 状態で長時間シミュレートし、数百フレーム後に距離が離れ続ける・向きが細かく
+        /// 反転し続けることを確認して特定)。これを防ぐため、実際の対象との距離が既にstandoff
+        /// 以内まで縮まっていれば、目標地点への到達を待たずにそこで移動を止める(以前の実装が
+        /// 持っていた安定化条件と同じ)。
         /// </summary>
         private void ApproachTargetWithStandoff(BattleUnit unit, BattleUnit target, float standoff, float dt)
         {
+            if (Vector2.Distance(unit.Position, target.Position) <= standoff)
+            {
+                return;
+            }
+
             Vector2 approachPoint = GetApproachPoint(unit, target, standoff);
             Vector2 toApproachPoint = approachPoint - unit.Position;
             float distance = toApproachPoint.magnitude;
