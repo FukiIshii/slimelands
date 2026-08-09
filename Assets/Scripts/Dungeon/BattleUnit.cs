@@ -31,6 +31,14 @@ namespace Slimelands.Dungeon
         public Vector2 Position { get; set; }
         public Vector2 WanderTarget { get; set; }
 
+        /// <summary>
+        /// このユニットが自動照準(手動指定なし)で狙っている相手。索敵(近くの敵対ユニットから
+        /// ランダムに選ぶ)で決めた結果を、対象が生存し続ける限り保持する(TickMovement等
+        /// 毎フレーム参照される箇所で、フレームごとに違う相手へふらついてしまわないようにする
+        /// ため)。対象が気絶したら次に必要になったタイミングで選び直される。
+        /// </summary>
+        public BattleUnit AutoTarget { get; set; }
+
         public bool IsFainted => CurrentHp <= 0;
         public bool HasUltimate => UltimateSkill != null;
         public bool CanActivateUltimate => HasUltimate && !IsFainted && UltimateCooldownRemaining <= 0f;

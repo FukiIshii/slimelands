@@ -41,6 +41,13 @@ namespace Slimelands.Dungeon
                  "常に射程内(=従来通り必ず命中)になるが、値を絞ればあえて距離を離されると外れる仕様にも調整できる。")]
         [SerializeField] private float rangedAttackRange = 20f;
 
+        [Header("ターゲット選択(索敵、仮値・要調整)")]
+        [Tooltip("攻撃対象を自動選択する際、自ユニットの位置を中心に対象を探す索敵半径。" +
+                 "MeleeAttackRange/RangedAttackRangeとは別の、ターゲット選択専用のパラメータ。" +
+                 "索敵半径の外にいる相手は選ばれない(選んでも実質狙えないため、通常攻撃の射程と" +
+                 "同じかそれより少し広い値を目安にする)。")]
+        [SerializeField] private float targetSearchRadius = 8f;
+
         [Header("必殺技の範囲攻撃(コライダー、仮値・要調整)")]
         [Tooltip("各ユニットが持つ当たり判定用コライダー(BattleUnitHurtbox)の半径。" +
                  "必殺技の範囲攻撃(Circle/Line/Sweep)がPhysics2Dのクエリで命中対象を検出する際に使う。")]
@@ -59,6 +66,7 @@ namespace Slimelands.Dungeon
         public float MeleeAttackRange => meleeAttackRange;
         public float MeleeHitDelay => meleeHitDelay;
         public float RangedAttackRange => rangedAttackRange;
+        public float TargetSearchRadius => targetSearchRadius;
         public float HurtboxRadius => hurtboxRadius;
         public float UnitVisualScale => unitVisualScale;
     }

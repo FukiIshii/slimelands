@@ -3635,3 +3635,89 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   ボックスやアイコンが意図した位置・サイズ・重なりで見えているかは目視確認できていない。
   ロジック(表示する数値の算出・参照配線・エラーの有無)は確認済みだが、レイアウトの
   見た目については実際にゲームビューを開いて確認してもらう必要がある。
+
+## 変更: ターゲット選択ロジックを「近くの対象からランダム」方式に統一
+
+- 依頼: プレイヤー側(`GetCurrentTarget`)・敵側(`PickAlivePlayerUnit`)とも、対象がいない/
+  手動指定がない場合に固定順(プレイヤー側=常に`aliveEnemies[0]`、敵側=常に`playerUnits`の
+  先頭)で選んでおり単調だった。両方とも「自ユニットの位置を中心に、既存のPhysics2D.
+  OverlapCircleAllベースの索敵(射程判定・範囲必殺技と同じ当たり判定の仕組み)で近くの
+  敵対ユニットを検出し、その中からランダムに1体選ぶ」方式に統一する依頼。プレイヤー側の
+  手動指定(タップでのSetTarget/lockedTarget、パーティー全体で共有)はそのまま優先される
+  フォールバック構造を維持。索敵半径は既存の攻撃射程(MeleeAttackRange/RangedAttackRange)
+  とは別の専用パラメータとして用意してよい、との指定。
+
+### 設計判断: ターゲットはユニット単位で独立させ、「気絶するまで保持」する
+
+- 索敵は「自ユニットの位置を中心に」行うため、本質的にユニットごとに異なる結果になりうる。
+  これまでは`GetCurrentTarget()`/`PickAlivePlayerUnit()`が引数なしでパーティー・敵グループ
+  全体に対して同じ1体を返す設計だったが、これを`GetCurrentTarget(BattleUnit self)`/
+  `PickAlivePlayerUnit(BattleUnit self)`に変更し、呼び出し元(自ユニット)ごとに個別の
+  索敵結果を返すようにした。これに伴い、プレイヤー側は「パーティー全体が同じ1体に
+  集中攻撃する」設計から「各ユニットが自分の近くの相手を独立して狙う」設計に変わる
+  (手動指定時のみ従来通りパーティー全体で対象を共有する)。この変更は依頼文の
+  「自ユニットの位置を中心に」という表現から直接導かれる設計だが、明示的に依頼された
+  わけではない解釈上の判断のため、ここに明記しておく。
+- `TickMovement`は`GetCurrentTarget()`/`PickAlivePlayerUnit()`を毎フレーム呼び出しており、
+  仮に「毎回ランダムに選び直す」実装にすると、索敵範囲内に複数の候補がいる場合に毎フレーム
+  違う相手へ向きを変え、接近・後退の移動が激しくふらつく(ジッターする)問題になることが
+  分かった。これを避けるため、`BattleUnit`に`AutoTarget`(選んだ結果を保持するキャッシュ用
+  フィールド)を追加し、「対象が生存している間は選び直さず、対象が気絶した(または未選択の)
+  時だけ新たにランダム選択する」という、既存の`lockedTarget`(手動固定)と同じ「気絶するまで
+  保持」の考え方をそのまま自動照準にも適用した。この挙動は依頼文に明記されていないが、
+  実装上の技術的な理由(毎フレーム参照される処理で不自然な視覚的ふらつきを防ぐ)で
+  必要と判断した。
+
+### 実装内容
+
+- `BattleUnit.cs`: `public BattleUnit AutoTarget { get; set; }`を追加(索敵結果のキャッシュ)。
+- `BattleBalanceData.cs`: `targetSearchRadius`(仮値8、Inspector調整可能)を追加。
+- `DungeonRunController.cs`:
+  - `GetCurrentTarget(BattleUnit self)`: lockedTarget(手動固定、パーティー全体で共有)が
+    有効ならそれを優先。無効なら`ResolveAutoTarget(self)`。
+  - `ResolveAutoTarget(BattleUnit self)`(新規private): `self.AutoTarget`が生存していれば
+    そのまま返す。なければ`PickRandomNearbyOpponent(self)`で選び直してキャッシュする。
+  - `PickRandomNearbyOpponent(BattleUnit self)`(新規private): 既存の`QueryUnitsInCircle`
+    (`Physics2D.OverlapCircleAll`+`Physics2D.SyncTransforms()`を内包、射程判定・範囲必殺技と
+    同じ当たり判定の仕組み)を`self.Position`・`TargetSearchRadius`で呼び出し、結果から
+    `UnityEngine.Random.Range`でランダムに1体選ぶ。範囲内に誰もいなければnull。
+  - `PickAlivePlayerUnit(BattleUnit self)`: `ResolveAutoTarget(self)`を返すだけの薄いラッパー
+    (敵側には手動指定の概念がないため)。
+  - `TryActivateUltimate`/`TickBattle`(プレイヤー・敵の攻撃タイマー処理)/`TickMovement`
+    (プレイヤー・敵の移動処理)の全呼び出し箇所を、対応するself(呼び出し元のユニット)を
+    渡す形に更新。特に`TickMovement`は、従来ループの外側で1回だけ計算していた共有ターゲットを、
+    ループ内で各ユニットごとに算出するよう変更した(前述のユニット単位独立化のため)。
+  - 索敵(`QueryUnitsInCircle`経由)は既存同様`Physics2D.SyncTransforms()`を内包済みのため、
+    新しいターゲット選択ロジック側で追加の対策は不要だった。
+- `docs/GDD.md`: 「戦闘は半自動進行」の箇条書きと「攻撃・必殺技の仕様」に、自動照準の仕様
+  (索敵半径内からランダム選択、気絶するまで保持、ユニット単位で独立)を確定仕様として追記。
+
+### テスト
+
+- Unity_RunCommandはマウス操作をシミュレートできないため、公開APIを直接呼び出して
+  Play Mode上で検証した。`TestDungeon`(1ウェーブに敵3体)にテスト用パーティー(スライム2体)
+  で突入し(`StartDungeon`)、`SendMessage("SpawnNextWave", ...)`で最初のウェーブを即時
+  スポーンさせた。
+- 検証環境の制約: このツール実行環境ではPlay Mode中にフレームが自動進行しないため、
+  `BattleUnit.Position`を直接書き換えても見た目側(`BattleUnitView`)のTransform位置(＝
+  実際のコライダー位置)は追従しない。`BattleUnitView.Update()`のドキュメントコメントに
+  「`GameObject.SendMessage("Update", ...)`による疑似フレーム送りでテスト可能にするため」
+  との記載があり、これに従い`BattleVisuals`配下へ`BroadcastMessage("Update", ...)`を送って
+  見た目側の位置同期を明示的に発生させてから当たり判定を検証した。
+- 確認できたこと:
+  1. 索敵半径内に複数候補がいる場合、`GetCurrentTarget`を40回試行(毎回`AutoTarget`を
+     リセット)した結果、候補間で偏りなく選ばれることを確認(2種の候補が両方とも選ばれた)。
+     索敵半径外の敵は一度も選ばれなかった。
+  2. 手動指定(`SetTarget`)が、対象が索敵半径外であっても優先されることを確認。
+  3. `AutoTarget`が、リセットしない限り複数回の`GetCurrentTarget`呼び出しをまたいで
+     同じ対象を返し続ける(＝毎回選び直さない)ことを確認。
+  4. 索敵半径内に対象が誰もいない場合、`null`が返ることを確認。
+  5. 敵側と同じ経路(`ResolveAutoTarget`/`PickRandomNearbyOpponent`)を、敵ユニットを
+     selfとして`GetCurrentTarget`に渡すことで検証(レイヤーマスクがプレイヤー側候補を
+     正しく検出することを確認)。40回試行で候補間に偏りがないことを確認。
+  6. `DungeonRunController.Update()`自体を`SendMessage`で20回疑似的に駆動し、
+     `TickMovement`が毎フレーム参照しても`AutoTarget`が同一対象を保持し続ける
+     (＝ジッターしない)ことを確認。初回の検証では気絶による正当な選び直しが1回
+     発生して「2種類」の値が観測されたが、原因を切り分けるため通常攻撃タイマーを
+     大きくして戦闘(気絶)を無効化した上で再検証し、20フレームを通して1種類の値
+     しか観測されない(＝フレームごとの不自然なふらつきは無い)ことを確認した。

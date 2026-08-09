@@ -214,8 +214,13 @@ namespace Slimelands.Dungeon
             lockedTarget = null;
         }
 
-        /// <summary>現在の攻撃対象(固定中はその敵、未固定なら生存する敵の先頭)。いなければnull。</summary>
-        public BattleUnit GetCurrentTarget()
+        /// <summary>
+        /// selfの現在の攻撃対象。固定中(lockedTarget、パーティー全体で共有)はそれを優先する。
+        /// 未固定ならself自身の索敵結果(BattleUnit.AutoTarget)を使う。索敵は「selfの位置を
+        /// 中心に索敵半径内の生存する敵対ユニットからランダムに1体選ぶ」方式(ResolveAutoTarget/
+        /// PickRandomNearbyOpponent参照)で、対象がいなければnull。
+        /// </summary>
+        public BattleUnit GetCurrentTarget(BattleUnit self)
         {
             if (lockedTarget != null && !lockedTarget.IsFainted && aliveEnemies.Contains(lockedTarget))
             {
@@ -223,7 +228,7 @@ namespace Slimelands.Dungeon
             }
 
             lockedTarget = null;
-            return aliveEnemies.Count > 0 ? aliveEnemies[0] : null;
+            return ResolveAutoTarget(self);
         }
 
         /// <summary>必殺技の発動をプレイヤーが指示する。クールタイム中や戦闘外ならfalseを返す。</summary>
@@ -234,7 +239,7 @@ namespace Slimelands.Dungeon
                 return false;
             }
 
-            BattleUnit target = GetCurrentTarget();
+            BattleUnit target = GetCurrentTarget(unit);
             if (target == null)
             {
                 return false;
@@ -453,6 +458,35 @@ namespace Slimelands.Dungeon
             return ResolveHurtboxUnits(results);
         }
 
+        /// <summary>
+        /// selfの自動照準対象を返す。既に選んでいる対象(BattleUnit.AutoTarget)が生存していれば
+        /// そのまま使い続け(TickMovement等、毎フレーム参照される箇所でフレームごとに違う相手へ
+        /// ふらつかないようにするため)、対象がいない/気絶した時だけPickRandomNearbyOpponentで
+        /// 選び直す。
+        /// </summary>
+        private BattleUnit ResolveAutoTarget(BattleUnit self)
+        {
+            if (self.AutoTarget != null && !self.AutoTarget.IsFainted)
+            {
+                return self.AutoTarget;
+            }
+
+            self.AutoTarget = PickRandomNearbyOpponent(self);
+            return self.AutoTarget;
+        }
+
+        /// <summary>
+        /// selfの位置を中心に索敵半径(BattleBalanceData.TargetSearchRadius)内の敵対勢力の
+        /// 生存ユニットを検出し(QueryUnitsInCircleを流用、既存の射程判定・範囲必殺技と同じ
+        /// Physics2D.OverlapCircleAllベースの当たり判定)、その中からランダムに1体選ぶ。
+        /// 範囲内に誰もいなければnull。
+        /// </summary>
+        private BattleUnit PickRandomNearbyOpponent(BattleUnit self)
+        {
+            List<BattleUnit> candidates = QueryUnitsInCircle(self.Position, balanceData.TargetSearchRadius, self);
+            return candidates.Count > 0 ? candidates[UnityEngine.Random.Range(0, candidates.Count)] : null;
+        }
+
         private static List<BattleUnit> ResolveHurtboxUnits(Collider2D[] colliders)
         {
             var hits = new List<BattleUnit>();
@@ -588,7 +622,7 @@ namespace Slimelands.Dungeon
                 unit.NormalAttackTimer -= dt;
                 if (unit.NormalAttackTimer <= 0f)
                 {
-                    BattleUnit target = GetCurrentTarget();
+                    BattleUnit target = GetCurrentTarget(unit);
                     if (target == null)
                     {
                         unit.NormalAttackTimer = balanceData.NormalAttackInterval;
@@ -617,7 +651,7 @@ namespace Slimelands.Dungeon
                 enemy.NormalAttackTimer -= dt;
                 if (enemy.NormalAttackTimer <= 0f)
                 {
-                    BattleUnit target = PickAlivePlayerUnit();
+                    BattleUnit target = PickAlivePlayerUnit(enemy);
                     if (target == null)
                     {
                         enemy.NormalAttackTimer = balanceData.NormalAttackInterval;
@@ -657,17 +691,13 @@ namespace Slimelands.Dungeon
             }
         }
 
-        private BattleUnit PickAlivePlayerUnit()
+        /// <summary>
+        /// selfの現在の攻撃対象(プレイヤー側ユニット)。敵側には手動指定の概念がないため、
+        /// 常にself自身の索敵結果(ResolveAutoTarget)を使う。
+        /// </summary>
+        private BattleUnit PickAlivePlayerUnit(BattleUnit self)
         {
-            foreach (BattleUnit unit in playerUnits)
-            {
-                if (!unit.IsFainted)
-                {
-                    return unit;
-                }
-            }
-
-            return null;
+            return ResolveAutoTarget(self);
         }
 
         /// <summary>attackerがtargetに対して射程外にいるかどうか(近接・遠距離共通、コライダーベース判定)。</summary>
@@ -884,21 +914,21 @@ namespace Slimelands.Dungeon
         {
             Rect bounds = GetMovementBounds();
 
-            BattleUnit playerAttackTarget = aliveEnemies.Count > 0 ? GetCurrentTarget() : null;
+            bool enemiesPresent = aliveEnemies.Count > 0;
             foreach (BattleUnit unit in playerUnits)
             {
                 if (!unit.IsFainted)
                 {
-                    TickUnitMovement(unit, playerAttackTarget, bounds, dt);
+                    BattleUnit target = enemiesPresent ? GetCurrentTarget(unit) : null;
+                    TickUnitMovement(unit, target, bounds, dt);
                 }
             }
 
-            BattleUnit enemyAttackTarget = PickAlivePlayerUnit();
             foreach (BattleUnit unit in aliveEnemies)
             {
                 if (!unit.IsFainted)
                 {
-                    TickUnitMovement(unit, enemyAttackTarget, bounds, dt);
+                    TickUnitMovement(unit, PickAlivePlayerUnit(unit), bounds, dt);
                 }
             }
         }
