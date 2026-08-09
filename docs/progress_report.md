@@ -3721,3 +3721,78 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
      発生して「2種類」の値が観測されたが、原因を切り分けるため通常攻撃タイマーを
      大きくして戦闘(気絶)を無効化した上で再検証し、20フレームを通して1種類の値
      しか観測されない(＝フレームごとの不自然なふらつきは無い)ことを確認した。
+
+## 修正: 近接タイプの複数ユニットが同一対象へ接近する際、一点に完全収束してしまう問題
+
+- 依頼: `ApproachTargetWithStandoff`は対象の座標そのものへ向かって直進しstandoff
+  (`meleeContactDistance`)まで距離を詰める実装だったため、同じ対象を選んだ複数体は
+  目的地・進行方向がほぼ同一になり、対象付近の一点に重なって集まってしまう問題があった。
+  接近すること自体・standoffまで詰めること自体は仕様通りのため変更せず、「対象のどの
+  方向から接近するか」をユニットごとに独立させる依頼。
+
+### 原因の補足(なぜ一点に収束していたか)
+
+- 旧実装は`direction = normalize(target.Position - unit.Position)`(現在位置から対象への
+  向き)を使って`target.Position - direction * standoff`を目的地にしていた。理論上は
+  ユニットごとに現在位置が違えば向きも変わり自然に分散するはずだが、プレイヤー側は
+  「対象がいない間、行動帯中央付近の狭いエリア(`playerIdleHoldWidth`、既定3)に留まる」
+  仕様のため、複数ユニットが密集した状態から離れた対象へ向かう際は、対象までの距離に対して
+  ユニット間の距離が相対的にごく小さく、向きの差がほぼ無くなる→目的地もほぼ同一になる、
+  という理屈で実際に収束が発生していた。
+
+### 実装内容
+
+- `BattleUnit.cs`: `ApproachAngleTarget`(この接近角度がどの対象について決めたものかを示す
+  参照)と`ApproachAngleRadians`(接近角度、ラジアン)を追加。
+- `DungeonRunController.cs`:
+  - `EnsureApproachAngle(BattleUnit self, BattleUnit target)`(新規private static):
+    `self.ApproachAngleTarget`が現在のtargetと一致しなければ(=対象が変わった/初めて
+    確定した)、`UnityEngine.Random.Range(0f, 2π)`で新しい角度を割り当てて保持する。
+    一致していれば何もしない(＝対象が変わるまで同じ角度を保ち続ける)。
+  - `GetCurrentTarget(BattleUnit self)`/`PickAlivePlayerUnit(BattleUnit self)`(対象が
+    確定するタイミングの2箇所、手動指定(lockedTarget)・自動照準(AutoTarget)のどちらの
+    経路でも)の戻り値決定後に`EnsureApproachAngle`を呼ぶようにした。これにより、
+    「対象を選択した瞬間に接近角度も決まる」という依頼の挙動を、手動指定・自動照準を
+    問わず同じ1箇所のロジックで実現している。
+  - `GetApproachPoint(BattleUnit self, BattleUnit target, float standoff)`(新規private):
+    `target.Position + (cos(角度), sin(角度)) * standoff`を返す。念のためここでも
+    `EnsureApproachAngle`を呼び、角度が未設定のまま使われることがないようにしている
+    (保険。通常は呼び出し前に`GetCurrentTarget`/`PickAlivePlayerUnit`で既に確定済み)。
+  - `ApproachTargetWithStandoff`: 目的地を`target.Position`から`GetApproachPoint`の
+    戻り値に差し替えた。目的地自体が既にtargetからstandoff分離れた点のため、旧実装に
+    あった「移動量をdistance-standoffに制限する」という二重の距離調整は不要になり、
+    目的地への到達判定・移動量の計算がシンプルになった(到達済みならstandoff距離が
+    自動的に保たれる)。
+  - 遠距離タイプの`RetreatFromTarget`は依頼通り対象外(変更なし)。
+
+### テスト
+
+- Unity_RunCommandで公開APIを直接呼び出し、Play Mode上で検証した。マウス操作は
+  シミュレートできないため、`StartDungeon`+`SendMessage("SpawnNextWave", ...)`で
+  即座に戦闘状態を作り、プレイヤー2体(いずれも近接タイプの「スライム」種族)を
+  近い位置に配置した上で、`SetTarget`で同一の敵を手動指定して意図的に「複数体が
+  同じ対象を狙う」状況を再現した。通常攻撃タイマーを大きくして気絶による目標の
+  再抽選が挟まらないようにした。
+- 検証環境の制約: `GameObject.SendMessage("Update", ...)`で`DungeonRunController.
+  Update()`を疑似的に繰り返し駆動したが、この呼び出しは対象敵ユニット自身の
+  `TickMovement`(自分の索敵結果に向けて追尾する動き)も同時に進めてしまうため、
+  「静止した対象」を前提にした距離検証では敵の座標を毎ティック明示的に固定位置へ
+  書き戻して打ち消した。
+- 確認できたこと:
+  1. 同一対象へ手動指定した2体の接近角度(`ApproachAngleRadians`)が、対象確定
+     (`GetCurrentTarget`)の時点でそれぞれ独立にランダムへ決まり、値が異なることを確認。
+  2. 対象を固定したまま`Update()`を30回疑似駆動しても、両ユニットの接近角度が
+     一切変化しないことを確認(対象が変わるまで保持される)。
+  3. 30回の移動後、両ユニットの目的地(`WanderTarget`)・実座標がいずれも一致せず
+     (完全収束していない)、最終的な2体間の距離が約2.45と十分に離れていることを確認。
+  4. 目的地から対象座標までの距離が、2体ともmeleeContactDistance(1.2)と厳密に一致
+     することを確認(角度補正によってstandoff自体の挙動は壊れていない)。
+  5. `SetTarget`で対象を別の敵へ切り替えると、その瞬間に接近角度が新しくランダムへ
+     再抽選され、`ApproachAngleTarget`が新しい対象を指すよう更新されることを確認。
+
+### 残課題
+
+- 「厳密な均等配置までは不要」という依頼通り、角度は完全な独立乱数のため、確率的に
+  複数体がほぼ同じ角度(=ほぼ同じ地点)を選ぶことは理論上あり得る(許容仕様)。
+  見た目上の分散をより確実にしたい場合は、既に対象に接近中の他ユニットの角度を避けて
+  抽選する等の改善余地があるが、今回の依頼範囲外のため実装していない。

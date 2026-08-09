@@ -222,13 +222,19 @@ namespace Slimelands.Dungeon
         /// </summary>
         public BattleUnit GetCurrentTarget(BattleUnit self)
         {
+            BattleUnit target;
             if (lockedTarget != null && !lockedTarget.IsFainted && aliveEnemies.Contains(lockedTarget))
             {
-                return lockedTarget;
+                target = lockedTarget;
+            }
+            else
+            {
+                lockedTarget = null;
+                target = ResolveAutoTarget(self);
             }
 
-            lockedTarget = null;
-            return ResolveAutoTarget(self);
+            EnsureApproachAngle(self, target);
+            return target;
         }
 
         /// <summary>必殺技の発動をプレイヤーが指示する。クールタイム中や戦闘外ならfalseを返す。</summary>
@@ -697,7 +703,27 @@ namespace Slimelands.Dungeon
         /// </summary>
         private BattleUnit PickAlivePlayerUnit(BattleUnit self)
         {
-            return ResolveAutoTarget(self);
+            BattleUnit target = ResolveAutoTarget(self);
+            EnsureApproachAngle(self, target);
+            return target;
+        }
+
+        /// <summary>
+        /// selfがtargetへ接近する角度(ApproachAngleRadians)を、targetが確定するたび
+        /// (対象が変わった時だけ)ランダムに割り当てて保持する。GetCurrentTarget/
+        /// PickAlivePlayerUnit(手動指定・自動照準どちらの経路も)がターゲットを確定する
+        /// たびにここを通るため、同じ対象を複数ユニットが狙っても接近する角度が独立して
+        /// ばらける(ApproachTargetWithStandoff/GetApproachPoint参照)。
+        /// </summary>
+        private static void EnsureApproachAngle(BattleUnit self, BattleUnit target)
+        {
+            if (target == null || self.ApproachAngleTarget == target)
+            {
+                return;
+            }
+
+            self.ApproachAngleTarget = target;
+            self.ApproachAngleRadians = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         }
 
         /// <summary>attackerがtargetに対して射程外にいるかどうか(近接・遠距離共通、コライダーベース判定)。</summary>
@@ -976,25 +1002,42 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 近接タイプが対象へ向けて、standoff(接触とみなす距離)まで近づき続ける。既にstandoff以内
-        /// なら移動しない(スプライト同士が完全に重ならないよう、対象の座標そのものへは詰め切らない)。
-        /// 射程外からの接近(ChaseTarget)と射程内での微調整の両方をこの1メソッドに統一しており、
-        /// 攻撃の発生タイミングに関わらず対象がいる間は常に近づこうとする。
+        /// 近接タイプが対象へ向けて、standoff(接触とみなす距離)まで近づき続ける。既に目標地点に
+        /// 到達していれば移動しない(スプライト同士が完全に重ならないよう、対象の座標そのものへは
+        /// 詰め切らない)。射程外からの接近(ChaseTarget)と射程内での微調整の両方をこの1メソッドに
+        /// 統一しており、攻撃の発生タイミングに関わらず対象がいる間は常に近づこうとする。
+        /// 目標地点は対象の座標そのものではなく、対象を中心・半径standoffの円周上の点
+        /// (GetApproachPoint、ユニットごとに独立したランダムな角度)を使う。同じ対象を複数の
+        /// ユニットが狙った場合に、全員が対象の座標付近の一点へ完全収束するのを防ぐため。
         /// </summary>
         private void ApproachTargetWithStandoff(BattleUnit unit, BattleUnit target, float standoff, float dt)
         {
-            Vector2 toTarget = target.Position - unit.Position;
-            float distance = toTarget.magnitude;
-            if (distance <= standoff)
+            Vector2 approachPoint = GetApproachPoint(unit, target, standoff);
+            Vector2 toApproachPoint = approachPoint - unit.Position;
+            float distance = toApproachPoint.magnitude;
+            if (distance <= 0.0001f)
             {
                 return;
             }
 
-            Vector2 direction = toTarget / distance;
-            unit.WanderTarget = target.Position - direction * standoff;
+            Vector2 direction = toApproachPoint / distance;
+            unit.WanderTarget = approachPoint;
 
-            float travel = Mathf.Min(balanceData.CombatMovementSpeed * dt, distance - standoff);
+            float travel = Mathf.Min(balanceData.CombatMovementSpeed * dt, distance);
             unit.Position += direction * travel;
+        }
+
+        /// <summary>
+        /// selfがtargetへ接近する際の目標地点。target中心・半径standoffの円周上の点で、
+        /// どの角度を使うかはEnsureApproachAngle(GetCurrentTarget/PickAlivePlayerUnitで
+        /// ターゲット確定時に呼ばれる)が対象ごとに決めて保持する。ここでも念のため
+        /// EnsureApproachAngleを呼び、角度が未設定のまま使われることがないようにする。
+        /// </summary>
+        private Vector2 GetApproachPoint(BattleUnit self, BattleUnit target, float standoff)
+        {
+            EnsureApproachAngle(self, target);
+            Vector2 offset = new(Mathf.Cos(self.ApproachAngleRadians), Mathf.Sin(self.ApproachAngleRadians));
+            return target.Position + offset * standoff;
         }
 
         /// <summary>遠距離タイプが対象から離れる方向へ後退する(行動帯の外へは出ないようクランプする)。</summary>

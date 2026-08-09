@@ -39,6 +39,18 @@ namespace Slimelands.Dungeon
         /// </summary>
         public BattleUnit AutoTarget { get; set; }
 
+        /// <summary>ApproachAngleRadiansがどの対象について決めたものかを示す。この値と現在の
+        /// ターゲットが一致しなくなったら(対象が変わったら)接近角度を選び直す。</summary>
+        public BattleUnit ApproachAngleTarget { get; set; }
+
+        /// <summary>
+        /// 近接タイプがtargetへ接近する際、targetを中心・半径standoffの円周上のどの角度
+        /// (ラジアン)を目標地点にするか。対象が変わるまで保持する。複数のユニットが同じ対象を
+        /// 狙う場合でも、この角度が独立してランダムに決まることで、対象の座標付近の一点に
+        /// 完全収束せず接近方向がばらける。
+        /// </summary>
+        public float ApproachAngleRadians { get; set; }
+
         public bool IsFainted => CurrentHp <= 0;
         public bool HasUltimate => UltimateSkill != null;
         public bool CanActivateUltimate => HasUltimate && !IsFainted && UltimateCooldownRemaining <= 0f;
