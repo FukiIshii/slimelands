@@ -34,8 +34,21 @@ namespace Slimelands.Dungeon
         [Tooltip("攻撃対象がいる間、近接タイプがこの距離(ワールド単位)まで近づいたら接近をやめて" +
                  "その場に留まる。攻撃射程(MeleeAttackRange)より小さい値にすることで、単に攻撃が" +
                  "命中する距離まで近づいて止まるのではなく、攻撃の前後を問わず対象のすぐそばまで" +
-                 "近づき続けるようにする。遠距離タイプ(常に後退する)には影響しない。")]
+                 "近づき続けるようにする。遠距離タイプ(RangedRetreatDistance)には影響しない。")]
         [SerializeField] private float meleeContactDistance = 1.2f;
+
+        [Header("交戦中の遠距離ユニットの後退(仮値、要調整)")]
+        [Tooltip("攻撃対象がいる間、遠距離タイプがこの距離(ワールド単位)まで離れたら後退をやめて" +
+                 "その場に留まる。近接タイプのMeleeContactDistanceと対になる値。これが無いと、" +
+                 "既に十分離れていても対象の位置がわずかに動くたびに全速力で反対方向へ移動し直そうと" +
+                 "してしまい、対象(特に接近をやめて静止している近接タイプ)のわずかな位置補正だけで" +
+                 "後退方向が毎フレーム逆転し、高速に左右へ振り向き続ける不具合になっていた。")]
+        [SerializeField] private float rangedRetreatDistance = 4f;
+        [Tooltip("遠距離タイプが後退する向きを再計算する間隔(秒)。対象の座標を毎フレーム生で参照して" +
+                 "向きを計算し直すと、対象(特に接近中の近接タイプ)の位置がわずかに動く/揺れるだけで" +
+                 "全速力で反対方向へ切り返してしまい、高速に左右へ振り向き続ける不具合になる。この間隔の" +
+                 "間は同じ向きを保持することで、瞬間的な位置のブレに過敏に反応しないようにする。")]
+        [SerializeField] private float retreatDirectionRefreshInterval = 0.25f;
 
         [Header("敵の登場演出")]
         [Tooltip("敵が行動帯の外側のどちら側から歩いて登場するか。")]
@@ -914,6 +927,16 @@ namespace Slimelands.Dungeon
                 movementBandHeight);
         }
 
+        /// <summary>
+        /// Rect.Containsは上限(xMax/yMax)を含まない排他判定のため、クランプ直後で境界ちょうどに
+        /// いるユニットを「帯の外」と誤判定してしまう。境界ちょうども内側として扱う版。
+        /// </summary>
+        private static bool IsWithinMovementBounds(Rect bounds, Vector2 position)
+        {
+            return position.x >= bounds.xMin && position.x <= bounds.xMax
+                && position.y >= bounds.yMin && position.y <= bounds.yMax;
+        }
+
         private static Vector2 PickRandomPointInBounds(Rect bounds)
         {
             float x = UnityEngine.Random.Range(bounds.xMin, bounds.xMax);
@@ -976,7 +999,13 @@ namespace Slimelands.Dungeon
         /// </summary>
         private void TickUnitMovement(BattleUnit unit, BattleUnit attackTarget, Rect bounds, float dt)
         {
-            if (attackTarget != null && bounds.Contains(unit.Position))
+            // Rect.Containsは上限(xMax/yMax)を含まない(x < xMaxで判定する)排他的な範囲判定のため、
+            // RetreatFromTargetが座標を帯の端(xMax/yMax含む)へクランプした直後のフレームで
+            // 「帯に入っていない」と誤判定されてしまう。その結果このメソッドの分岐がTickWanderへ
+            // 落ち、対象から離れた古い徘徊目標へ引き戻される→次のフレームで再びRetreatFromTargetが
+            // 対象から遠ざける、を繰り返して端でカクカクと高速に左右へ振り向き続ける不具合になって
+            // いた。境界ちょうども「帯の内側」として扱うIsWithinMovementBoundsを使う。
+            if (attackTarget != null && IsWithinMovementBounds(bounds, unit.Position))
             {
                 if (unit.AttackType == SlimeAttackType.Melee)
                 {
@@ -1052,21 +1081,49 @@ namespace Slimelands.Dungeon
             return target.Position + offset * standoff;
         }
 
-        /// <summary>遠距離タイプが対象から離れる方向へ後退する(行動帯の外へは出ないようクランプする)。</summary>
+        /// <summary>
+        /// 遠距離タイプが対象から離れる方向へ後退する(行動帯の外へは出ないようクランプする)。
+        /// 既にRangedRetreatDistance以上離れていれば後退をやめてその場に留まる。この停止条件が
+        /// ないと、対象(特に接近をやめて静止している近接タイプ)のわずかな位置補正のたびに、
+        /// 既に十分離れているにも関わらず全速力で反対方向へ移動し直そうとしてしまい、対象が
+        /// 自分の左右どちらにいるかが毎フレーム入れ替わって高速に振り向き続ける不具合になる
+        /// (近接タイプのApproachTargetWithStandoffが持つ「対象に十分近づいたら止まる」条件と
+        /// 対になる安定化条件)。
+        /// また、後退中の向き(BattleUnit.RetreatDirection)は対象の座標を毎フレーム生で
+        /// 参照して計算し直すのではなく、RetreatDirectionRefreshInterval秒おきにしか
+        /// 再計算しない。近接タイプが接近し続けている間は対象の座標が毎フレームわずかに
+        /// 揺れ動くため、生の向きをそのまま使うと、対象が自分の左右どちらにいるかの
+        /// 符号がわずかなブレで反転するたびに全速力で切り返してしまい、これも高速な
+        /// 左右反転の原因になっていた(RangedRetreatDistanceの停止条件だけでは、後退が
+        /// まだアクティブな距離の間に起きるこの種のブレは防げない)。
+        /// </summary>
         private void RetreatFromTarget(BattleUnit unit, BattleUnit target, Rect bounds, float dt)
         {
-            Vector2 away = unit.Position - target.Position;
-            if (away.sqrMagnitude < 0.0001f)
+            if (Vector2.Distance(unit.Position, target.Position) >= rangedRetreatDistance)
             {
-                // 完全に重なっている場合は帯の中心から見た自分の側(なければ右方向)を仮の後退方向にする。
-                away = unit.Position - bounds.center;
-                if (away.sqrMagnitude < 0.0001f)
-                {
-                    away = Vector2.right;
-                }
+                return;
             }
 
-            Vector2 step = away.normalized * (balanceData.CombatMovementSpeed * dt);
+            unit.RetreatDirectionRefreshTimer -= dt;
+            if (unit.RetreatDirectionTarget != target || unit.RetreatDirectionRefreshTimer <= 0f)
+            {
+                Vector2 away = unit.Position - target.Position;
+                if (away.sqrMagnitude < 0.0001f)
+                {
+                    // 完全に重なっている場合は帯の中心から見た自分の側(なければ右方向)を仮の後退方向にする。
+                    away = unit.Position - bounds.center;
+                    if (away.sqrMagnitude < 0.0001f)
+                    {
+                        away = Vector2.right;
+                    }
+                }
+
+                unit.RetreatDirection = away.normalized;
+                unit.RetreatDirectionTarget = target;
+                unit.RetreatDirectionRefreshTimer = retreatDirectionRefreshInterval;
+            }
+
+            Vector2 step = unit.RetreatDirection * (balanceData.CombatMovementSpeed * dt);
             Vector2 newPosition = unit.Position + step;
             newPosition.x = Mathf.Clamp(newPosition.x, bounds.xMin, bounds.xMax);
             newPosition.y = Mathf.Clamp(newPosition.y, bounds.yMin, bounds.yMax);

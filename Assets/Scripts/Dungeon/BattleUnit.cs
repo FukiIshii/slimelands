@@ -51,6 +51,21 @@ namespace Slimelands.Dungeon
         /// </summary>
         public float ApproachAngleRadians { get; set; }
 
+        /// <summary>
+        /// 遠距離タイプが後退する向き。対象の座標を毎フレーム生で参照して向きを計算し直すと、
+        /// 対象(特に接近中の近接タイプ)のわずかな位置のブレにも全速力で反応してしまい、
+        /// 高速に左右へ切り返し続ける不具合になる。これを防ぐため、RetreatDirectionRefreshTimerが
+        /// 切れるまでは同じ向きを保持する(RetreatFromTarget参照)。
+        /// </summary>
+        public Vector2 RetreatDirection { get; set; }
+
+        /// <summary>RetreatDirectionを再計算するまでの残り時間(秒)。0以下になったら計算し直す。</summary>
+        public float RetreatDirectionRefreshTimer { get; set; }
+
+        /// <summary>RetreatDirectionがどの対象について計算したものかを示す。対象が変わったら
+        /// タイマーを待たずに即座に計算し直す。</summary>
+        public BattleUnit RetreatDirectionTarget { get; set; }
+
         public bool IsFainted => CurrentHp <= 0;
         public bool HasUltimate => UltimateSkill != null;
         public bool CanActivateUltimate => HasUltimate && !IsFainted && UltimateCooldownRemaining <= 0f;
