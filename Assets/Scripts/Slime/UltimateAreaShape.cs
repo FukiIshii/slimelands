@@ -16,5 +16,13 @@ namespace Slimelands.Slime
         Line,
         /// <summary>行動帯の左端〜右端を往復横切り続け、接触している間ダメージを与え続ける。</summary>
         Sweep,
+        /// <summary>
+        /// 発動者が高く飛び上がり、対象付近の上空で静止した後、対象付近へ落下する。着地の瞬間に
+        /// 着地地点を中心とした円形範囲(Circleと同じQueryUnitsInCircle)でダメージを与える。
+        /// 飛び上がってから着地するまでの間、発動者は通常の接近・後退移動と通常攻撃を行わない
+        /// (BattleUnit.IsInSkillMotion)。上空にいる間(離地後〜着地前)は無敵として扱う
+        /// (BattleUnit.IsInvulnerable)。
+        /// </summary>
+        Meteor,
     }
 }

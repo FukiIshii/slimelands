@@ -23,10 +23,26 @@ namespace Slimelands.Dungeon
             DashBack,
         }
 
+        private enum MeteorAnimPhase
+        {
+            Idle,
+            Windup,
+            Rising,
+            Hovering,
+            Falling,
+        }
+
         // 遠距離タイプが1ワールド単位移動するごとに転がる角度(度)。移動速度に比例して回転する
         // ようTickWander/TickMovement側の実移動距離に掛け合わせて使う(仮値、要調整)。
         private const float RollDegreesPerWorldUnit = 480f;
         private const float MeleeDashBackDuration = 0.12f;
+        // メテオの上空滞在時、地上からどれだけ高く見せるか(ワールド単位、仮値・要調整)。
+        private const float MeteorPeakHeight = 2.2f;
+        // メテオの予備動作(縮む)・落下着地の瞬間に潰れる度合いのスケール(仮値)。
+        private static readonly Vector3 MeteorSquishScale = new(1.15f, 0.7f, 1f);
+        private static readonly Vector3 MeteorImpactScale = new(1.35f, 0.6f, 1f);
+        // 上空にいる間(Rising完了〜Falling開始前)、遠近感を出すため少し縮めて見せる倍率。
+        private const float MeteorAirborneScale = 0.7f;
         private const float IdleHopPeriod = 0.55f;
         private const float IdleHopHeight = 0.16f;
         private const float FaintFadeDuration = 0.35f;
@@ -72,6 +88,10 @@ namespace Slimelands.Dungeon
         private MeleeAnimPhase meleePhase = MeleeAnimPhase.Idle;
         private float meleeAnimTimer;
         private float meleeDashOutDuration = 0.18f;
+        private MeteorAnimPhase meteorPhase = MeteorAnimPhase.Idle;
+        private float meteorAnimTimer;
+        private Vector3 meteorLandingPosition;
+        private SlimeSkillData meteorSkill;
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
@@ -84,6 +104,7 @@ namespace Slimelands.Dungeon
         /// <summary>現在の基準位置(ロジック側のBattleUnit.Positionをそのまま反映)。ホップ/突進はこの位置からの相対オフセットで表現する。</summary>
         public Vector3 CurrentPosition => homePosition;
         public bool IsPlayingAttackMotion => meleePhase != MeleeAnimPhase.Idle;
+        public bool IsPlayingMeteorMotion => meteorPhase != MeteorAnimPhase.Idle;
 
         /// <summary>
         /// 敵側の気絶演出(灰色化→フェードアウト)が完全に終わった瞬間に発火する。
@@ -205,6 +226,29 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
+        /// メテオ型必殺技(予備動作で縮む→対象付近の上空へ舞い上がる→静止→落下)を再生する。
+        /// landingWorldPositionはロジック側(DungeonRunController)が発動時点で確定させた着地予定地点
+        /// をそのまま渡される想定で、この再生中は変化しない(ロジック側のBattleUnit.Positionも
+        /// 着地するまで更新されないため、見た目側もこの固定値だけを頼りに完結してアニメーションできる)。
+        /// 各フェーズの所要時間はskill(SlimeSkillData)のMeteorXxxDurationをそのまま使うため、
+        /// ロジック側のTickPendingMeteorsと同じ時間で進行する。
+        /// </summary>
+        public void PlayMeteorMotion(Vector3 landingWorldPosition, SlimeSkillData skill)
+        {
+            if (isFaintedVisual)
+            {
+                return;
+            }
+
+            transform.position = homePosition;
+            visual.localScale = Vector3.one;
+            meteorLandingPosition = landingWorldPosition;
+            meteorSkill = skill;
+            meteorPhase = MeteorAnimPhase.Windup;
+            meteorAnimTimer = 0f;
+        }
+
+        /// <summary>
         /// 戦闘不能(HP0)になった際の見た目(グレーアウト、敵側はその後フェードアウト)へ切り替える。
         /// 横倒しのポーズは村に戻るまで表示し続けるプレイヤー側のみ(「気絶=死亡ではない」ことを
         /// 伝える演出)で、消えていくだけの敵側では不要なので回転させない。
@@ -276,6 +320,16 @@ namespace Slimelands.Dungeon
                 // (軌道が混ざらないようにする。ロジック側の徘徊自体は裏で進み続けており、
                 // 突進が終わった次のIdleフレームで最新のBattleUnit.Positionに追いつく)。
                 TickMeleeAnim();
+                return;
+            }
+
+            if (meteorPhase != MeteorAnimPhase.Idle)
+            {
+                // メテオ演出中(予備動作〜着地)は、ロジック側のBattleUnit.Positionが着地するまで
+                // 更新されない(DungeonRunController.IsInSkillMotion参照)ため、見た目側もこの間は
+                // 座標追従を止め、PlayMeteorMotionに渡された固定の着地地点だけを頼りに完結して
+                // アニメーションする。
+                TickMeteorAnim();
                 return;
             }
 
@@ -384,6 +438,74 @@ namespace Slimelands.Dungeon
                     meleePhase = MeleeAnimPhase.Idle;
                     transform.position = homePosition;
                     visual.localScale = Vector3.one;
+                }
+            }
+        }
+
+        /// <summary>
+        /// メテオの予備動作(縮む)→上昇→滞空→落下を、meteorSkillの各Durationに沿って進行させる。
+        /// DungeonRunController.TickPendingMeteorsと同じ時間配分(同じSlimeSkillDataを参照)で
+        /// 進行するため、ロジック側の無敵解除・着地ダメージ判定とおおむね同じタイミングで
+        /// 見た目側の着地(Falling完了)も揃う。
+        /// </summary>
+        private void TickMeteorAnim()
+        {
+            meteorAnimTimer += Time.deltaTime;
+
+            switch (meteorPhase)
+            {
+                case MeteorAnimPhase.Windup:
+                {
+                    float duration = Mathf.Max(0.01f, meteorSkill.MeteorWindupDuration);
+                    float p = Mathf.Clamp01(meteorAnimTimer / duration);
+                    visual.localScale = Vector3.Lerp(Vector3.one, MeteorSquishScale, p);
+                    if (p >= 1f)
+                    {
+                        meteorPhase = MeteorAnimPhase.Rising;
+                        meteorAnimTimer = 0f;
+                    }
+                    break;
+                }
+                case MeteorAnimPhase.Rising:
+                {
+                    float duration = Mathf.Max(0.01f, meteorSkill.MeteorRiseDuration);
+                    float p = Mathf.Clamp01(meteorAnimTimer / duration);
+                    Vector3 peakPosition = meteorLandingPosition + Vector3.up * MeteorPeakHeight;
+                    transform.position = Vector3.Lerp(homePosition, peakPosition, p);
+                    visual.localScale = Vector3.Lerp(MeteorSquishScale, Vector3.one * MeteorAirborneScale, p);
+                    if (p >= 1f)
+                    {
+                        meteorPhase = MeteorAnimPhase.Hovering;
+                        meteorAnimTimer = 0f;
+                    }
+                    break;
+                }
+                case MeteorAnimPhase.Hovering:
+                {
+                    float duration = Mathf.Max(0.01f, meteorSkill.MeteorHoverDuration);
+                    float p = Mathf.Clamp01(meteorAnimTimer / duration);
+                    if (p >= 1f)
+                    {
+                        meteorPhase = MeteorAnimPhase.Falling;
+                        meteorAnimTimer = 0f;
+                    }
+                    break;
+                }
+                case MeteorAnimPhase.Falling:
+                {
+                    float duration = Mathf.Max(0.01f, meteorSkill.MeteorFallDuration);
+                    float p = Mathf.Clamp01(meteorAnimTimer / duration);
+                    Vector3 peakPosition = meteorLandingPosition + Vector3.up * MeteorPeakHeight;
+                    transform.position = Vector3.Lerp(peakPosition, meteorLandingPosition, p);
+                    visual.localScale = Vector3.Lerp(Vector3.one * MeteorAirborneScale, MeteorImpactScale, p);
+                    if (p >= 1f)
+                    {
+                        meteorPhase = MeteorAnimPhase.Idle;
+                        homePosition = meteorLandingPosition;
+                        transform.position = homePosition;
+                        visual.localScale = Vector3.one;
+                    }
+                    break;
                 }
             }
         }

@@ -36,6 +36,7 @@ MonoBehaviour:
   ultimateSkillCandidates:
   - {fileID: 11400000, guid: 5d16dc61abeca30498282f21d9d4737e, type: 2}
   - {fileID: 11400000, guid: 7fabb2e5695cb794790ec6ce5f732cc6, type: 2}
+  - {fileID: 11400000, guid: 688540e4cd96ed6448f7dc0c34b046cb, type: 2}
   monthlyFoodConsumption: 5
   sellResource: {fileID: 11400000, guid: 8b3fa6634a87b0c4d9cd35177699568a, type: 2}
   sellAmount: 2

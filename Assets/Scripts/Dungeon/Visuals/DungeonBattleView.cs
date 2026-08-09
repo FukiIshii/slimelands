@@ -67,6 +67,8 @@ namespace Slimelands.Dungeon
             controller.OnNormalAttackResolved += HandleNormalAttackResolved;
             controller.OnUltimateResolved += HandleUltimateResolved;
             controller.OnDamageDealt += HandleDamageDealt;
+            controller.OnAreaUltimateActivated += HandleAreaUltimateActivated;
+            controller.OnMeteorStarted += HandleMeteorStarted;
             controller.OnUnitFainted += HandleUnitFainted;
             controller.OnDungeonCleared += ClearEnemyViews;
             controller.OnDungeonFailed += ClearAllViews;
@@ -86,6 +88,8 @@ namespace Slimelands.Dungeon
             controller.OnNormalAttackResolved -= HandleNormalAttackResolved;
             controller.OnUltimateResolved -= HandleUltimateResolved;
             controller.OnDamageDealt -= HandleDamageDealt;
+            controller.OnAreaUltimateActivated -= HandleAreaUltimateActivated;
+            controller.OnMeteorStarted -= HandleMeteorStarted;
             controller.OnUnitFainted -= HandleUnitFainted;
             controller.OnDungeonCleared -= ClearEnemyViews;
             controller.OnDungeonFailed -= ClearAllViews;
@@ -143,6 +147,30 @@ namespace Slimelands.Dungeon
 
             Color color = target.IsPlayerSide ? PlayerDamagedNumberColor : EnemyDamagedNumberColor;
             FloatingNumberPopup.Spawn(targetView.CurrentPosition, damage, color);
+        }
+
+        /// <summary>
+        /// 範囲必殺技(Circle/Line/Meteor)が命中判定を終えた瞬間に呼ばれる。命中の有無に関わらず
+        /// origin(判定の中心地点)に着弾/着地のバーストエフェクトを出す(範囲内に誰もいなくても
+        /// 技自体は発動しているため)。
+        /// </summary>
+        private void HandleAreaUltimateActivated(BattleUnit caster, IReadOnlyList<BattleUnit> hits, Vector2 origin)
+        {
+            BattleVfx.SpawnBurst(new Vector3(origin.x, origin.y, 0f), UltimateVfxColor);
+        }
+
+        /// <summary>
+        /// メテオ型必殺技の発動(予備動作の開始)に呼ばれる。発動者の見た目に、確定済みの着地地点へ
+        /// 向けた予備動作→上空移動→滞空→落下のモーション(BattleUnitView.PlayMeteorMotion)を再生させる。
+        /// </summary>
+        private void HandleMeteorStarted(BattleUnit caster, SlimeSkillData skill, Vector2 landingPosition)
+        {
+            if (!views.TryGetValue(caster, out BattleUnitView casterView) || casterView == null)
+            {
+                return;
+            }
+
+            casterView.PlayMeteorMotion(new Vector3(landingPosition.x, landingPosition.y, 0f), skill);
         }
 
         /// <summary>

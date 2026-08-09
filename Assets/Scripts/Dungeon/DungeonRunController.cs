@@ -82,6 +82,7 @@ namespace Slimelands.Dungeon
         private readonly List<BattleUnit> aliveEnemies = new();
         private readonly List<PendingMeleeHit> pendingMeleeHits = new();
         private readonly List<ActiveSweep> activeSweeps = new();
+        private readonly List<PendingMeteor> pendingMeteors = new();
         private Queue<EncounterWaveData> remainingWaves = new();
         private BattleUnit lockedTarget;
         private float encounterTimer;
@@ -153,6 +154,15 @@ namespace Slimelands.Dungeon
         /// <summary>スイープの持続時間が終了し消滅した瞬間に発火する。</summary>
         public event Action<BattleUnit> OnSweepEnded;
 
+        /// <summary>
+        /// メテオ型必殺技(高く飛び上がり対象付近へ落下する)が発動した瞬間に発火する
+        /// (caster, skill, landingPosition)。landingPositionは発動時点で確定する着地予定地点で、
+        /// 見た目側はこれを目標地点として予備動作→上空移動→落下の一連のモーションを再生する
+        /// (Sweepと同様、実際のダメージ判定・着地座標の確定は着地時にApplyAreaDamage/
+        /// QueryUnitsInCircleへ委譲するOnAreaUltimateActivated/OnDamageDealtで拾う)。
+        /// </summary>
+        public event Action<BattleUnit, SlimeSkillData, Vector2> OnMeteorStarted;
+
         public event Action<BattleUnit> OnUnitFainted;
 
         /// <summary>
@@ -175,6 +185,7 @@ namespace Slimelands.Dungeon
             playerUnits.Clear();
             pendingMeleeHits.Clear();
             activeSweeps.Clear();
+            pendingMeteors.Clear();
             foreach (SlimeIndividual individual in party)
             {
                 if (individual == null)
@@ -288,6 +299,9 @@ namespace Slimelands.Dungeon
                 case UltimateAreaShape.Sweep:
                     ActivateSweepUltimate(unit, skill);
                     break;
+                case UltimateAreaShape.Meteor:
+                    ActivateMeteorUltimate(unit, target, skill);
+                    break;
                 default:
                     ActivateSingleTargetUltimate(unit, target, skill);
                     break;
@@ -376,6 +390,99 @@ namespace Slimelands.Dungeon
 
             Log($"{caster.DisplayName}の必殺技「{skill.SkillName}」!帯が左右に往復し始めた。");
             OnSweepStarted?.Invoke(caster, skill);
+        }
+
+        /// <summary>
+        /// メテオ型必殺技を開始する。着地予定地点は発動した瞬間に一度だけ確定する(以後、対象が
+        /// 移動しても着地地点は追従しない)。飛び上がっている間は対象の実座標を追いかけ続ける
+        /// 実装も検討したが、見た目側(BattleUnitView)は疑似フレーム送りでの検証・独立した
+        /// タイマー駆動というこのプロジェクトの制約上、ロジック側の着地座標と見た目側の落下先を
+        /// 毎フレーム同期させる仕組みが必要になり複雑化するため、発動時点で確定させるシンプルな
+        /// 実装を採用した(依頼文に明記されていない解釈上の判断)。着地地点は対象の座標そのもの
+        /// ではなく、対象を中心・半径meleeContactDistanceの円周上の点(EnsureApproachAngleで
+        /// ユニットごとに割り当てられる接近角度をそのまま流用)にすることで、対象の真上に
+        /// めり込まず、かつ着地後にIsInSkillMotionを解除した瞬間、通常の交戦距離
+        /// (ApproachTargetWithStandoffのstandoff)にちょうど収まった状態で復帰できるようにしている。
+        /// </summary>
+        private void ActivateMeteorUltimate(BattleUnit caster, BattleUnit target, SlimeSkillData skill)
+        {
+            caster.IsInSkillMotion = true;
+
+            EnsureApproachAngle(caster, target);
+            Vector2 offset = new(Mathf.Cos(caster.ApproachAngleRadians), Mathf.Sin(caster.ApproachAngleRadians));
+            Vector2 landingPosition = target.Position + offset * meleeContactDistance;
+
+            pendingMeteors.Add(new PendingMeteor
+            {
+                Caster = caster,
+                Skill = skill,
+                Phase = MeteorPhase.Windup,
+                PhaseElapsed = 0f,
+                LandingPosition = landingPosition,
+            });
+
+            Log($"{caster.DisplayName}の必殺技「{skill.SkillName}」!高く飛び上がった。");
+            OnMeteorStarted?.Invoke(caster, skill, landingPosition);
+        }
+
+        private void TickPendingMeteors(float dt)
+        {
+            for (int i = pendingMeteors.Count - 1; i >= 0; i--)
+            {
+                PendingMeteor pending = pendingMeteors[i];
+                pending.PhaseElapsed += dt;
+
+                switch (pending.Phase)
+                {
+                    case MeteorPhase.Windup:
+                        if (pending.PhaseElapsed >= pending.Skill.MeteorWindupDuration)
+                        {
+                            // 離地した瞬間から着地するまでの間、無敵として扱う(上空にいる間は
+                            // 通常攻撃・必殺技いずれの被弾判定にも掛からない、ResolveHurtboxUnits参照)。
+                            pending.Caster.IsInvulnerable = true;
+                            pending.Phase = MeteorPhase.Rising;
+                            pending.PhaseElapsed = 0f;
+                        }
+                        break;
+                    case MeteorPhase.Rising:
+                        if (pending.PhaseElapsed >= pending.Skill.MeteorRiseDuration)
+                        {
+                            pending.Phase = MeteorPhase.Hovering;
+                            pending.PhaseElapsed = 0f;
+                        }
+                        break;
+                    case MeteorPhase.Hovering:
+                        if (pending.PhaseElapsed >= pending.Skill.MeteorHoverDuration)
+                        {
+                            pending.Phase = MeteorPhase.Falling;
+                            pending.PhaseElapsed = 0f;
+                        }
+                        break;
+                    case MeteorPhase.Falling:
+                        if (pending.PhaseElapsed >= pending.Skill.MeteorFallDuration)
+                        {
+                            pendingMeteors.RemoveAt(i);
+                            ResolveMeteorLanding(pending);
+                        }
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 着地の瞬間の処理。実座標を着地地点へ移し、無敵・スキル演出中フラグを解除して通常の
+        /// 交戦(接近・後退・通常攻撃)に復帰させた上で、着地地点を中心とした円形範囲ダメージを
+        /// Circle必殺技と同じApplyAreaDamage/QueryUnitsInCircleで適用する。
+        /// </summary>
+        private void ResolveMeteorLanding(PendingMeteor pending)
+        {
+            BattleUnit caster = pending.Caster;
+            caster.Position = pending.LandingPosition;
+            caster.IsInSkillMotion = false;
+            caster.IsInvulnerable = false;
+
+            List<BattleUnit> hits = QueryUnitsInCircle(pending.LandingPosition, pending.Skill.AreaRadius, caster);
+            ApplyAreaDamage(caster, hits, pending.Skill, pending.LandingPosition);
         }
 
         private void TickActiveSweeps(float dt)
@@ -491,11 +598,13 @@ namespace Slimelands.Dungeon
         /// selfの自動照準対象を返す。既に選んでいる対象(BattleUnit.AutoTarget)が生存していれば
         /// そのまま使い続け(TickMovement等、毎フレーム参照される箇所でフレームごとに違う相手へ
         /// ふらつかないようにするため)、対象がいない/気絶した時だけPickRandomNearbyOpponentで
-        /// 選び直す。
+        /// 選び直す。対象がメテオ等で無敵(IsInvulnerable、着地するまで攻撃が一切通らない)になった
+        /// 場合も選び直す対象に含める。手動指定(lockedTarget)と違い自動照準はプレイヤーの意図が
+        /// 介在しないため、届かない相手を律儀に待ち続けるより他の相手に切り替えた方が自然なため。
         /// </summary>
         private BattleUnit ResolveAutoTarget(BattleUnit self)
         {
-            if (self.AutoTarget != null && !self.AutoTarget.IsFainted)
+            if (self.AutoTarget != null && !self.AutoTarget.IsFainted && !self.AutoTarget.IsInvulnerable)
             {
                 return self.AutoTarget;
             }
@@ -516,13 +625,19 @@ namespace Slimelands.Dungeon
             return candidates.Count > 0 ? candidates[UnityEngine.Random.Range(0, candidates.Count)] : null;
         }
 
+        /// <summary>
+        /// IsInvulnerable(メテオ等、演出上「その場にいない」ことにしたいユニット)をここで一括して
+        /// 除外することで、索敵(PickRandomNearbyOpponent)・射程判定(IsTargetInAttackRange)・
+        /// 範囲必殺技(ApplyAreaDamage経由のCircle/Line/Meteor)のいずれの当たり判定からも
+        /// 一貫して除外される。
+        /// </summary>
         private static List<BattleUnit> ResolveHurtboxUnits(Collider2D[] colliders)
         {
             var hits = new List<BattleUnit>();
             foreach (Collider2D col in colliders)
             {
                 BattleUnitHurtbox hurtbox = col.GetComponent<BattleUnitHurtbox>();
-                if (hurtbox != null && hurtbox.Unit != null && !hurtbox.Unit.IsFainted)
+                if (hurtbox != null && hurtbox.Unit != null && !hurtbox.Unit.IsFainted && !hurtbox.Unit.IsInvulnerable)
                 {
                     hits.Add(hurtbox.Unit);
                 }
@@ -549,6 +664,7 @@ namespace Slimelands.Dungeon
                     TickMovement(dt);
                     TickPendingMeleeHits(dt);
                     TickActiveSweeps(dt);
+                    TickPendingMeteors(dt);
                     TickBattle(dt);
                     break;
 
@@ -648,6 +764,14 @@ namespace Slimelands.Dungeon
                     unit.UltimateCooldownRemaining = Mathf.Max(0f, unit.UltimateCooldownRemaining - dt);
                 }
 
+                if (unit.IsInSkillMotion)
+                {
+                    // メテオ等の必殺技演出中(予備動作〜着地)は通常攻撃を行わない。
+                    // クールタイムは演出中も進行させる(このスキル自身の再発動はCanActivateUltimateの
+                    // IsInSkillMotionガードで別途防いでいる)。
+                    continue;
+                }
+
                 unit.NormalAttackTimer -= dt;
                 if (unit.NormalAttackTimer <= 0f)
                 {
@@ -672,7 +796,7 @@ namespace Slimelands.Dungeon
             for (int i = aliveEnemies.Count - 1; i >= 0; i--)
             {
                 BattleUnit enemy = aliveEnemies[i];
-                if (enemy.IsFainted)
+                if (enemy.IsFainted || enemy.IsInSkillMotion)
                 {
                     continue;
                 }
@@ -777,7 +901,10 @@ namespace Slimelands.Dungeon
             foreach (Collider2D col in results)
             {
                 BattleUnitHurtbox hurtbox = col.GetComponent<BattleUnitHurtbox>();
-                if (hurtbox != null && hurtbox.Unit == target)
+                // IsInvulnerable(メテオの上空滞在中など)は既にAutoTargetの選び直し対象になっている
+                // (ResolveAutoTarget参照)が、手動指定(lockedTarget)経由で無敵な相手を狙っている
+                // 場合や、選択後に無敵になった場合でも通常攻撃が通らないよう、ここでも判定する。
+                if (hurtbox != null && hurtbox.Unit == target && !target.IsInvulnerable)
                 {
                     return true;
                 }
@@ -868,13 +995,23 @@ namespace Slimelands.Dungeon
                 return;
             }
 
+            // 発動(BeginMeleeAttack)時点では射程内でヒット確定していても、決着(MeleeHitDelay後)までの
+            // 間に対象がメテオ等で無敵(IsInvulnerable)になった場合はヒットを取り消す。無敵中は
+            // 一切被弾しないという仕様を、着弾が遅延する近接攻撃でも一貫させるための対策
+            // (実測で、予備動作中に発生させた攻撃が、その後無敵になった直後の上空へ着弾して
+            // しまう抜け道を確認して特定した)。
+            int damage = target.IsInvulnerable ? 0 : pending.Damage;
             string skillLabel = pending.IsUltimate ? $"必殺技「{pending.SkillName}」" : "通常攻撃";
 
-            if (pending.Damage > 0)
+            if (damage > 0)
             {
-                target.ApplyDamage(pending.Damage);
-                Log($"{attacker.DisplayName}の{skillLabel}が{target.DisplayName}にヒット!{pending.Damage}ダメージ");
-                OnDamageDealt?.Invoke(attacker, target, pending.Damage);
+                target.ApplyDamage(damage);
+                Log($"{attacker.DisplayName}の{skillLabel}が{target.DisplayName}にヒット!{damage}ダメージ");
+                OnDamageDealt?.Invoke(attacker, target, damage);
+            }
+            else if (target.IsInvulnerable)
+            {
+                Log($"{attacker.DisplayName}の{skillLabel}!しかし{target.DisplayName}は無敵状態で届かなかった。");
             }
             else
             {
@@ -883,14 +1020,14 @@ namespace Slimelands.Dungeon
 
             if (pending.IsUltimate)
             {
-                OnUltimateResolved?.Invoke(attacker, target, pending.Damage);
+                OnUltimateResolved?.Invoke(attacker, target, damage);
             }
             else
             {
-                OnNormalAttackResolved?.Invoke(attacker, target, pending.Damage);
+                OnNormalAttackResolved?.Invoke(attacker, target, damage);
             }
 
-            if (pending.Damage > 0)
+            if (damage > 0)
             {
                 HandleIfFainted(target);
             }
@@ -976,7 +1113,7 @@ namespace Slimelands.Dungeon
             bool enemiesPresent = aliveEnemies.Count > 0;
             foreach (BattleUnit unit in playerUnits)
             {
-                if (!unit.IsFainted)
+                if (!unit.IsFainted && !unit.IsInSkillMotion)
                 {
                     BattleUnit target = enemiesPresent ? GetCurrentTarget(unit) : null;
                     TickUnitMovement(unit, target, bounds, dt);
@@ -985,7 +1122,7 @@ namespace Slimelands.Dungeon
 
             foreach (BattleUnit unit in aliveEnemies)
             {
-                if (!unit.IsFainted)
+                if (!unit.IsFainted && !unit.IsInSkillMotion)
                 {
                     TickUnitMovement(unit, PickAlivePlayerUnit(unit), bounds, dt);
                 }
@@ -1262,6 +1399,23 @@ namespace Slimelands.Dungeon
             public SlimeSkillData Skill;
             public float Elapsed;
             public float TickTimer;
+        }
+
+        private enum MeteorPhase
+        {
+            Windup,
+            Rising,
+            Hovering,
+            Falling,
+        }
+
+        private class PendingMeteor
+        {
+            public BattleUnit Caster;
+            public SlimeSkillData Skill;
+            public MeteorPhase Phase;
+            public float PhaseElapsed;
+            public Vector2 LandingPosition;
         }
     }
 }

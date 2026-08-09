@@ -4021,3 +4021,121 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   円周上の点へ向けて接近する」接近フェーズ自体は無くなった(`GetApproachPoint`は不要になり
   削除した)。ただし到達後のOrbitAroundTargetによる分散は引き続き機能するため、複数体が
   同一対象を狙った際に一点へ完全収束しない、という要件自体は満たされている。
+
+## 実装: 必殺技「ぷにゅメテオ」(近接タイプ用、高く飛び上がり対象付近へ落下する範囲攻撃)
+
+- 依頼: 「高く飛び上がり、対象の周辺に落下して着地の衝撃で範囲ダメージを与える必殺技」を、
+  近接タイプの必殺技候補プールに追加する。挙動は予備動作(縮む)→対象付近の上空へ移動→
+  落下→着地地点中心の円形ダメージ→通常の戦闘状態へ復帰、の5段階。上空にいる間の被弾判定
+  (無敵にするかどうか)は実装側の判断に委ねられていた。
+
+### 実装内容
+
+- **`UltimateAreaShape`に`Meteor`を追加**(既存のSingleTarget/Circle/Line/Sweepと並ぶ5つ目の
+  形状)。
+- **`SlimeSkillData`に`MeteorWindupDuration`/`MeteorRiseDuration`/`MeteorHoverDuration`/
+  `MeteorFallDuration`を追加**(仮値: 0.3/0.4/0.3/0.3秒)。着地ダメージの半径は新設せず、
+  既存の`AreaRadius`(Circleと共通)を流用した(仮値2.2)。
+- **`BattleUnit`に`IsInSkillMotion`/`IsInvulnerable`を追加**:
+  - `IsInSkillMotion`: trueの間、`TickMovement`(接近・後退)と`TickBattle`の通常攻撃処理を
+    そのユニットについてスキップする。`CanActivateUltimate`にも`!IsInSkillMotion`を追加し、
+    演出中の必殺技再発動(同時に2つの必殺技状態が競合すること)を防いだ。
+  - `IsInvulnerable`: trueの間、`ResolveHurtboxUnits`(索敵・射程判定・範囲必殺技のあらゆる
+    コライダークエリが経由する共通関数)で対象から除外される。1箇所の変更で全ての当たり判定
+    経路に一貫して反映される設計。
+- **`DungeonRunController`にメテオの発動・進行・着地ロジックを追加**:
+  - `ActivateMeteorUltimate`: 発動した瞬間に着地予定地点を1回だけ確定する(対象の座標そのもの
+    ではなく、対象を中心・半径`MeleeContactDistance`の円周上の点。既存の`EnsureApproachAngle`
+    が割り当てるユニットごとの接近角度をそのまま流用)。以後、対象が移動しても着地地点は
+    追従しない(下記「設計判断」参照)。
+  - `TickPendingMeteors`: Windup→Rising→Hovering→Fallingの4フェーズをタイマーで進行させる
+    (`pendingMeteors`リスト、`pendingMeleeHits`/`activeSweeps`と同じ構造)。Windup完了時点で
+    `IsInvulnerable = true`にする(離地〜着地前のみ無敵、地上での予備動作中は無敵にしない)。
+  - `ResolveMeteorLanding`: Falling完了時に呼ばれる。`caster.Position`を着地地点へ移し、
+    `IsInSkillMotion`/`IsInvulnerable`を解除して通常の交戦状態に復帰させた上で、
+    `QueryUnitsInCircle`+`ApplyAreaDamage`(Circle必殺技と完全に同じ関数)でダメージを適用する。
+  - `ResolveAutoTarget`: 自動照準がキャッシュしている対象(`AutoTarget`)が無敵になった場合も
+    選び直し対象に含めるよう変更(気絶時と同様の扱い)。手動指定(`lockedTarget`)は対象外とした
+    (プレイヤーが明示的に選んだ対象なので、無敵中でも固定し続ける方が自然と判断)。
+  - `IsTargetInAttackRange`: 対象が無敵の場合は射程内判定そのものを`false`にする。
+- **`BattleUnitView`に`PlayMeteorMotion`を追加**: 予備動作(縮む)→上昇(対象上空へ)→滞空→
+  落下→着地、をロジック側と同じ`SlimeSkillData`のDuration値を使って自前のタイマーで進行させる
+  (既存の突進モーション`TickMeleeAnim`と同じ設計方針: ロジック側はイベントで着地地点だけを
+  一度渡し、以後の見た目はViewが独立して完結させる)。
+- **`DungeonBattleView`**: `OnMeteorStarted`(発動時、`PlayMeteorMotion`を呼ぶ)と
+  `OnAreaUltimateActivated`(既存イベントだが従来購読者がいなかったため、この実装で初めて
+  購読を追加。Circle/Line/Meteorいずれの着地/着弾でも中心地点にバーストVFXを出す)を購読した。
+- **アセット**: `Assets/Data/Slime/Skills/PunyuMeteor.asset`を新規作成(`SerializedObject`経由で
+  Editorスクリプトから安全に生成。手でYAMLを編集するとGUID/fileID不整合の事故につながるため、
+  過去のガチャシステム実装時の教訓(Sprite参照の手動YAML編集による事故)に従いこの方法を採った)。近接タイプの
+  「スライム」種族(`Assets/Data/Slime/Species/Slime.asset`)の`UltimateSkillCandidates`に登録した
+  (これも`SerializedObject`経由)。
+
+### 設計判断(依頼文に明記されていない解釈上の決定)
+
+- **着地地点は発動した瞬間に1回だけ確定し、以後対象を追従しない**: 上空にいる間も対象の
+  座標を毎フレーム追跡して着地点を更新し続ける実装も検討したが、見た目側(`BattleUnitView`)は
+  疑似フレーム送りでの検証・ロジックとは独立したタイマー駆動というこのプロジェクトの制約上、
+  ロジック側の着地座標と見た目側の落下先を毎フレーム同期させる仕組みが必要になり複雑化する。
+  発動時点で確定させるシンプルな実装を採用した。結果として、対象は上空にいる間(予備動作を除く)
+  に大きく移動すれば着地地点をずらして回避できる(現状は近接AIが積極的に位置取りを変えることは
+  少ないため、実質的に回避できる場面は限定的)。
+- **無敵は離地後(Rising開始)〜着地(Falling完了)の間のみ。予備動作(Windup)中は無敵にしない**:
+  「上空にいる間」という依頼文の表現に沿い、まだ地上にいる予備動作中は通常通り被弾する仕様と
+  判断した。
+- **近接攻撃の遅延着弾(`MeleeHitDelay`)による抜け道を発見・修正**: 上記の無敵化のテスト中、
+  予備動作中(まだ無敵になっていない)に発生させた通常攻撃が、`MeleeHitDelay`分の遅延を経て
+  決着する頃には対象が既に離地して無敵になっているにも関わらず、ダメージが適用されてしまう
+  不具合を発見した(`BeginMeleeAttack`が発動時点の射程判定でヒット確定させ、`ResolveMeleeHit`は
+  決着時に`IsFainted`しかチェックしていなかったため)。`ResolveMeleeHit`に、決着時点で対象が
+  無敵になっていればヒットを取り消す(ミス扱いにする)処理を追加した。円形/直線/スイープ/
+  メテオの範囲ダメージは即時判定(`QueryUnitsInCircle`/`QueryUnitsInBox`が`IsInvulnerable`を
+  除外する)のためこの種の遅延は発生せず、対象は近接タイプの通常攻撃・単体対象必殺技のみ。
+- **着地位置に`MeleeContactDistance`のオフセットを使う**: 対象の座標そのものへ落下すると
+  重なってしまうため、既存の近接接近と同じ「対象中心・半径MeleeContactDistanceの円周上の
+  点」を着地地点にした。これにより着地した瞬間、既にIsInSkillMotion解除後の
+  `ApproachTargetWithStandoff`が「既にstandoff以内」と判定してそのままOrbitAroundTargetへ
+  スムーズに移行できる(接近し直す必要がない)、という副次的な利点もある。
+
+### テスト
+
+- Unity_RunCommandで公開APIを直接呼び出し、Play Mode上で検証した(マウス操作はシミュレート
+  不可のため)。索敵(`Physics2D.OverlapCircleAll`)は見た目側コライダーの実際のTransform位置を
+  参照するため、`BattleUnit.Position`を直接書き換えた直後は`DungeonBattleView.VisualsRoot`へ
+  `BroadcastMessage("Update", ...)`を送って見た目側の座標同期を明示的に発生させてから
+  ターゲット解決・射程判定を検証した(過去タスクの教訓を踏襲)。
+- `SlimeIndividual`の必殺技はコンストラクタ時にランダム抽選される仕組み(`AssignedUltimate`に
+  外部からの再設定手段がない)のため、テストでは種族候補(3種)から「ぷにゅメテオ」を引くまで
+  `SlimeIndividual`を再生成するループ(最大100回試行)でテスト対象個体を用意した。
+- 確認できたこと:
+  1. 発動(`TryActivateUltimate`)から着地までの一連の流れ(予備動作→上昇→滞空→落下)が、
+     `BattleUnit.IsInSkillMotion`/`IsInvulnerable`のフラグ推移として正しく進行することを確認
+     (Windup中: IsInSkillMotion=true, IsInvulnerable=false。Rising〜Falling中: 両方true。
+     着地後: 両方false)。
+  2. 着地時に着地地点(発動時に確定した対象周辺の点)を中心とした円形範囲内の対象にダメージが
+     適用され、既存のCircle必殺技と同じ`ApplyAreaDamage`/`QueryUnitsInCircle`が使われている
+     ことを確認(意図的に射程外へ配置した「対照」の敵にはダメージが入らないことも確認)。
+  3. 上空移動中、`caster.Position`(実座標)が一切変化しない(=`ApproachTargetWithStandoff`
+     等の通常の接近・後退移動が動作していない)ことを確認し、着地の瞬間に着地地点へ
+     ジャンプすることを確認した。
+  4. 無敵設定の効果を、対象の隣に配置した敵の攻撃タイマーを毎フレーム0にリセットして
+     「無敵化した後も常に攻撃を試み続ける」極端な状況で検証し、無敵化した瞬間からHPが
+     一切減らないこと(300フレーム、`IsInvulnerable`である間のHPが完全に一定)を確認した。
+     この過程で上記「近接攻撃の遅延着弾による抜け道」を発見・修正し、修正後に再検証して
+     解消したことを確認した。
+  5. プレイヤー3体(メテオ使い含む2体の近接+遠距離1体、レベル30)で`TestDungeon`を、
+     各プレイヤーが必殺技を使えるタイミングで毎回発動する状態で通しプレイし(834回の
+     Updateポンプ)、メテオが2回発動しつつ`DungeonState.Cleared`まで正常に到達すること、
+     Unity Console上にエラー・警告が一切出ないことを確認した。
+
+### 残課題
+
+- `MeteorWindupDuration`(0.3)等の各フェーズの所要時間、`AreaRadius`(2.2)、`Power`(14)は
+  いずれも仮値で、実際の見た目・バランスを見た上でInspector側の調整が必要。
+- 見た目(`BattleUnitView.PlayMeteorMotion`)の上昇高さ(`MeteorPeakHeight`=2.2)・潰れ具合の
+  スケール値もコード内定数の仮置きで、実際にPlay Modeで見た目を確認しての調整が必要
+  (これらは「対象確定後にどう動くか」という演出の微調整であり、CLAUDE.mdルール9の
+  「今後詰める論点」には該当しないため、コード定数のままとした)。
+- 着地地点が発動時点で固定される仕様のため、対象が上空移動中に大きく回避行動を取るような
+  AIになった場合、メテオが「絶対に当たる」攻撃になりすぎる可能性がある(現状の索敵・移動AIは
+  そこまで積極的な回避を行わないため、今回の実装では問題として顕在化していない)。

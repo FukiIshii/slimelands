@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 269e0a3fdb93e724bab6830ecc9daebe, type: 3}
+  m_Name: PunyuMeteor
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Slime.SlimeSkillData
+  skillName: "\u3077\u306B\u3085\u30E1\u30C6\u30AA"
+  description: "\u9AD8\u304F\u98DB\u3073\u4E0A\u304C\u308A\u3001\u5BFE\u8C61\u306E\u5468\u8FBA\u306B\u843D\u4E0B\u3057\u3066\u7740\u5730\u306E\u885D\u6483\u3067\u7BC4\u56F2\u30C0\u30E1\u30FC\u30B8\u3092\u4E0E\u3048\u308B\u5FC5\u6BBA\u6280\u3002"
+  isUltimate: 1
+  power: 14
+  cooldownSeconds: 9
+  areaShape: 4
+  areaRadius: 2.2
+  areaLength: 6
+  sweepDuration: 3
+  sweepOneWayDuration: 1
+  sweepTickInterval: 0.5
+  meteorWindupDuration: 0.3
+  meteorRiseDuration: 0.4
+  meteorHoverDuration: 0.3
+  meteorFallDuration: 0.3

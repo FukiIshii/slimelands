@@ -66,9 +66,25 @@ namespace Slimelands.Dungeon
         /// タイマーを待たずに即座に計算し直す。</summary>
         public BattleUnit RetreatDirectionTarget { get; set; }
 
+        /// <summary>
+        /// メテオ等、発動から着地/決着までの間、実座標を専用の演出ロジック(DungeonRunController側の
+        /// pendingXxxリスト)が制御する必殺技を実行中かどうか。trueの間、TickMovement/TickBattleは
+        /// このユニットの通常の接近・後退移動(TickUnitMovement)と通常攻撃を一時的にスキップする
+        /// (両者が同じBattleUnit.Positionを競合して書き換えないようにするため)。
+        /// </summary>
+        public bool IsInSkillMotion { get; set; }
+
+        /// <summary>
+        /// 攻撃対象の検出(ResolveHurtboxUnits経由の全クエリ: 索敵・射程判定・範囲必殺技)から
+        /// 除外され、通常攻撃・必殺技のいずれの被弾判定にも掛からない状態かどうか。メテオの
+        /// 上空滞在中(離地後〜着地前)のように、一時的に「その場にいない」ものとして扱いたい
+        /// 演出のために用意する。
+        /// </summary>
+        public bool IsInvulnerable { get; set; }
+
         public bool IsFainted => CurrentHp <= 0;
         public bool HasUltimate => UltimateSkill != null;
-        public bool CanActivateUltimate => HasUltimate && !IsFainted && UltimateCooldownRemaining <= 0f;
+        public bool CanActivateUltimate => HasUltimate && !IsFainted && !IsInSkillMotion && UltimateCooldownRemaining <= 0f;
 
         public BattleUnit(string displayName, SlimeType type, SlimeAttackType attackType, SlimeSpeciesData species,
             SlimeStats stats, bool isPlayerSide, SlimeIndividual sourceIndividual, SlimeSkillData ultimateSkill,
