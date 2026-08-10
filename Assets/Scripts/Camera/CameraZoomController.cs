@@ -20,10 +20,28 @@ namespace Slimelands.CameraControls
         [SerializeField, Range(0.5f, 20f)] private float maxOrthographicSize = 10f;
 
         private Camera targetCamera;
+        private float defaultOrthographicSize;
 
         private void Awake()
         {
             targetCamera = GetComponent<Camera>();
+            defaultOrthographicSize = targetCamera.orthographicSize;
+        }
+
+        /// <summary>
+        /// このコンポーネントが無効化された瞬間(GameScreenControllerが村画面以外へ切り替える際に
+        /// enabled=falseにする)、ズームを初期値へ戻す。村・ダンジョンでカメラ自体を共有しており
+        /// (シーン遷移ではなくSetActive/enabled切り替え方式)、無効化してもorthographicSizeの値は
+        /// 自然には戻らないため、村で拡大したまま他の画面(ダンジョン等)に遷移すると拡大されっぱなしに
+        /// なってしまう不具合があった。画面遷移側(GameScreenController)にズームの内部実装を
+        /// 知らせずに解決するため、無効化をきっかけに自分自身でリセットする。
+        /// </summary>
+        private void OnDisable()
+        {
+            if (targetCamera != null)
+            {
+                targetCamera.orthographicSize = defaultOrthographicSize;
+            }
         }
 
         private void Update()

@@ -4139,3 +4139,50 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
 - 着地地点が発動時点で固定される仕様のため、対象が上空移動中に大きく回避行動を取るような
   AIになった場合、メテオが「絶対に当たる」攻撃になりすぎる可能性がある(現状の索敵・移動AIは
   そこまで積極的な回避を行わないため、今回の実装では問題として顕在化していない)。
+
+## 修正: 村画面で拡大したまま他画面(ダンジョン等)に遷移すると、拡大されたままになる不具合
+
+- 依頼: 「村画面で拡大したまま、ダンジョンにいくと、拡大されたままになってしまう」。
+
+### 調査
+
+- ズーム操作は`Assets/Scripts/Camera/CameraZoomController.cs`が担当し、マウスホイール入力で
+  アタッチ先カメラの`Camera.orthographicSize`を直接増減する。ズーム値専用のキャッシュや
+  静的フィールドは持たず、値は常にカメラ本体(`orthographicSize`)そのものに保持される。
+- 村→ダンジョン等の画面遷移は別シーンへの切り替えではなく、`GameScreenController`
+  (`Assets/Scripts/Dungeon/GameScreenController.cs`)が同一シーン内でGameObject/コンポーネントの
+  表示・enable切り替えを行う方式(`ApplyVisibility()`)。カメラ自体は村・ダンジョンで共有されている
+  1つのオブジェクトで、画面が切り替わっても破棄・再生成されない。
+- 村画面以外に遷移する際、`GameScreenController`は`CameraZoomController`を`enabled = false`に
+  して入力処理だけを止めるが(151行目、`SetEnabledSafe(cameraZoomController, showVillage)`)、
+  それまでにユーザー操作で変更済みの`orthographicSize`の値自体はリセットしていなかった。
+  カメラが共有されたままのため、村で拡大した値がそのままダンジョン画面にも持ち越されていた。
+- 逆方向(ダンジョン→村)にも、村帰還時にズームをリセットする処理は存在しなかった
+  (`ReturnToVillage()`は正門カードの退避処理のみ行う)。参考にできる既存の対称実装は無かった。
+
+### 修正内容
+
+- `CameraZoomController`に、`Awake()`時点の`orthographicSize`(シーンに設定されている既定値)を
+  `defaultOrthographicSize`として記憶し、`OnDisable()`(村画面を離れる際に発火)でその既定値へ
+  戻す処理を追加した。
+- `GameScreenController`側の変更は不要とした。ズームの内部実装(`orthographicSize`という具体的な
+  プロパティ)を画面遷移側に知らせず、`CameraZoomController`自身が「無効化される」という
+  既存のenable/disableの仕組みに乗じてリセットすることで、CLAUDE.mdの「村パートとダンジョンパートを
+  疎結合に保つ」方針(`CameraZoomController`は元々「村・ダンジョンどちらでも使える汎用コンポーネント」
+  として画面非依存に作られている)を崩さずに解決できた。
+- `OnDisable()`はコンポーネントが無効化されるあらゆる経路(村→ダンジョン以外の画面遷移も含む)で
+  発火するため、対称性の考慮(村帰還時のリセット)も自然に満たされる。
+
+### テスト
+
+- Unity_RunCommandで公開APIを直接呼び出し、Play Mode上で検証した(マウス操作・スクロール入力は
+  シミュレートできないため、`Camera.orthographicSize`を直接書き換えることでユーザーのズーム操作の
+  結果を再現した)。
+- 実際の画面遷移経路(`GameScreenController.ShowDungeonTree()`/`ReturnToVillage()`)を通して検証:
+  1. 村でズームイン(orthographicSize: 5→2)させた状態で`ShowDungeonTree()`を呼び、
+     ダンジョンツリー画面へ遷移した瞬間に`orthographicSize`が既定値(5)へ戻り、
+     `CameraZoomController.enabled`が`false`になることを確認した。
+  2. `ReturnToVillage()`で村へ戻ると`CameraZoomController.enabled`が`true`に戻ることを確認した。
+  3. 村へ戻った後に再度ズームイン(orthographicSize: 5→3)させ、再び画面遷移させたところ、
+     2回目の往復でも既定値(5)へ正しく戻ることを確認し、`defaultOrthographicSize`が
+     初回の値のまま安定して保持され続けていることを確認した。
