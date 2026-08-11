@@ -50,9 +50,6 @@ namespace Slimelands.Dungeon
         // 追加時間(秒、仮値)。倒した敵がいつまでも灰色のまま残り続けないようにするため。
         // プレイヤー側は村に戻るまで見た目を残し続ける仕様のため対象外。
         private const float EnemyFaintRemovalDelay = 0.5f;
-        private const float HpBarWidth = 0.9f;
-        private const float HpBarHeight = 0.14f;
-        private const float HpBarYOffset = 0.75f;
         // SlimeSpeciesData.BattleAnimationFramesのコマ送り速度(仮値、要調整)。気絶中は止める。
         private const float AnimationFrameDuration = 0.12f;
         // 元画像が右向きのため、この値未満のX移動はノイズとみなして向きを変えない
@@ -72,13 +69,9 @@ namespace Slimelands.Dungeon
         private Transform visualScaleRoot;
         private Transform visual;
         private SpriteRenderer visualRenderer;
-        private SpriteRenderer hpBarFillRenderer;
-        private Transform hpBarFillTransform;
-        private GameObject hpBarBackgroundGo;
-        private GameObject hpBarFillGo;
-        // BattleBalanceData.UnitVisualScale(Bind時に渡される)。HPバーはこの倍率の影響を受けず、
-        // スプライトのサイズだけを一括で拡大縮小できるようvisualScaleRoot経由で適用する
-        // (visualのlocalScaleはホップ/突進の潰れ・伸びアニメーション専用のまま維持するため)。
+        // BattleBalanceData.UnitVisualScale(Bind時に渡される)。スプライトのサイズだけを
+        // 一括で拡大縮小できるようvisualScaleRoot経由で適用する(visualのlocalScaleは
+        // ホップ/突進の潰れ・伸びアニメーション専用のまま維持するため)。
         private float baseVisualScale = 1f;
 
         private BattleUnit boundUnit;
@@ -123,24 +116,6 @@ namespace Slimelands.Dungeon
             visual = visualGo.transform;
             visualRenderer = visualGo.GetComponent<SpriteRenderer>();
             visualRenderer.sortingOrder = 10;
-
-            var bgGo = new GameObject("HpBarBackground", typeof(SpriteRenderer));
-            bgGo.transform.SetParent(transform, false);
-            bgGo.transform.localPosition = new Vector3(0f, HpBarYOffset, 0f);
-            bgGo.transform.localScale = new Vector3(HpBarWidth, HpBarHeight, 1f);
-            SpriteRenderer bgRenderer = bgGo.GetComponent<SpriteRenderer>();
-            bgRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite(new Color(0.1f, 0.1f, 0.1f, 0.85f));
-            bgRenderer.sortingOrder = 20;
-            hpBarBackgroundGo = bgGo;
-
-            var fillGo = new GameObject("HpBarFill", typeof(SpriteRenderer));
-            fillGo.transform.SetParent(transform, false);
-            fillGo.transform.localScale = new Vector3(HpBarWidth, HpBarHeight * 0.7f, 1f);
-            hpBarFillTransform = fillGo.transform;
-            hpBarFillRenderer = fillGo.GetComponent<SpriteRenderer>();
-            hpBarFillRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite(Color.white);
-            hpBarFillRenderer.sortingOrder = 21;
-            hpBarFillGo = fillGo;
         }
 
         /// <summary>
@@ -163,9 +138,6 @@ namespace Slimelands.Dungeon
             visualScaleRoot.localScale = Vector3.one * baseVisualScale;
             visual.localRotation = Quaternion.identity;
             visual.localScale = Vector3.one;
-            hpBarBackgroundGo.transform.localPosition = new Vector3(0f, HpBarYOffset * baseVisualScale, 0f);
-            hpBarBackgroundGo.SetActive(true);
-            hpBarFillGo.SetActive(true);
 
             animationFrames = unit.Species != null ? unit.Species.BattleAnimationFrames : null;
             animationFrameIndex = 0;
@@ -188,8 +160,6 @@ namespace Slimelands.Dungeon
             // 元画像は右向きのため、flipX=trueで左向きになる。
             visualRenderer.flipX = !unit.IsPlayerSide;
             lastFacingTrackedX = homePosition.x;
-
-            RefreshHpBar();
         }
 
         /// <summary>
@@ -276,8 +246,6 @@ namespace Slimelands.Dungeon
                 return;
             }
 
-            RefreshHpBar();
-
             if (isFaintedVisual)
             {
                 faintTimer += Time.deltaTime;
@@ -291,12 +259,6 @@ namespace Slimelands.Dungeon
                     float fadeElapsed = faintTimer - FaintFadeDuration;
                     if (fadeElapsed >= 0f)
                     {
-                        if (hpBarBackgroundGo.activeSelf)
-                        {
-                            hpBarBackgroundGo.SetActive(false);
-                            hpBarFillGo.SetActive(false);
-                        }
-
                         float fadeProgress = Mathf.Clamp01(fadeElapsed / EnemyFaintRemovalDelay);
                         tinted.a = FaintedTint.a * (1f - fadeProgress);
 
@@ -510,15 +472,5 @@ namespace Slimelands.Dungeon
             }
         }
 
-        private void RefreshHpBar()
-        {
-            int maxHp = Mathf.Max(1, boundUnit.Stats.maxHp);
-            float ratio = Mathf.Clamp01((float)boundUnit.CurrentHp / maxHp);
-
-            hpBarFillTransform.localScale = new Vector3(HpBarWidth * ratio, HpBarHeight * 0.7f, 1f);
-            hpBarFillTransform.localPosition =
-                new Vector3(-HpBarWidth * 0.5f * (1f - ratio), HpBarYOffset * baseVisualScale, 0f);
-            hpBarFillRenderer.color = Color.Lerp(new Color(0.85f, 0.2f, 0.2f), new Color(0.3f, 0.85f, 0.3f), ratio);
-        }
     }
 }

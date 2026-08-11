@@ -4186,3 +4186,33 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   3. 村へ戻った後に再度ズームイン(orthographicSize: 5→3)させ、再び画面遷移させたところ、
      2回目の往復でも既定値(5)へ正しく戻ることを確認し、`defaultOrthographicSize`が
      初回の値のまま安定して保持され続けていることを確認した。
+
+## 変更: ダンジョン戦闘中、キャラクター頭上のHPバーを削除
+
+### 経緯
+
+ユーザーから「ダンジョンにて、キャラの上にでてるゲージはなに?」と質問があり、
+`BattleUnitView`が各ユニットの頭上に自前で描画していたHPバー(黒背景+赤〜緑のグラデーション
+の残量バー)であることを回答したところ、「消去してください」との指示があった。
+
+### 変更内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`から、キャラクター頭上のHPバー関連の実装を
+すべて削除した。
+- `Awake()`内で生成していた`HpBarBackground`/`HpBarFill`のGameObject/SpriteRenderer生成処理。
+- `Bind()`内の初期配置・表示処理。
+- `Update()`毎フレームの`RefreshHpBar()`呼び出しと、敵の気絶フェードアウト時の非表示切り替え処理。
+- `RefreshHpBar()`メソッド自体、および専用定数(`HpBarWidth`/`HpBarHeight`/`HpBarYOffset`)と
+  フィールド(`hpBarFillRenderer`/`hpBarFillTransform`/`hpBarBackgroundGo`/`hpBarFillGo`)。
+
+画面上部のパーティ全体のHP表示(`Assets/Scripts/Dungeon/Visuals/DungeonPartyHud.cs`)は
+今回の対象外で、変更していない。
+
+### テスト
+
+- コンパイルエラー・警告が発生しないことを`Unity_GetConsoleLogs`で確認した。
+- Play Modeで`TestDungeon`を`StartDungeon`し、レベル30のスライム2体のパーティーで実際に
+  戦闘を開始、`DungeonBattleView`/`DungeonRunController`へ`SendMessage("Update", ...)`を
+  40回送ってシミュレートした。生成された`BattleUnitView`(2体分)の子GameObjectを調べ、
+  `HpBar`を含む名前の子オブジェクトが存在しないこと(childCountが`VisualScaleRoot`のみの
+  1個であること)を確認した。エラー・警告も発生しなかった。
