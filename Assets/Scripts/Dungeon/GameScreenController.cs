@@ -48,6 +48,8 @@ namespace Slimelands.Dungeon
         [SerializeField] private Behaviour partyFormationUI;
 
         [Header("ダンジョン戦闘画面")]
+        [Tooltip("カメラのorthographicSizeを行動帯全体が画面に収まる大きさへ調整する(DungeonCameraFitter)。ダンジョン戦闘画面以外では無効化する。")]
+        [SerializeField] private Behaviour dungeonCameraFitter;
         [SerializeField] private Behaviour dungeonHudDisplay;
         [Tooltip("DungeonBattleViewが生成するスプライト・エフェクト一式のコンテナ。")]
         [SerializeField] private GameObject dungeonBattleVisualsRoot;
@@ -154,6 +156,7 @@ namespace Slimelands.Dungeon
             SetEnabledSafe(dungeonDetailUI, showDetail);
             SetEnabledSafe(partyFormationUI, showFormation);
 
+            SetEnabledSafe(dungeonCameraFitter, showBattle);
             SetEnabledSafe(dungeonHudDisplay, showBattle);
             SetActiveSafe(dungeonBattleVisualsRoot, showBattle);
             SetActiveSafe(dungeonBackgroundRoot, showBattle);

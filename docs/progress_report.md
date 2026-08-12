@@ -5499,4 +5499,44 @@ Game View設定(1920x1080、16:9横向き)では表示幅が17.78あり11は収�
   (x=8)にいる敵を、行動帯内(xMax=2.5)にいる近接ユニットが30ステップ追いかけ続けても、
   座標がbounds.xMaxの2.5で止まり、それ以上出て行かないことを確認した。検証後、テスト用の
   一時メソッドは削除した。
+
+## 方針転換: 行動帯を画面に合わせて縮める方式をやめ、カメラを行動帯に合わせてズームアウトする方式に変更
+
+### 経緯
+
+上記の行動帯クランプ・近接接近クランプの修正後、ユーザーから「中途半端な位置で縦一列になる
+ようになった。おそらく行動帯が悪さしてそう」との報告。
+
+### 原因
+
+行動帯の幅(movementBandWidth)を実際のカメラ表示幅に合わせて縮める方式にしていたが、
+MeleeContactDistance/RangedRetreatDistance等の交戦距離は元の帯の幅(11)を前提に調整された
+バランス値だった。縦長アスペクト比では帯の幅が11→5前後まで縮むため、これらの交戦距離
+(後退4・接触1.2等)が縮んだ帯に対して相対的に広すぎるようになり、複数ユニットが横方向に
+展開できず、OrbitAroundTargetのY方向の自由度だけが残った結果、中途半端なX位置に縦一列に
+固まって見えていたと考えられる。
+
+### 実装内容
+
+行動帯側(movementBandWidth/Height、および交戦距離などのバランス値)を画面のアスペクト比に
+合わせて縮める方式を撤回し、`Assets/Scripts/Dungeon/DungeonRunController.cs`の
+`GetMovementBounds`を元の(カメラを一切参照しない)形に戻した。代わりに、新規
+`Assets/Scripts/Camera/DungeonCameraFitter.cs`をカメラに追加し、行動帯全体
+(MovementBandWidth/Height、新規公開プロパティ)がちょうど画面に収まるようorthographicSizeを
+動的に調整する方式にした。デフォルトのズーム(5)で既に収まる場合は何もせず(見た目のスケール感を
+変えない)、収まらない場合(縦長アスペクト等)のみズームアウトする。CameraZoomControllerと同じ
+設計で、無効化された瞬間に元のorthographicSizeへ戻す。`GameScreenController`に
+`dungeonCameraFitter`フィールドを追加し、ダンジョン戦闘画面表示中のみ有効化するようにした
+(cameraZoomControllerが村画面でのみ有効化されるのと対になる関係)。シーン上でMain Cameraへ
+コンポーネントを追加し、`controller`/`dungeonCameraFitter`の参照をSerializedObject経由で配線、
+シーンを保存した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Edit Mode下ではAwake/Updateが自動実行されないため、SendMessageで明示的に呼び出して検証:
+  `DungeonCameraFitter`を有効化しカメラのaspectを0.5625(縦長相当)に変更した状態でUpdateを
+  実行したところ、orthographicSizeが5→10.31(行動帯の半幅11/2+余白0.3を、aspectで割った値)に
+  正しくズームアウトすることを確認した。続けてOnDisableを呼び出し、orthographicSizeが5に
+  戻ることも確認した。
 - コンソールにエラー・警告が出ていないことを確認。

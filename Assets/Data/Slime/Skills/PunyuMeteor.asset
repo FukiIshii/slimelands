@@ -34,5 +34,5 @@ MonoBehaviour:
   - {fileID: 5500596860128600339, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
   - {fileID: -3055891497566932786, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
   - {fileID: -6613703626499312541, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
-  meteorImpactEffectFootOffset: 0.45
-  meteorAreaRadiusY: 1.3
+  meteorImpactEffectFootOffset: 1.68
+  meteorAreaRadiusY: 1.3202379

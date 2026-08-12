@@ -1894,6 +1894,7 @@ MonoBehaviour:
   meleeContactDistance: 1.2
   rangedRetreatDistance: 4
   retreatDirectionRefreshInterval: 0.25
+  retreatStuckMovementRatio: 0.15
   combatIdleOrbitAngularSpeed: 50
   enemyEntranceSide: 0
   enemyEntranceMargin: 5
@@ -1975,6 +1976,7 @@ MonoBehaviour:
   dungeonTreeUI: {fileID: 360021984}
   dungeonDetailUI: {fileID: 360021983}
   partyFormationUI: {fileID: 360021978}
+  dungeonCameraFitter: {fileID: 519420034}
   dungeonHudDisplay: {fileID: 360021975}
   dungeonBattleVisualsRoot: {fileID: 44227616}
   dungeonBackgroundRoot: {fileID: 696958981}
@@ -2126,6 +2128,7 @@ MonoBehaviour:
   displayDuration: 0.6
   circleColor: {r: 1, g: 0.2, b: 0.2, a: 0.8}
   boxColor: {r: 0.2, g: 0.6, b: 1, a: 0.8}
+  ellipseColor: {r: 1, g: 0.6, b: 0.1, a: 0.8}
 --- !u!1 &379274759
 GameObject:
   m_ObjectHideFlags: 0
@@ -2833,6 +2836,7 @@ GameObject:
   - component: {fileID: 519420029}
   - component: {fileID: 519420030}
   - component: {fileID: 519420033}
+  - component: {fileID: 519420034}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -2973,6 +2977,20 @@ MonoBehaviour:
   zoomSpeed: 10
   minOrthographicSize: 2
   maxOrthographicSize: 10
+--- !u!114 &519420034
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 519420028}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a86c3231eef21ef40b09763d58ab3fa5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.CameraControls.DungeonCameraFitter
+  controller: {fileID: 360021976}
+  margin: 0.3
 --- !u!1 &527107458
 GameObject:
   m_ObjectHideFlags: 0
@@ -9963,7 +9981,7 @@ Transform:
   m_GameObject: {fileID: 1877660768}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0, z: 0}
+  m_LocalPosition: {x: -0.84, y: 0.81, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
