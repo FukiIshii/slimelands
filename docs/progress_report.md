@@ -4408,3 +4408,24 @@ Play Modeで再検証し、アイコン下端と個数テキスト上端の間�
 - 既存のダンジョンアセット(`ForestDungeon`/`TestDungeon`等)には`description`/`icon`が
   未設定のため、実際にツリー画面から辿ると説明文・アイコンが空/プレースホルダーのまま
   表示される。今後アセット側にも値を設定する必要がある。
+
+## 追加: 既存ダンジョンアセットへの説明文の設定
+
+ユーザーから「先ほどの画像のようにダンジョン説明をかけるようにしてて」との依頼があり、
+上記の残課題(`description`未設定)に対応した。既存の5つのダンジョンアセット
+(`ForestDungeon` → `TestDungeon` → `TestDungeonChildA`/`TestDungeonChildB` →
+`TestDungeonConfluence`のツリー構造)それぞれの敵構成・推奨レベルに沿った短いフレーバー
+テキストを`SerializedObject`経由で設定し、`AssetDatabase.SaveAssets()`で保存した。
+アイコン(`icon`)は専用アートが無いため未設定のまま(プレースホルダー円が表示され続ける)。
+
+Play Modeで`ForestDungeon`を選び、詳細画面に設定した説明文がそのまま表示されることを
+確認した。
+
+### 副作用として一緒にコミットした既存の未コミット変更
+
+`AssetDatabase.SaveAssets()`により、`ForestDungeon.asset`/`TestDungeon.asset`に
+以前から残っていたユーザー自身の手動編集(`ForestDungeon.enemyLevel`: 1→5、
+`TestDungeon`の2ウェーブ目の敵構成にスライムを2体追加)も一緒に保存された。過去のセッションでは
+これらを無関係な変更として意図的に除外してきたが、今回はこの2ファイル自体が説明文追加の
+直接の対象になったため、ファイルを分離してコミットする手段がなく、このバランス調整も
+まとめてコミットした。

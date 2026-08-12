@@ -13,8 +13,10 @@ MonoBehaviour:
   m_Name: ForestDungeon
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonData
   dungeonName: "\u68EE\u30C0\u30F3\u30B8\u30E7\u30F3"
+  description: "\u6751\u306E\u3059\u3050\u5916\u306B\u5E83\u304C\u308B\u3001\u6728\u6F0F\u308C\u65E5\u306E\u5DEE\u3059\u9759\u304B\u306A\u68EE\u3002\u5BB3\u3092\u53CA\u307C\u3059\u307B\u3069\u3067\u306F\u306A\u3044\u304C\u3001\n\u5C0F\u3055\u306A\u30B9\u30E9\u30A4\u30E0\u305F\u3061\u304C\u7E04\u5F35\u308A\u3092\u4E3B\u5F35\u3057\u3066\u3046\u308D\u3064\u3044\u3066\u3044\u308B\u3002"
+  icon: {fileID: 0}
   requiredPartySize: 1
-  enemyLevel: 1
+  enemyLevel: 5
   waves:
   - enemySpecies:
     - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}

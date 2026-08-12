@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: TestDungeonChildA
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonData
   dungeonName: "\u30C6\u30B9\u30C8\u30C0\u30F3\u30B8\u30E7\u30F3\u652F\u6D41A"
+  description: "\u7AAA\u5730\u304B\u3089\u3055\u3089\u306B\u5206\u3051\u5165\u3063\u305F\u5148\u306B\u3042\u308B\u652F\u6D41\u3002\u6C34\u8FBA\u304C\u8FD1\u304F\u3001\u30B9\u30E9\u30A4\u30E0\u305F\u3061\u304C\u597D\u3093\u3067\n\u96C6\u307E\u3063\u3066\u304F\u308B\u3002"
+  icon: {fileID: 0}
   requiredPartySize: 1
   enemyLevel: 3
   waves:
@@ -23,3 +25,4 @@ MonoBehaviour:
   backgroundSprite: {fileID: 0}
   parentDungeons:
   - {fileID: 11400000, guid: 25517110a43c8c048b3a9de47272fc00, type: 2}
+  dropRewards: []

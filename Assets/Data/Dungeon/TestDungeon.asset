@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: TestDungeon
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonData
   dungeonName: "\u30C6\u30B9\u30C8\u30C0\u30F3\u30B8\u30E7\u30F3"
+  description: "\u68EE\u306E\u5965\u3001\u307E\u3060\u5730\u56F3\u306B\u8A18\u3055\u308C\u3066\u3044\u306A\u3044\u5C0F\u3055\u306A\u7AAA\u5730\u3002\u591A\u304F\u306E\u30B9\u30E9\u30A4\u30E0\u304C\u7FA4\u308C\u3092\u306A\u3057\u3066\u3044\u308B\u304C\u3001\n\u4E00\u4F53\u4E00\u4F53\u306E\u529B\u306F\u3055\u307B\u3069\u5F37\u304F\u306A\u3044\u3002"
+  icon: {fileID: 0}
   requiredPartySize: 2
   enemyLevel: 1
   waves:
@@ -23,6 +25,8 @@ MonoBehaviour:
     spawnCondition: 0
     waitSeconds: 3
   - enemySpecies:
+    - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
+    - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
     - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
     - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
     - {fileID: 11400000, guid: f60bcbb994239de438d7b7f066594fbb, type: 2}
