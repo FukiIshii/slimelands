@@ -5105,3 +5105,51 @@ Play Mode上でキャスターの`transform.position`を着地後に強制的に
   ワールド座標を確認した。修正前は`Effect delta=(2,0,0)`(キャスターと同じだけ移動)
   だったのに対し、修正後は`Effect delta=(0,0,0)`(着地地点に固定されたまま)に
   なることを確認した。
+
+## リファクタリング: 着地エフェクトをキャスターの子ではなく独立したGameObjectに変更
+
+### 経緯
+
+上記の「毎フレーム位置を固定し直す」対処療法に対し、ユーザーから
+「子オブジェクトじゃなくて、別のオブジェクトとして生成するのはダメなの?」と
+指摘があった。既存コードを確認したところ、`BattleProjectile`(遠距離攻撃の弾)や
+`BattleVfx.SpawnBurst`(ヒットエフェクト)は元々どちらもキャスターの子にせず、
+独立したGameObjectとしてワールド座標に直接生成し、自身のタイマーで自動破棄する
+実装になっていた。メテオ着地エフェクトだけがキャスターの子として実装されており、
+これが今回まで続いていた一連の不具合(種族スケールの二重適用、着地後の移動追従)の
+根本原因だった。子である必然性はなく、むしろ独立オブジェクトにする方が
+プロジェクトの既存パターンにも合致するため、その方針で作り直した。
+
+### 実装内容
+
+新規ファイル`Assets/Scripts/Dungeon/Visuals/MeteorImpactEffectView.cs`を追加。
+`BattleProjectile`と同じ設計(独立したGameObject、`Play(...)`で開始、`Update()`で
+自前進行、再生完了で`Destroy(gameObject)`)で、コマ送り+フェードアウトのロジックを
+そのまま移植した。
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`からは、メテオ着地エフェクト関連の
+フィールド(`meteorImpactEffectRenderer`・`meteorImpactEffectWorldPosition`・
+`meteorImpactEffectFrames`等)、`Awake()`内での子オブジェクト生成、`Bind()`内での
+リセット処理、`TickMeteorImpactEffect`メソッド、関連するデバッグアクセサを全て削除。
+`PlayMeteorImpactEffect`は、着地地点のワールド座標(`transform.position + footOffset`)を
+計算し、`MeteorImpactEffectView`を新規GameObjectとして生成して`Play(...)`を呼ぶだけの
+薄い処理になった。生成先の親は`transform.parent`(=DungeonBattleViewの`BattleVisuals`
+コンテナ、キャスター自身と同じ階層の兄弟)にし、キャスターの`transform`配下には一切
+置かない。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode上で実際のダンジョンでメテオを着地させ、生成された`MeteorImpactEffectView`の
+  `transform.parent`が`BattleVisuals`(キャスターと同じ階層)であり、キャスター自身の
+  子ではないことを確認した。
+- `effect.y - view.transform.position.y`が`skill.MeteorImpactEffectFootOffset`の値と
+  完全に一致することを確認した(スケール二重適用なし)。また`effect.transform.localScale`が
+  `MeteorImpactEffectScale`(1.6)そのままで、以前の2.56倍への意図しない拡大が
+  発生していないことも確認した。
+- 着地後にキャスターの`transform.position`を強制的に(+3, +1)動かしても、エフェクトの
+  座標が一切変化しない(`delta=(0,0,0)`)ことを確認した。独立オブジェクト化により、
+  そもそも追従する経路自体が存在しなくなったため、以前のような「毎フレーム固定し直す」
+  対処療法が不要になった。
+- コンソールにエラー・警告が出ていないことを確認。
+- テストで生成したBattleUnitView/MeteorImpactEffectViewは明示的に破棄済み。

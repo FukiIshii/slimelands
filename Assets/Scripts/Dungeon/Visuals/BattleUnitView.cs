@@ -94,17 +94,6 @@ namespace Slimelands.Dungeon
         private float meteorAnimTimer;
         private Vector3 meteorLandingPosition;
         private SlimeSkillData meteorSkill;
-        private SpriteRenderer meteorImpactEffectRenderer;
-        // 着地地点に固定表示するためのワールド座標。MeteorImpactEffectはキャスターのtransformの
-        // 子(visualScaleRoot配下)のため、何もしないと着地後にキャスターが動き出した際に
-        // エフェクトも一緒に引きずられてしまう(実測で確認済みの不具合)。再生中は毎フレーム
-        // この座標へ位置を固定し直すことで、キャスターの移動と切り離す。
-        private Vector3 meteorImpactEffectWorldPosition;
-        private IReadOnlyList<Sprite> meteorImpactEffectFrames;
-        private float meteorImpactEffectTimer;
-        private int meteorImpactEffectFrameIndex;
-        private bool meteorImpactEffectFading;
-        private float meteorImpactEffectFadeTimer;
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
@@ -141,15 +130,6 @@ namespace Slimelands.Dungeon
             visual = visualGo.transform;
             visualRenderer = visualGo.GetComponent<SpriteRenderer>();
             visualRenderer.sortingOrder = 10;
-
-            // メテオ着地エフェクト(SlimeSkillData.MeteorEffectFrames)専用の表示。スライムの
-            // スプライト(sortingOrder=10)より低い値にして、常にスライムの後ろに重なって見えるようにする。
-            var impactEffectGo = new GameObject("MeteorImpactEffect", typeof(SpriteRenderer));
-            impactEffectGo.transform.SetParent(visualScaleRoot, false);
-            impactEffectGo.transform.localScale = Vector3.one * MeteorImpactEffectScale;
-            meteorImpactEffectRenderer = impactEffectGo.GetComponent<SpriteRenderer>();
-            meteorImpactEffectRenderer.sortingOrder = 9;
-            meteorImpactEffectRenderer.enabled = false;
         }
 
         /// <summary>
@@ -194,10 +174,6 @@ namespace Slimelands.Dungeon
             // 元画像は右向きのため、flipX=trueで左向きになる。
             visualRenderer.flipX = !unit.IsPlayerSide;
             lastFacingTrackedX = homePosition.x;
-
-            meteorImpactEffectRenderer.enabled = false;
-            meteorImpactEffectFrames = null;
-            meteorImpactEffectFading = false;
         }
 
         /// <summary>
@@ -313,7 +289,6 @@ namespace Slimelands.Dungeon
             }
 
             TickAnimation();
-            TickMeteorImpactEffect(Time.deltaTime);
 
             if (meleePhase != MeleeAnimPhase.Idle)
             {
@@ -465,8 +440,6 @@ namespace Slimelands.Dungeon
             {
                 TickMeteorAnim(dt);
             }
-
-            TickMeteorImpactEffect(dt);
         }
 #endif
 
@@ -547,100 +520,22 @@ namespace Slimelands.Dungeon
                 return;
             }
 
-            meteorImpactEffectFrames = frames;
-            meteorImpactEffectFrameIndex = 0;
-            meteorImpactEffectTimer = 0f;
-            meteorImpactEffectFading = false;
-            meteorImpactEffectFadeTimer = 0f;
-            meteorImpactEffectRenderer.sprite = frames[0];
-            meteorImpactEffectRenderer.color = Color.white;
-            meteorImpactEffectRenderer.enabled = true;
-
-            // 着地地点(caster.Position。範囲ダメージ判定(QueryUnitsInCircle)の中心と同じ座標)に
-            // そのまま表示する(ユーザー要望)。以前はスライム本体のSpriteRenderer.boundsを使って
-            // 足元を追いかけていたが、種族ごとにスプライトの余白・大きさが違うと合わなくなり
-            // 脆かった。ダメージ範囲も着地地点そのものを中心にしているため、見た目もそこに
-            // 揃える方が一貫性がある。見た目の微調整はskill.MeteorImpactEffectFootOffset
+            // キャスター(このBattleUnitView)の子にはせず、独立したGameObjectとして着地地点
+            // (caster.Position。範囲ダメージ判定(QueryUnitsInCircle)の中心と同じ座標)に生成する
+            // (ユーザー提案)。以前はキャスターのtransformの子として実装しており、種族のスケールが
+            // localPositionに二重に掛かる不具合や、着地後にキャスターが移動を再開すると
+            // エフェクトも引きずられてしまう不具合があった。独立オブジェクトにすることで、
+            // そもそもキャスターの移動・スケールの影響を受けない構造にする
+            // (BattleProjectile/BattleVfxと同じ考え方)。見た目の微調整はskill.MeteorImpactEffectFootOffset
             // (SlimeSkillDataのInspectorで調整可能)のみで行う。
-            // ワールド座標(transform.position)を直接指定する。localPositionだと親
-            // (visualScaleRoot、種族のUnitVisualScaleが掛かっている)のスケール分だけ
-            // オフセットが余計に拡大されてしまう(実測でスケール1.6倍の種族においてオフセットが
-            // 1.6倍effectiveに増幅され、着地地点から大きく離れて表示される不具合になっていた)。
-            meteorImpactEffectWorldPosition = transform.position + new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
-            meteorImpactEffectRenderer.transform.position = meteorImpactEffectWorldPosition;
+            Vector3 position = transform.position + new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
+            var effectGo = new GameObject("MeteorImpactEffect", typeof(SpriteRenderer), typeof(MeteorImpactEffectView));
+            effectGo.transform.SetParent(transform.parent, true);
+            MeteorImpactEffectView effectView = effectGo.GetComponent<MeteorImpactEffectView>();
+            // スライムのスプライト(sortingOrder=10)より低い値にして、常にスライムの後ろに
+            // 重なって見えるようにする。
+            effectView.Play(position, frames, MeteorEffectFrameDuration, MeteorImpactEffectFadeDuration,
+                MeteorImpactEffectScale, sortingOrder: 9);
         }
-
-        /// <summary>
-        /// PlayMeteorImpactEffectで開始した着地エフェクトのコマ送りを進行させる。全コマ再生し終えたら
-        /// 即座に消すのではなくフェードアウトさせてから非表示に戻す(1回きりの着地演出、ループしない)。
-        /// 毎フレーム呼ぶが、再生中でなければ何もしない。
-        /// </summary>
-        private void TickMeteorImpactEffect(float dt)
-        {
-            if (!meteorImpactEffectRenderer.enabled)
-            {
-                return;
-            }
-
-            // キャスターのtransformの子であるため、着地後にキャスターが移動を再開すると
-            // 何もしなければエフェクトも一緒に引きずられてしまう。再生中は毎フレーム着地地点へ
-            // 位置を固定し直すことで、キャスターの移動と切り離す。
-            meteorImpactEffectRenderer.transform.position = meteorImpactEffectWorldPosition;
-
-            if (meteorImpactEffectFading)
-            {
-                meteorImpactEffectFadeTimer += dt;
-                float alpha = 1f - Mathf.Clamp01(meteorImpactEffectFadeTimer / MeteorImpactEffectFadeDuration);
-                Color color = meteorImpactEffectRenderer.color;
-                color.a = alpha;
-                meteorImpactEffectRenderer.color = color;
-
-                if (meteorImpactEffectFadeTimer >= MeteorImpactEffectFadeDuration)
-                {
-                    meteorImpactEffectRenderer.enabled = false;
-                    meteorImpactEffectFrames = null;
-                    meteorImpactEffectFading = false;
-                }
-
-                return;
-            }
-
-            if (meteorImpactEffectFrames == null)
-            {
-                return;
-            }
-
-            meteorImpactEffectTimer += dt;
-            if (meteorImpactEffectTimer < MeteorEffectFrameDuration)
-            {
-                return;
-            }
-
-            meteorImpactEffectTimer -= MeteorEffectFrameDuration;
-            meteorImpactEffectFrameIndex++;
-            if (meteorImpactEffectFrameIndex >= meteorImpactEffectFrames.Count)
-            {
-                // 最終コマの表示を保ったままフェードアウトを開始する(次のUpdate呼び出しから減衰)。
-                meteorImpactEffectFading = true;
-                meteorImpactEffectFadeTimer = 0f;
-                return;
-            }
-
-            meteorImpactEffectRenderer.sprite = meteorImpactEffectFrames[meteorImpactEffectFrameIndex];
-        }
-
-#if UNITY_EDITOR
-        /// <summary>テスト専用: 現在の着地エフェクトの再生状態を外部から確認するためのデバッグ用アクセサ。</summary>
-        public bool DebugIsPlayingMeteorImpactEffect => meteorImpactEffectRenderer != null && meteorImpactEffectRenderer.enabled;
-
-        /// <summary>テスト専用: 現在の着地エフェクトのスプライトを外部から確認するためのデバッグ用アクセサ。</summary>
-        public Sprite DebugMeteorImpactEffectSprite => meteorImpactEffectRenderer != null ? meteorImpactEffectRenderer.sprite : null;
-
-        /// <summary>テスト専用: スライム本体スプライトのワールド座標での下端Yを確認するためのデバッグ用アクセサ。</summary>
-        public float DebugVisualBottomY => visualRenderer != null ? visualRenderer.bounds.min.y : float.NaN;
-
-        /// <summary>テスト専用: 着地エフェクトスプライトのワールド座標での下端Yを確認するためのデバッグ用アクセサ。</summary>
-        public float DebugMeteorImpactEffectBottomY => meteorImpactEffectRenderer != null ? meteorImpactEffectRenderer.bounds.min.y : float.NaN;
-#endif
     }
 }
