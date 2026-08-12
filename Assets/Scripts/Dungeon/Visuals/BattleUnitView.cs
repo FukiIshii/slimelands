@@ -57,7 +57,7 @@ namespace Slimelands.Dungeon
         private const float MeteorEffectFrameDuration = 0.1f;
         // メテオ着地エフェクトの表示倍率(仮値、要調整)。スライム本体より一回り大きく見せる
         // ことで着地の存在感を出す(ユーザー要望)。
-        private const float MeteorImpactEffectScale = 1.6f;
+        private const float MeteorImpactEffectScale = 3.2f;
         // 着地エフェクトが全コマ再生し終えてから、フェードアウトして消えるまでの時間(秒、仮値)。
         // それまではぷつっと消えていたのをユーザー要望でフェードに変更。
         private const float MeteorImpactEffectFadeDuration = 0.25f;

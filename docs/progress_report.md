@@ -5328,4 +5328,25 @@ Play Mode中にScene Viewタブを開いた状態にしておく必要がある�
   実際のUnity Editorの通常操作(マウス操作等による再描画)では動作するはずだが、
   完全な自動検証はできていないため、ユーザー側での実機確認を依頼する。
 - デバッグ用の`Debug.Log`は最終的に削除済み。
+
+## 調整: ダンジョン内のスライム本体・ぷにゅメテオ着地エフェクトの表示サイズを2倍に
+
+### 経緯
+
+ユーザーから「スライムもエフェクトも大きさを二倍にしてください」との要望。
+
+### 実装内容
+
+- `Assets/Data/Dungeon/BattleBalanceData.asset`の`unitVisualScale`を明示的に`3.2`に設定
+  (これまでアセット側に値が保存されておらず、`BattleBalanceData.cs`側のデフォルト値`1.6f`が
+  使われていたため、まず現在の実効値1.6を確認した上でその2倍を明示的に書き込んだ)。
+  この値はダンジョン戦闘中のスライムのスプライト表示倍率で、`DungeonBattleView.CreateView`で
+  `hurtbox.Bind(unit, controller.HurtboxRadius * controller.UnitVisualScale, layer)`のように
+  当たり判定の半径にも同じ倍率が掛かるため、見た目と当たり判定のサイズは連動して2倍になる。
+- `Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`の`MeteorImpactEffectScale`定数を
+  `1.6f`から`3.2f`に変更(ぷにゅメテオの着地エフェクトの表示倍率)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
 - コンソールにエラー・警告が出ていないことを確認。

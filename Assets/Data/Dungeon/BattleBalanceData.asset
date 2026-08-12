@@ -22,3 +22,4 @@ MonoBehaviour:
   meleeAttackRange: 3
   meleeHitDelay: 0.25
   hurtboxRadius: 0.5
+  unitVisualScale: 3.2
