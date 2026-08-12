@@ -1851,6 +1851,7 @@ GameObject:
   - component: {fileID: 360021984}
   - component: {fileID: 360021983}
   - component: {fileID: 360021986}
+  - component: {fileID: 360021987}
   m_Layer: 0
   m_Name: DungeonManagers
   m_TagString: Untagged
@@ -1871,7 +1872,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonHudDisplay
   controller: {fileID: 360021976}
-  screenController: {fileID: 360021980}
   maxLogLines: 12
 --- !u!114 &360021976
 MonoBehaviour:
@@ -2076,6 +2076,28 @@ MonoBehaviour:
   dungeonController: {fileID: 360021976}
   cardBoard: {fileID: 597705880}
   spawnPosition: {x: -4, y: 4, z: 0}
+--- !u!114 &360021987
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 360021974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f1a6a425a77bc94e936fa3ec201d5fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonResultUI
+  controller: {fileID: 360021976}
+  screenController: {fileID: 360021980}
+  panelSize: {x: 880, y: 680}
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.55}
+  panelColor: {r: 0.93, g: 0.85, b: 0.66, a: 1}
+  clearedMessageColor: {r: 0.82, g: 0.12, b: 0.12, a: 1}
+  failedMessageColor: {r: 0.3, g: 0.3, b: 0.3, a: 1}
+  itemIconSize: 96
+  itemSpacing: 28
+  buttonSize: {x: 220, y: 72}
 --- !u!1 &379274759
 GameObject:
   m_ObjectHideFlags: 0

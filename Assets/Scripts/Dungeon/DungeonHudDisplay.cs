@@ -10,8 +10,6 @@ namespace Slimelands.Dungeon
     public class DungeonHudDisplay : MonoBehaviour
     {
         [SerializeField] private DungeonRunController controller;
-        [Tooltip("クリア/失敗後に「村に戻る」ボタンから画面切り替えを呼ぶための参照。未設定でも動作する(ボタンが出ないだけ)。")]
-        [SerializeField] private GameScreenController screenController;
         [SerializeField] private int maxLogLines = 12;
 
         private readonly List<string> logLines = new();
@@ -54,15 +52,9 @@ namespace Slimelands.Dungeon
 
             GUILayout.Label($"状態: {controller.State}");
 
-            bool showReturnButton = screenController != null &&
-                (controller.State == DungeonState.Cleared || controller.State == DungeonState.Failed);
-            if (showReturnButton && GUILayout.Button("村に戻る", GUILayout.Width(100f)))
-            {
-                screenController.ReturnToVillage();
-            }
-
             // パーティーのHP/名前/必殺技発動ボタンはDungeonPartyHud(画面上部のuGUI)に統一したため、
-            // ここでは重複表示しない。
+            // ここでは重複表示しない。クリア/失敗後の「戻る」「もう一回」もDungeonResultUIに
+            // 統一したため、ここでは表示しない。
 
             GUILayout.Space(4f);
             GUILayout.Label("--- 敵 ---");

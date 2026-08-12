@@ -4272,3 +4272,68 @@ GameObject(`PartyList`とその`VerticalLayoutGroup`)を削除し、シーンを
   生成させ、各エントリの`sizeDelta`が`(440, 120)`になっていること、
   `anchoredPosition.x`が`220→672→1124`(行幅440+間隔12=452ずつ)と正しく左から右へ並んでいることを
   確認した。エラー・警告は発生しなかった。
+
+## 追加: ダンジョンクリア/敗退時の結果画面(DungeonResultUI)
+
+### 経緯
+
+ユーザーから、参考にしている他ゲームのクリア画面(パーチメント風パネル、「結果発表」の
+見出し、赤字のクリアメッセージ、「入手アイテム」のアイコン一覧、「戻る」「もう一回」の
+2ボタン)の画像が共有され、「クリア画面をこのようにしてほしい」との要望があった。従来は
+`DungeonHudDisplay`(IMGUIのデバッグ表示)に「村に戻る」ボタンが1つあるだけだった。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/DungeonResultUI.cs`を新規追加した(DungeonPartyHudと同様、
+uGUI一式を実行時にコードで組み立てる見た目専用コンポーネント)。
+- `DungeonRunController.OnDungeonCleared`/`OnDungeonFailed`を購読し、全画面オーバーレイ+
+  中央パネルを表示する。パネルの構成: 「結果発表」の見出し、`{ダンジョン名} クリア!`
+  (赤字)/`敗退…`(灰字)のメッセージ、「入手アイテム」ラベル、`DungeonData.DropRewards`
+  (既存のScriptableObjectデータ、ハードコードなし)から生成するアイコン+個数表示の横並び、
+  「戻る」「もう一回」の2ボタン。
+- 「戻る」: `GameScreenController.ReturnToVillage()`を呼ぶ(既存の公開APIのみ使用)。
+- 「もう一回」: `controller.PlayerUnits`から`SourceIndividual`を集めてパーティーを再構成し、
+  同じ`controller.CurrentDungeon`で`StartDungeon`を再度呼ぶ(HP不足個体の除外は
+  `StartDungeon`内の既存ロジックにそのまま従う。CLAUDE.mdのプレイヤー操作制限
+  「必殺技発動とターゲット指定のみ」は戦闘中の操作の話であり、結果画面のUI操作は対象外)。
+- 専用アート素材が未着手のため、パネル・ボタンは単色(パーチメント風のベージュ)の
+  プレースホルダーで代用した(仮値、要調整。他の未着手アート箇所と同じ扱い)。
+- 重複を避けるため、`DungeonHudDisplay`から旧来の「村に戻る」ボタン(クリア/敗退時のみ表示)
+  と、使われなくなった`screenController`フィールドを削除した。
+- `DungeonManagers`(既存の`DungeonHudDisplay`等と同じGameObject)にコンポーネントを追加し、
+  `controller`/`screenController`をシーン上の既存インスタンスからそのまま配線した。
+
+### テスト中に見つけた自分のテスト手順の誤り(実装のバグではない)
+
+Play Modeで`TestDungeon`を実際に戦わせてクリアさせようとしたところ、何百回`Update`を
+ポンプしても敵に一切ダメージが入らず、状況を調査した。原因は、今回のテストコードで
+`battleView.SendMessage("Update", ...)`(`DungeonBattleView`自身のGameObjectのみに送信)を
+使っていたことで、実際に各`BattleUnitView`(見た目)の`Update`まで届いておらず、敵の
+見た目の`Transform`(=Physics2Dの当たり判定に使われる座標)がスポーン地点のまま同期されて
+いなかった。これにより自軍からの索敵(`Physics2D.OverlapCircleAll`)が常に敵を発見できず、
+攻撃が一切発生していなかった。過去のセッションで確立していた
+`battleView.VisualsRoot.BroadcastMessage("Update", ...)`(子オブジェクトまで伝播する)に
+直すと正常に戦闘が進行し、正しくクリアできることを確認した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- ディスクに保存しない一時的な`DungeonData`(`ScriptableObject.CreateInstance`、
+  `AssetDatabase.SaveAssets`は呼ばない)を作り、レベル50のスライム1体 vs レベル1の敵1体、
+  ドロップ報酬にWood x5/Stone x2を設定してPlay Modeで`StartDungeon`。81回の`Update`ポンプで
+  `State=Cleared`に到達し、オーバーレイが表示され、メッセージが`「演出確認用 クリア!」`
+  (指定した赤色)になり、入手アイテム欄に`x 5`/`x 2`の2件が正しく生成されることを確認した。
+- 「もう一回」ボタンをクリックし、`State`が`Cleared`→`InBattle`に遷移し、オーバーレイが
+  非表示になり、同じ個体(HPそのまま)でパーティーが再構成されることを確認した。
+- 別の一時ダンジョンで再度クリアさせ、「戻る」ボタンをクリックしてオーバーレイが
+  非表示になることを確認した(`GameScreenController.ReturnToVillage()`がエラーなく呼べることも
+  あわせて確認)。
+- いずれの検証中もコンソールにエラー・警告は出力されなかった。
+
+### 残課題
+
+- パネル・ボタンの見た目は単色プレースホルダーのため、専用アート(パーチメント調の
+  背景・枠、ボタンの装飾)が用意でき次第差し替える必要がある。
+- 敗退(Failed)時の「もう一回」は同じダンジョンへの再挑戦として実装したが、全滅した
+  パーティーで即座に再挑戦させてよいかはバランス上の論点として残る(現状は
+  `CanJoinParty`によるHP50%未満の個体除外がそのまま働くのみ)。
