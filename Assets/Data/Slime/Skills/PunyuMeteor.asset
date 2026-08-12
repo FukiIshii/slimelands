@@ -21,9 +21,16 @@ MonoBehaviour:
   areaRadius: 2.2
   areaLength: 6
   sweepDuration: 3
-  sweepOneWayDuration: 1
+  sweepOneWayDuration: 1.04
   sweepTickInterval: 0.5
   meteorWindupDuration: 0.3
-  meteorRiseDuration: 0.25
+  meteorRiseDuration: 0.05
   meteorHoverDuration: 0.3
-  meteorFallDuration: 0.18
+  meteorFallDuration: 0.04
+  meteorEffectFrames:
+  - {fileID: -2645622306009926013, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
+  - {fileID: 451052637867643904, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
+  - {fileID: 5833051510622640677, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
+  - {fileID: 5500596860128600339, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
+  - {fileID: -3055891497566932786, guid: 72784b4557c822f46ad9c76475dff933, type: 3}
+  - {fileID: -6613703626499312541, guid: 72784b4557c822f46ad9c76475dff933, type: 3}

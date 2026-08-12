@@ -4552,3 +4552,46 @@ SetAssignedUltimateForTesting`を呼んでその場で切り替わる。在籍�
   Inspectorの実際の描画(`OnInspectorGUI`)がエラーなく実行されることを確認した
   (IMGUIのボタンクリック自体はUnity_RunCommandからシミュレートできないため、実際の
   クリック動作の見た目確認はユーザー側で行ってもらう想定)。
+
+## 追加: 必殺技「ぷにゅメテオ」のエフェクト画像を反映
+
+### 経緯
+
+ユーザーが`Assets/Picture/Effect/punyumeteo.aseprite`(+書き出し済みの`.png`/`.json`、
+96x96のコマ×6枚、aseprite側のフレーム時間は各100ms)を追加し、「ぷにゅメテオのエフェクトを
+追加しました」との連絡があったため、実際にゲーム内で表示されるよう組み込んだ。
+
+### 実装内容
+
+- `punyumeteo.png`をUnityにインポートし、`TextureImporter`をSprite/Multipleモードに設定、
+  JSON側のフレーム座標(96x96を6枚、横一列)通りに`punyumeteo_0`〜`_5`としてスライスした
+  (`spritePixelsPerUnit`は既存の`slime.png`に合わせ100)。
+- `Assets/Scripts/Slime/SlimeSkillData.cs`に`meteorEffectFrames`(`List<Sprite>`、Meteor専用・
+  任意)を追加し、`PunyuMeteor.asset`にスライスした6枚を順番に割り当てた。未設定(0枚)の
+  スキルは従来通り発動者自身の見た目が拡縮するだけの演出のままになる。
+- `Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`: メテオ演出の上昇〜滞空〜落下の間
+  (`TickMeteorEffectSprite`)、`visualRenderer.sprite`を`meteorEffectFrames`のコマ送り
+  (100ms間隔、JSON側のduration値に合わせた定数)に置き換えることで、発動者が実際に
+  「隕石」に変化して降ってくるように見せる。予備動作(Windup)中は従来通り発動者自身の
+  見た目のまま。落下が終わった瞬間、通常表示へ復帰させる。
+- 上記の復帰処理と`Bind()`の初期スプライト決定(コマ送り→種族の単一スプライト→
+  フォールバックの単色円、の3段階)が重複していたため、`ResolveDefaultSprite()`という
+  共通ヘルパーに切り出して両方から呼ぶようにした。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- この実行環境ではPlay Mode中に`Time.deltaTime`が0のまま進まない状態になっていることが
+  判明した(通常のUpdate()も自動進行しない、既知の制約の延長)。検証のためだけに
+  `BattleUnitView.DebugAdvanceMeteorAnim(float dt)`(`#if UNITY_EDITOR`限定、明示的なdtで
+  メテオ演出を手動進行させる)を追加し、一時的な検証用ダンジョンでぷにゅメテオを発動、
+  演出を1ステップずつ進めて確認した。
+  - Windup中: `slime_0`(発動者自身の通常スプライト)
+  - 上昇開始後: `punyumeteo_0`(エフェクトスプライトに切り替わる)
+  - 着地(演出終了)後: `slime_0`(通常表示へ正しく復帰)
+  - この検証の過程で、`meteorEffectFrames`表示中に演出が終了した際、
+    `BattleAnimationFrames`が0枚の種族(今回のテスト個体=マグマスライム)だと通常表示への
+    復帰に失敗し、エフェクトスプライトが表示されたまま固まる不具合を発見・修正した
+    (`ResolveDefaultSprite()`のフォールバックが機能していなかったため)。
+- テストで生成した一時的なBattleUnitView/ダンジョンアセットはPlay Mode終了時に破棄される
+  ランタイム限定のものであり、テスト後に明示的に破棄済み。

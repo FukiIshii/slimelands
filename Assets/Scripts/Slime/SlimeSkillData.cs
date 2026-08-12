@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Slimelands.Slime
@@ -39,6 +40,9 @@ namespace Slimelands.Slime
         [Tooltip("Meteor専用: 対象付近へ向けて落下するのにかける時間(秒)。着地の瞬間にareaRadiusの" +
                  "円形範囲でダメージを与える(範囲の判定・ダメージ計算はCircleと共通のロジックを使う)。")]
         [SerializeField] private float meteorFallDuration = 0.3f;
+        [Tooltip("Meteor専用(任意): 上昇〜落下中に発動者の見た目の代わりに表示する隕石本体の" +
+                 "コマ送りエフェクト。未設定(0枚)の場合は従来通り発動者自身の見た目が拡縮するだけになる。")]
+        [SerializeField] private List<Sprite> meteorEffectFrames = new();
 
         public string SkillName => skillName;
         public string Description => description;
@@ -55,5 +59,6 @@ namespace Slimelands.Slime
         public float MeteorRiseDuration => meteorRiseDuration;
         public float MeteorHoverDuration => meteorHoverDuration;
         public float MeteorFallDuration => meteorFallDuration;
+        public IReadOnlyList<Sprite> MeteorEffectFrames => meteorEffectFrames;
     }
 }

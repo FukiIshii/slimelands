@@ -52,6 +52,9 @@ namespace Slimelands.Dungeon
         private const float EnemyFaintRemovalDelay = 0.5f;
         // SlimeSpeciesData.BattleAnimationFramesのコマ送り速度(仮値、要調整)。気絶中は止める。
         private const float AnimationFrameDuration = 0.12f;
+        // SlimeSkillData.MeteorEffectFramesのコマ送り速度。punyumeteo.json(aseprite書き出し)の
+        // 各フレームduration(100ms)に合わせた値。
+        private const float MeteorEffectFrameDuration = 0.1f;
         // 元画像が右向きのため、この値未満のX移動はノイズとみなして向きを変えない
         // (浮動小数点誤差で左右に細かくちらつくのを防ぐ)。
         private const float FacingChangeThreshold = 0.001f;
@@ -85,6 +88,8 @@ namespace Slimelands.Dungeon
         private float meteorAnimTimer;
         private Vector3 meteorLandingPosition;
         private SlimeSkillData meteorSkill;
+        private float meteorEffectFrameTimer;
+        private int meteorEffectFrameIndex;
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
@@ -98,6 +103,11 @@ namespace Slimelands.Dungeon
         public Vector3 CurrentPosition => homePosition;
         public bool IsPlayingAttackMotion => meleePhase != MeleeAnimPhase.Idle;
         public bool IsPlayingMeteorMotion => meteorPhase != MeteorAnimPhase.Idle;
+
+#if UNITY_EDITOR
+        /// <summary>テスト専用: 現在表示中のスプライトを外部から確認するためのデバッグ用アクセサ。</summary>
+        public Sprite DebugCurrentSprite => visualRenderer != null ? visualRenderer.sprite : null;
+#endif
 
         /// <summary>
         /// 敵側の気絶演出(灰色化→フェードアウト)が完全に終わった瞬間に発火する。
@@ -143,23 +153,35 @@ namespace Slimelands.Dungeon
             animationFrameIndex = 0;
             animationTimer = 0f;
 
-            Sprite sprite = animationFrames != null && animationFrames.Count > 0 ? animationFrames[0] : null;
-            if (sprite == null)
-            {
-                sprite = unit.Species != null ? unit.Species.BattleSprite : null;
-            }
-            if (sprite == null)
-            {
-                sprite = RuntimeSpriteFactory.GetCircleSprite(
-                    RuntimeSpriteFactory.GetFallbackColor(attackType, unit.IsPlayerSide));
-            }
-
-            visualRenderer.sprite = sprite;
+            visualRenderer.sprite = ResolveDefaultSprite();
             visualRenderer.color = Color.white;
             // 移動し始めるまでの暫定の向き(プレイヤー側は敵側を、敵側はプレイヤー側を向く)。
             // 元画像は右向きのため、flipX=trueで左向きになる。
             visualRenderer.flipX = !unit.IsPlayerSide;
             lastFacingTrackedX = homePosition.x;
+        }
+
+        /// <summary>
+        /// 通常時に表示すべきスプライトを、Bind()と同じ優先順位(コマ送りアニメーション→
+        /// 種族の単一スプライト→フォールバックの単色円)で解決する。メテオ演出のエフェクト表示
+        /// (visualRenderer.sprite上書き)から復帰する際にも同じロジックを使う。
+        /// </summary>
+        private Sprite ResolveDefaultSprite()
+        {
+            Sprite sprite = animationFrames != null && animationFrames.Count > 0
+                ? animationFrames[Mathf.Clamp(animationFrameIndex, 0, animationFrames.Count - 1)]
+                : null;
+            if (sprite == null)
+            {
+                sprite = boundUnit != null && boundUnit.Species != null ? boundUnit.Species.BattleSprite : null;
+            }
+            if (sprite == null)
+            {
+                sprite = RuntimeSpriteFactory.GetCircleSprite(
+                    RuntimeSpriteFactory.GetFallbackColor(attackType, boundUnit != null && boundUnit.IsPlayerSide));
+            }
+
+            return sprite;
         }
 
         /// <summary>
@@ -216,6 +238,8 @@ namespace Slimelands.Dungeon
             meteorSkill = skill;
             meteorPhase = MeteorAnimPhase.Windup;
             meteorAnimTimer = 0f;
+            meteorEffectFrameTimer = 0f;
+            meteorEffectFrameIndex = 0;
         }
 
         /// <summary>
@@ -412,7 +436,28 @@ namespace Slimelands.Dungeon
         /// </summary>
         private void TickMeteorAnim()
         {
-            meteorAnimTimer += Time.deltaTime;
+            TickMeteorAnim(Time.deltaTime);
+        }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// テスト専用: このツール実行環境ではPlay Mode中にTime.deltaTimeが進まないことがあるため、
+        /// 明示的なdtを与えてメテオ演出を手動で進行させ、動作確認できるようにする。
+        /// </summary>
+        public void DebugAdvanceMeteorAnim(float dt)
+        {
+            if (meteorPhase == MeteorAnimPhase.Idle)
+            {
+                return;
+            }
+
+            TickMeteorAnim(dt);
+        }
+#endif
+
+        private void TickMeteorAnim(float dt)
+        {
+            meteorAnimTimer += dt;
 
             switch (meteorPhase)
             {
@@ -425,6 +470,8 @@ namespace Slimelands.Dungeon
                     {
                         meteorPhase = MeteorAnimPhase.Rising;
                         meteorAnimTimer = 0f;
+                        meteorEffectFrameTimer = 0f;
+                        meteorEffectFrameIndex = 0;
                     }
                     break;
                 }
@@ -435,6 +482,7 @@ namespace Slimelands.Dungeon
                     Vector3 peakPosition = meteorLandingPosition + Vector3.up * MeteorPeakHeight;
                     transform.position = Vector3.Lerp(homePosition, peakPosition, p);
                     visual.localScale = Vector3.Lerp(MeteorSquishScale, Vector3.one * MeteorAirborneScale, p);
+                    TickMeteorEffectSprite();
                     if (p >= 1f)
                     {
                         meteorPhase = MeteorAnimPhase.Hovering;
@@ -446,6 +494,7 @@ namespace Slimelands.Dungeon
                 {
                     float duration = Mathf.Max(0.01f, meteorSkill.MeteorHoverDuration);
                     float p = Mathf.Clamp01(meteorAnimTimer / duration);
+                    TickMeteorEffectSprite();
                     if (p >= 1f)
                     {
                         meteorPhase = MeteorAnimPhase.Falling;
@@ -460,17 +509,43 @@ namespace Slimelands.Dungeon
                     Vector3 peakPosition = meteorLandingPosition + Vector3.up * MeteorPeakHeight;
                     transform.position = Vector3.Lerp(peakPosition, meteorLandingPosition, p);
                     visual.localScale = Vector3.Lerp(Vector3.one * MeteorAirborneScale, MeteorImpactScale, p);
+                    TickMeteorEffectSprite();
                     if (p >= 1f)
                     {
                         meteorPhase = MeteorAnimPhase.Idle;
                         homePosition = meteorLandingPosition;
                         transform.position = homePosition;
                         visual.localScale = Vector3.one;
+
+                        // 隕石エフェクト表示中に上書きしたスプライトを、通常の見た目へ戻す。
+                        visualRenderer.sprite = ResolveDefaultSprite();
                     }
                     break;
                 }
             }
         }
 
+        /// <summary>
+        /// meteorSkill.MeteorEffectFramesが設定されている場合のみ、上昇〜滞空〜落下の間、
+        /// 発動者の見た目(visualRenderer.sprite)を隕石エフェクトのコマ送りに置き換える。
+        /// 未設定(0枚)の場合は何もせず、従来通り発動者自身の見た目(拡縮のみ)のままになる。
+        /// </summary>
+        private void TickMeteorEffectSprite()
+        {
+            IReadOnlyList<Sprite> effectFrames = meteorSkill != null ? meteorSkill.MeteorEffectFrames : null;
+            if (effectFrames == null || effectFrames.Count == 0)
+            {
+                return;
+            }
+
+            meteorEffectFrameTimer += Time.deltaTime;
+            if (meteorEffectFrameTimer >= MeteorEffectFrameDuration)
+            {
+                meteorEffectFrameTimer -= MeteorEffectFrameDuration;
+                meteorEffectFrameIndex = (meteorEffectFrameIndex + 1) % effectFrames.Count;
+            }
+
+            visualRenderer.sprite = effectFrames[meteorEffectFrameIndex];
+        }
     }
 }
