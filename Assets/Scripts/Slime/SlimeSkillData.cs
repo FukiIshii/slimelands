@@ -19,7 +19,8 @@ namespace Slimelands.Slime
 
         [Header("必殺技の範囲(isUltimate=trueの場合のみ意味を持つ、仮値・要調整)")]
         [SerializeField] private UltimateAreaShape areaShape = UltimateAreaShape.SingleTarget;
-        [Tooltip("Circle: 対象中心の半径 / Line: 半幅 / Sweep: 帯の半幅 / Meteor: 着地地点中心の半径。")]
+        [Tooltip("Circle: 対象中心の半径 / Line: 半幅 / Sweep: 帯の半幅 / " +
+                 "Meteor: 着地地点中心の楕円のX方向半径(Y方向はmeteorAreaRadiusY)。")]
         [SerializeField] private float areaRadius = 2f;
         [Tooltip("Line専用: 発動者から対象方向への長さ。")]
         [SerializeField] private float areaLength = 6f;
@@ -43,10 +44,13 @@ namespace Slimelands.Slime
         [Tooltip("Meteor専用(任意): 上昇〜落下中に発動者の見た目の代わりに表示する隕石本体の" +
                  "コマ送りエフェクト。未設定(0枚)の場合は従来通り発動者自身の見た目が拡縮するだけになる。")]
         [SerializeField] private List<Sprite> meteorEffectFrames = new();
-        [Tooltip("Meteor専用: 着地エフェクトの表示位置(ワールド単位)。着地地点(areaRadiusの" +
-                 "円形範囲判定と同じ座標)からのYオフセットとして加算する。プラスで上へ、" +
-                 "マイナスで下へ移動(ワールド座標にそのまま加算するため、Y軸の向きと符号が一致する)。")]
+        [Tooltip("Meteor専用: 着地エフェクトの表示位置(ワールド単位)。着地地点(areaRadius×" +
+                 "meteorAreaRadiusYの楕円形範囲判定と同じ座標)からのYオフセットとして加算する。" +
+                 "プラスで上へ、マイナスで下へ移動(ワールド座標にそのまま加算するため、Y軸の向きと符号が一致する)。")]
         [SerializeField] private float meteorImpactEffectFootOffset;
+        [Tooltip("Meteor専用: 着地地点中心の当たり判定のY方向半径(X方向はareaRadiusを流用)。" +
+                 "areaRadiusと同じ値にすると円形になる。仮値・要調整。")]
+        [SerializeField] private float meteorAreaRadiusY = 2f;
 
         public string SkillName => skillName;
         public string Description => description;
@@ -65,5 +69,6 @@ namespace Slimelands.Slime
         public float MeteorFallDuration => meteorFallDuration;
         public IReadOnlyList<Sprite> MeteorEffectFrames => meteorEffectFrames;
         public float MeteorImpactEffectFootOffset => meteorImpactEffectFootOffset;
+        public float MeteorAreaRadiusY => meteorAreaRadiusY;
     }
 }

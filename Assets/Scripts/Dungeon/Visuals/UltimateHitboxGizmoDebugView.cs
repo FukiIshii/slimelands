@@ -23,6 +23,7 @@ namespace Slimelands.Dungeon
         [SerializeField] private float displayDuration = 0.6f;
         [SerializeField] private Color circleColor = new(1f, 0.2f, 0.2f, 0.8f);
         [SerializeField] private Color boxColor = new(0.2f, 0.6f, 1f, 0.8f);
+        [SerializeField] private Color ellipseColor = new(1f, 0.6f, 0.1f, 0.8f);
 
         private readonly List<(UltimateHitboxDebugInfo info, float spawnTime)> recent = new();
 
@@ -83,23 +84,41 @@ namespace Slimelands.Dungeon
                 float alpha = 1f - Mathf.Clamp01(age / displayDuration);
                 UltimateHitboxDebugInfo info = recent[i].info;
 
-                if (info.IsCircle)
+                switch (info.Shape)
                 {
-                    Color color = circleColor;
-                    color.a *= alpha;
-                    Gizmos.color = color;
-                    Gizmos.DrawWireSphere(info.Center, info.Radius);
-                }
-                else
-                {
-                    Color color = boxColor;
-                    color.a *= alpha;
-                    Gizmos.color = color;
+                    case UltimateHitboxShapeKind.Circle:
+                    {
+                        Color color = circleColor;
+                        color.a *= alpha;
+                        Gizmos.color = color;
+                        Gizmos.DrawWireSphere(info.Center, info.Radius);
+                        break;
+                    }
+                    case UltimateHitboxShapeKind.Box:
+                    {
+                        Color color = boxColor;
+                        color.a *= alpha;
+                        Gizmos.color = color;
 
-                    Matrix4x4 previousMatrix = Gizmos.matrix;
-                    Gizmos.matrix = Matrix4x4.TRS(info.Center, Quaternion.Euler(0f, 0f, info.AngleDegrees), Vector3.one);
-                    Gizmos.DrawWireCube(Vector3.zero, new Vector3(info.BoxSize.x, info.BoxSize.y, 0.1f));
-                    Gizmos.matrix = previousMatrix;
+                        Matrix4x4 previousMatrix = Gizmos.matrix;
+                        Gizmos.matrix = Matrix4x4.TRS(info.Center, Quaternion.Euler(0f, 0f, info.AngleDegrees), Vector3.one);
+                        Gizmos.DrawWireCube(Vector3.zero, new Vector3(info.BoxSize.x, info.BoxSize.y, 0.1f));
+                        Gizmos.matrix = previousMatrix;
+                        break;
+                    }
+                    case UltimateHitboxShapeKind.Ellipse:
+                    {
+                        Color color = ellipseColor;
+                        color.a *= alpha;
+                        Gizmos.color = color;
+
+                        Vector3[] outline = EllipseGeometry.BuildOutline(info.Center, info.BoxSize.x, info.BoxSize.y);
+                        for (int p = 0; p < outline.Length - 1; p++)
+                        {
+                            Gizmos.DrawLine(outline[p], outline[p + 1]);
+                        }
+                        break;
+                    }
                 }
             }
         }

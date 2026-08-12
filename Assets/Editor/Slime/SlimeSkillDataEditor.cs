@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using Slimelands.Dungeon;
 using Slimelands.Slime;
 
 namespace Slimelands.Slime.Editor
@@ -63,8 +64,10 @@ namespace Slimelands.Slime.Editor
             switch (skill.AreaShape)
             {
                 case UltimateAreaShape.Circle:
-                case UltimateAreaShape.Meteor:
                     DrawRadiusHandle(serializedObject, PreviewOrigin, "areaRadius");
+                    break;
+                case UltimateAreaShape.Meteor:
+                    DrawEllipseHandles(serializedObject);
                     break;
                 case UltimateAreaShape.Line:
                     DrawLineHandles(serializedObject);
@@ -97,6 +100,44 @@ namespace Slimelands.Slime.Editor
             }
 
             Handles.Label(handlePos + Vector3.up * 0.2f, propertyName + " = " + prop.floatValue.ToString("F2"));
+        }
+
+        /// <summary>Meteor専用: 着地地点中心の楕円(X半径areaRadius、Y半径meteorAreaRadiusY)。
+        /// 2つの半径をそれぞれ独立したハンドルで調整できるようにする(円形ではなく楕円形での
+        /// 判定にしたいというユーザー要望)。</summary>
+        private static void DrawEllipseHandles(SerializedObject serializedObject)
+        {
+            SerializedProperty radiusXProp = serializedObject.FindProperty("areaRadius");
+            SerializedProperty radiusYProp = serializedObject.FindProperty("meteorAreaRadiusY");
+            float radiusX = radiusXProp.floatValue;
+            float radiusY = radiusYProp.floatValue;
+
+            Vector3 origin = PreviewOrigin;
+            Vector3[] outline = EllipseGeometry.BuildOutline(origin, radiusX, radiusY);
+            Handles.DrawPolyLine(outline);
+
+            // X半径調整ハンドル(+X方向)。
+            Vector3 xHandlePos = origin + Vector3.right * radiusX;
+            EditorGUI.BeginChangeCheck();
+            Vector3 newXHandlePos = Handles.Slider(xHandlePos, Vector3.right,
+                HandleUtility.GetHandleSize(xHandlePos) * 0.15f, Handles.ConeHandleCap, 0f);
+            if (EditorGUI.EndChangeCheck())
+            {
+                radiusXProp.floatValue = Mathf.Max(0f, newXHandlePos.x - origin.x);
+            }
+
+            // Y半径調整ハンドル(+Y方向)。
+            Vector3 yHandlePos = origin + Vector3.up * radiusY;
+            EditorGUI.BeginChangeCheck();
+            Vector3 newYHandlePos = Handles.Slider(yHandlePos, Vector3.up,
+                HandleUtility.GetHandleSize(yHandlePos) * 0.15f, Handles.ConeHandleCap, 0f);
+            if (EditorGUI.EndChangeCheck())
+            {
+                radiusYProp.floatValue = Mathf.Max(0f, newYHandlePos.y - origin.y);
+            }
+
+            Handles.Label(xHandlePos + Vector3.up * 0.2f, "areaRadius(X) = " + radiusXProp.floatValue.ToString("F2"));
+            Handles.Label(yHandlePos + Vector3.right * 0.2f, "meteorAreaRadiusY(Y) = " + radiusYProp.floatValue.ToString("F2"));
         }
 
         /// <summary>発動者からareaLengthだけ+X方向へ伸びる矩形(半幅areaRadius)。長さと半幅を

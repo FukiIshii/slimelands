@@ -481,8 +481,8 @@ namespace Slimelands.Dungeon
 
         /// <summary>
         /// 着地の瞬間の処理。実座標を着地地点へ移し、無敵・スキル演出中フラグを解除して通常の
-        /// 交戦(接近・後退・通常攻撃)に復帰させた上で、着地地点を中心とした円形範囲ダメージを
-        /// Circle必殺技と同じApplyAreaDamage/QueryUnitsInCircleで適用する。
+        /// 交戦(接近・後退・通常攻撃)に復帰させた上で、着地地点を中心とした楕円形範囲ダメージを
+        /// ApplyAreaDamage/QueryUnitsInEllipseで適用する(円形ではなく楕円形での判定、ユーザー要望)。
         /// </summary>
         private void ResolveMeteorLanding(PendingMeteor pending)
         {
@@ -491,8 +491,10 @@ namespace Slimelands.Dungeon
             caster.IsInSkillMotion = false;
             caster.IsInvulnerable = false;
 
-            List<BattleUnit> hits = QueryUnitsInCircle(pending.LandingPosition, pending.Skill.AreaRadius, caster);
-            OnUltimateHitboxChecked?.Invoke(new UltimateHitboxDebugInfo(pending.LandingPosition, pending.Skill.AreaRadius));
+            float radiusX = pending.Skill.AreaRadius;
+            float radiusY = pending.Skill.MeteorAreaRadiusY;
+            List<BattleUnit> hits = QueryUnitsInEllipse(pending.LandingPosition, radiusX, radiusY, caster);
+            OnUltimateHitboxChecked?.Invoke(UltimateHitboxDebugInfo.Ellipse(pending.LandingPosition, radiusX, radiusY));
             ApplyAreaDamage(caster, hits, pending.Skill, pending.LandingPosition);
         }
 
@@ -604,6 +606,39 @@ namespace Slimelands.Dungeon
             Physics2D.SyncTransforms();
             Collider2D[] results = Physics2D.OverlapBoxAll(center, size, angleDegrees, GetOpposingHurtboxMask(caster));
             return ResolveHurtboxUnits(results);
+        }
+
+        /// <summary>
+        /// 楕円範囲で、casterの敵対勢力に属し気絶していないユニットを検出する(Meteor専用)。
+        /// Physics2Dに楕円クエリは存在しないため、まずOverlapCircleAllで候補を広めに拾い
+        /// (半径は楕円の長い方の軸+各ユニットのHurtbox半径)、各候補のBattleUnitHurtboxの座標を
+        /// 楕円の方程式((x/rx)^2+(y/ry)^2<=1)で絞り込む。Circle/Boxクエリはコライダー同士の
+        /// 接触判定(コライダーの大きさ込み)で命中を検出するのに対し、この絞り込みはHurtbox中心点
+        /// のみで判定するため、境界付近の巻き込み方に厳密な一致はないが、rx/ryにHurtbox半径を
+        /// 加算することで同程度の判定の緩さ(コライダーが少しでも重なれば命中)を近似している。
+        /// </summary>
+        private List<BattleUnit> QueryUnitsInEllipse(Vector2 center, float radiusX, float radiusY, BattleUnit caster)
+        {
+            Physics2D.SyncTransforms();
+            float hurtboxRadius = HurtboxRadius * UnitVisualScale;
+            float effectiveRadiusX = Mathf.Max(0.01f, radiusX + hurtboxRadius);
+            float effectiveRadiusY = Mathf.Max(0.01f, radiusY + hurtboxRadius);
+            float boundingRadius = Mathf.Max(effectiveRadiusX, effectiveRadiusY);
+
+            Collider2D[] candidates = Physics2D.OverlapCircleAll(center, boundingRadius, GetOpposingHurtboxMask(caster));
+            var filtered = new List<Collider2D>();
+            foreach (Collider2D candidate in candidates)
+            {
+                Vector2 offset = (Vector2)candidate.transform.position - center;
+                float nx = offset.x / effectiveRadiusX;
+                float ny = offset.y / effectiveRadiusY;
+                if (nx * nx + ny * ny <= 1f)
+                {
+                    filtered.Add(candidate);
+                }
+            }
+
+            return ResolveHurtboxUnits(filtered.ToArray());
         }
 
         /// <summary>
@@ -1449,9 +1484,17 @@ namespace Slimelands.Dungeon
     /// 実行された瞬間の形状情報。DungeonRunController.OnUltimateHitboxCheckedで通知され、
     /// Scene View上でのGizmos可視化(開発用、実際のGame Viewには表示されない)にのみ使う。
     /// </summary>
+    /// <summary>デバッグ可視化(UltimateHitboxGizmoDebugView)向けの当たり判定の形状種別。</summary>
+    public enum UltimateHitboxShapeKind
+    {
+        Circle,
+        Box,
+        Ellipse,
+    }
+
     public readonly struct UltimateHitboxDebugInfo
     {
-        public readonly bool IsCircle;
+        public readonly UltimateHitboxShapeKind Shape;
         public readonly Vector2 Center;
         public readonly float Radius;
         public readonly Vector2 BoxSize;
@@ -1459,7 +1502,7 @@ namespace Slimelands.Dungeon
 
         public UltimateHitboxDebugInfo(Vector2 center, float radius)
         {
-            IsCircle = true;
+            Shape = UltimateHitboxShapeKind.Circle;
             Center = center;
             Radius = radius;
             BoxSize = default;
@@ -1468,11 +1511,26 @@ namespace Slimelands.Dungeon
 
         public UltimateHitboxDebugInfo(Vector2 center, Vector2 boxSize, float angleDegrees)
         {
-            IsCircle = false;
+            Shape = UltimateHitboxShapeKind.Box;
             Center = center;
             Radius = 0f;
             BoxSize = boxSize;
             AngleDegrees = angleDegrees;
+        }
+
+        private UltimateHitboxDebugInfo(Vector2 center, Vector2 ellipseRadii, bool _)
+        {
+            Shape = UltimateHitboxShapeKind.Ellipse;
+            Center = center;
+            Radius = 0f;
+            BoxSize = ellipseRadii;
+            AngleDegrees = 0f;
+        }
+
+        /// <summary>楕円形の当たり判定情報を作る。radiusX/radiusYはBoxSizeに(半径として、直径ではない)格納する。</summary>
+        public static UltimateHitboxDebugInfo Ellipse(Vector2 center, float radiusX, float radiusY)
+        {
+            return new UltimateHitboxDebugInfo(center, new Vector2(radiusX, radiusY), true);
         }
     }
 }

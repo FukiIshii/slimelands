@@ -5355,4 +5355,42 @@ Play Mode中にScene Viewタブを開いた状態にしておく必要がある�
 ユーザーから「エフェクトの方は今の状態から二倍にしてください」との追加要望。
 `MeteorImpactEffectScale`を`3.2f`→`6.4f`に変更(スライム本体側の`unitVisualScale`は今回変更なし)。
 コンパイルエラー・警告なしを確認。
+
+## 機能追加: ぷにゅメテオの当たり判定を円形から楕円形に変更
+
+### 経緯
+
+ユーザーから「ぷにゅめておも当たり判定を円形ではなく楕円形で判定したい」との要望。
+
+### 実装内容
+
+- `Assets/Scripts/Slime/SlimeSkillData.cs`に`meteorAreaRadiusY`(Meteor専用、着地地点中心の
+  当たり判定のY方向半径)を追加。既存の`areaRadius`をX方向半径として流用する
+  (`areaRadius`のTooltipもMeteorの意味を「楕円のX方向半径」に更新)。
+  `Assets/Data/Slime/Skills/PunyuMeteor.asset`に`meteorAreaRadiusY: 1.3`を設定
+  (X半径areaRadius=2.2に対しY方向をやや扁平にした仮値・要調整)。
+- `Assets/Scripts/Dungeon/DungeonRunController.cs`に`QueryUnitsInEllipse`を新規実装。
+  Physics2Dには楕円クエリが存在しないため、まず`Physics2D.OverlapCircleAll`で広めに候補を拾い
+  (半径は楕円の長い方の軸+各ユニットのHurtbox半径)、各候補のBattleUnitHurtbox座標を楕円の方程式
+  `(x/rx)^2+(y/ry)^2<=1`で絞り込む(rx/ryにはHurtbox半径を加算し、Circle/Boxクエリと同程度の
+  「コライダーが少しでも重なれば命中」という判定の緩さを近似する)。
+  `ResolveMeteorLanding`を`QueryUnitsInCircle`から`QueryUnitsInEllipse`に差し替えた
+  (Circle必殺技(`ActivateCircleUltimate`)は従来通り円形のまま、変更はMeteorのみ)。
+- デバッグ可視化(`UltimateHitboxDebugInfo`/`UltimateHitboxGizmoDebugView`)を楕円対応に拡張。
+  `IsCircle`(bool)を`UltimateHitboxShapeKind`(Circle/Box/Ellipse)のenumに置き換え、楕円は
+  `Assets/Scripts/Dungeon/Visuals/EllipseGeometry.cs`(新規、輪郭の線分近似を計算する共通
+  ユーティリティ)を使ってGizmos.DrawLineの連結で描画する。
+- `Assets/Editor/Slime/SlimeSkillDataEditor.cs`のScene ViewハンドルもMeteor専用の
+  `DrawEllipseHandles`に分離し、X半径(areaRadius)・Y半径(meteorAreaRadiusY)をそれぞれ独立した
+  ハンドルでドラッグ調整できるようにした(Circle必殺技は従来通り単一半径の`DrawRadiusHandle`のまま)。
+  プレビューの輪郭描画にも同じ`EllipseGeometry`を使う。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- `QueryUnitsInEllipse`を一時的に`public`にし、実際のPhysics2D CircleCollider2D+BattleUnitHurtbox
+  を使った実動作テストを実施: 中心(0,0)・X半径4・Y半径1の楕円に対し、距離3の点でもX軸上
+  (3,0)のユニットは命中、Y軸上(0,3)のユニットは命中しないことを確認した
+  (円形半径4の判定であれば両方命中してしまうケースであり、楕円判定が実際に円形と異なる挙動を
+  していることを実証)。検証後、アクセス修飾子は`private`に戻した。
 - コンソールにエラー・警告が出ていないことを確認。
