@@ -19,10 +19,17 @@ namespace Slimelands.Dungeon
         [SerializeField] private BattleBalanceData defaultBalanceData;
 
         [Header("行動帯(座標シミュレーション)")]
-        [Tooltip("プレイヤー・敵とも自由に動き回る帯の幅(ワールド単位)。")]
+        [Tooltip("プレイヤー・敵とも自由に動き回る帯の幅(ワールド単位)の上限。実際に使われる幅は" +
+                 "この値と、カメラの実際の表示幅からCameraEdgeMargin分を差し引いた幅のうち小さい方になる" +
+                 "(キャラクターがカメラの表示範囲の外へ出てしまわないようにするため)。")]
         [SerializeField] private float movementBandWidth = 11f;
-        [Tooltip("帯の高さ(ワールド単位)。このコンポーネントのtransform.position.y(背景画像の水平中央線)から下方向へこの高さ分だけ帯を確保する。")]
+        [Tooltip("帯の高さ(ワールド単位)の上限。このコンポーネントのtransform.position.y(背景画像の水平中央線)" +
+                 "から下方向へこの高さ分だけ帯を確保する。幅と同様、カメラの実際の表示高さからCameraEdgeMargin分を" +
+                 "差し引いた高さのうち小さい方が実際に使われる。")]
         [SerializeField] private float movementBandHeight = 3f;
+        [Tooltip("行動帯がカメラの表示範囲の端ぎりぎりにならないよう、表示範囲から内側へ差し引く余白" +
+                 "(ワールド単位、片側あたり)。")]
+        [SerializeField] private float cameraEdgeMargin = 0.3f;
 
         [Header("敵不在時のプレイヤー待機(仮値、要調整)")]
         [Tooltip("攻撃対象となる敵が1体もいない間(遭遇待ち等)、プレイヤー側スライムが徘徊目標を選ぶ" +
@@ -1127,19 +1134,52 @@ namespace Slimelands.Dungeon
             }
         }
 
+        private Camera cachedDungeonCamera;
+
+        /// <summary>
+        /// ダンジョン画面のカメラ(村と共通のCamera.main)を取得する。キャラクターの行動帯が
+        /// カメラの表示範囲からはみ出さないよう、GetMovementBoundsで表示範囲のクランプに使う。
+        /// </summary>
+        private Camera GetDungeonCamera()
+        {
+            if (cachedDungeonCamera == null)
+            {
+                cachedDungeonCamera = Camera.main;
+            }
+
+            return cachedDungeonCamera;
+        }
+
         /// <summary>
         /// 行動帯(プレイヤー・敵とも自由に動き回れる範囲)。このコンポーネントのtransform.position.yを
         /// 上端(=背景画像の水平中央線、床と奥の境界)とし、そこから下方向へmovementBandHeight分だけ
-        /// 確保する(床の部分のみで行動させるため)。
+        /// 確保する(床の部分のみで行動させるため)。幅・高さとも、実際のカメラの表示範囲
+        /// (orthographicSize・aspectから計算、CameraEdgeMarginぶん内側へ余白を取る)を超えないよう
+        /// クランプする。キャラクターがカメラの表示範囲の外へ出てしまわないようにするための対応
+        /// (ユーザー要望)。カメラが見つからない場合は従来通りmovementBandWidth/Heightをそのまま使う。
         /// </summary>
         private Rect GetMovementBounds()
         {
             float floorTopY = transform.position.y;
+            float width = movementBandWidth;
+            float height = movementBandHeight;
+
+            Camera cam = GetDungeonCamera();
+            if (cam != null && cam.orthographic)
+            {
+                float visibleHeight = cam.orthographicSize * 2f;
+                float visibleWidth = visibleHeight * cam.aspect;
+                float maxWidth = Mathf.Max(0.1f, visibleWidth - cameraEdgeMargin * 2f);
+                float maxHeight = Mathf.Max(0.1f, visibleHeight - cameraEdgeMargin * 2f);
+                width = Mathf.Min(width, maxWidth);
+                height = Mathf.Min(height, maxHeight);
+            }
+
             return new Rect(
-                transform.position.x - movementBandWidth * 0.5f,
-                floorTopY - movementBandHeight,
-                movementBandWidth,
-                movementBandHeight);
+                transform.position.x - width * 0.5f,
+                floorTopY - height,
+                width,
+                height);
         }
 
         /// <summary>
