@@ -95,6 +95,11 @@ namespace Slimelands.Dungeon
         private Vector3 meteorLandingPosition;
         private SlimeSkillData meteorSkill;
         private SpriteRenderer meteorImpactEffectRenderer;
+        // 着地地点に固定表示するためのワールド座標。MeteorImpactEffectはキャスターのtransformの
+        // 子(visualScaleRoot配下)のため、何もしないと着地後にキャスターが動き出した際に
+        // エフェクトも一緒に引きずられてしまう(実測で確認済みの不具合)。再生中は毎フレーム
+        // この座標へ位置を固定し直すことで、キャスターの移動と切り離す。
+        private Vector3 meteorImpactEffectWorldPosition;
         private IReadOnlyList<Sprite> meteorImpactEffectFrames;
         private float meteorImpactEffectTimer;
         private int meteorImpactEffectFrameIndex;
@@ -561,8 +566,8 @@ namespace Slimelands.Dungeon
             // (visualScaleRoot、種族のUnitVisualScaleが掛かっている)のスケール分だけ
             // オフセットが余計に拡大されてしまう(実測でスケール1.6倍の種族においてオフセットが
             // 1.6倍effectiveに増幅され、着地地点から大きく離れて表示される不具合になっていた)。
-            meteorImpactEffectRenderer.transform.position =
-                transform.position + new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
+            meteorImpactEffectWorldPosition = transform.position + new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
+            meteorImpactEffectRenderer.transform.position = meteorImpactEffectWorldPosition;
         }
 
         /// <summary>
@@ -576,6 +581,11 @@ namespace Slimelands.Dungeon
             {
                 return;
             }
+
+            // キャスターのtransformの子であるため、着地後にキャスターが移動を再開すると
+            // 何もしなければエフェクトも一緒に引きずられてしまう。再生中は毎フレーム着地地点へ
+            // 位置を固定し直すことで、キャスターの移動と切り離す。
+            meteorImpactEffectRenderer.transform.position = meteorImpactEffectWorldPosition;
 
             if (meteorImpactEffectFading)
             {

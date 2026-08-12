@@ -5063,3 +5063,45 @@ Play Mode上でエフェクトのワールド座標を直接動かしながら�
 - `PunyuMeteor.asset`に保存した値(0.3)でも同じ結果になることを、資産経由の
   再現テストとキャプチャで確認した。
 - コンパイルエラー・警告なしを確認。
+
+## 修正: 着地エフェクトが着地後もキャスターの移動に引きずられてしまう不具合
+
+### 経緯
+
+ユーザーから「子オブジェクトとして生成してる?」と指摘があった。`MeteorImpactEffect`は
+`Awake()`で一度だけ生成され、`visualScaleRoot`(キャスター自身の`transform`の子)の
+子オブジェクトとして使い回されている実装であることを確認し、この構造が原因で
+着地後の見た目に不具合がないか検証した。
+
+### 原因
+
+着地後、`caster.IsInSkillMotion`は`false`に戻り通常の交戦(索敵・接近・後退)へ復帰する
+仕様のため、着地エフェクトの再生中(コマ送り+フェードで最大約0.85秒)であっても
+キャスター自身はすぐに動き出せる。`BattleUnitView.Update()`は毎フレーム
+`transform.position`をキャスターの現在座標(`boundUnit.Position`)に同期させるが、
+`MeteorImpactEffect`はその子オブジェクトのため、この同期でキャスターと一緒に
+引きずられて移動してしまう。着地地点に留まるべき土埃エフェクトが、実際には
+キャスターに張り付いたまま動いてしまう不具合だった。
+
+Play Mode上でキャスターの`transform.position`を着地後に強制的に動かし、エフェクトの
+ワールド座標が同じ量だけ追従してズレることを実測で確認して原因を特定した
+(`Effect delta=(2,0,0)`、キャスターの移動量とそのまま一致)。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`に、着地地点のワールド座標を保持する
+フィールド`meteorImpactEffectWorldPosition`を追加。`PlayMeteorImpactEffect`でこの座標を
+算出・保存した上で、毎フレーム呼ばれる`TickMeteorImpactEffect`の冒頭で
+`meteorImpactEffectRenderer.transform.position = meteorImpactEffectWorldPosition;`を
+実行し、親(キャスター)がどれだけ動いてもエフェクトの位置を着地地点へ固定し直すように
+した。GameObjectの親子構造自体(生成・破棄のライフサイクルをキャスターに委ねる仕組み)は
+変更していない。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode上で実際のダンジョンでメテオを着地させた後、キャスターの`transform.position`を
+  強制的に+2動かし、`TickMeteorImpactEffect`相当の処理を1回進めた上でエフェクトの
+  ワールド座標を確認した。修正前は`Effect delta=(2,0,0)`(キャスターと同じだけ移動)
+  だったのに対し、修正後は`Effect delta=(0,0,0)`(着地地点に固定されたまま)に
+  なることを確認した。
