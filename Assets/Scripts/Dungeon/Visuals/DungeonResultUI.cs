@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -9,16 +8,24 @@ namespace Slimelands.Dungeon
     /// <summary>
     /// ダンジョンクリア/敗退時に、結果(入手アイテム)と「戻る」「もう一回」の選択肢を表示する
     /// uGUIベースの結果画面。DungeonRunControllerのクリア/失敗イベントを購読して自動的に
-    /// 表示するだけの見た目専用コンポーネントで、戦闘ロジックには一切書き込まない
-    /// (「もう一回」も、パーティー編成(SourceIndividual)をそのままcontroller.StartDungeonへ
-    /// 渡す既存の公開APIを呼ぶだけで、HP不足個体の除外等は既存ロジックにそのまま従う)。
+    /// 表示するだけの見た目専用コンポーネントで、戦闘ロジックには一切書き込まない。
+    /// 「もう一回」は、直前のパーティーをそのままcontroller.StartDungeonへ渡すのではなく、
+    /// 詳細画面の「ここに行く」と同じくパーティー編成画面(PartyFormationUI)へ戻す。直前の
+    /// 戦闘でHPが最大の50%未満になった個体はCanJoinParty=falseとなり編成から除外される仕様
+    /// (DungeonRunController.StartDungeon参照)のため、戦闘直後は編成全員が非該当になりやすく、
+    /// そのままStartDungeonへ渡すとpartyUnitsが0体になって早期returnし、次のウェーブが一切
+    /// 出現しない(「敵が出てこない」)まま無言で失敗する不具合があった。パーティー編成画面を
+    /// 経由させることで、既存の「HP不足の個体は選択できない」表示(PartyFormationUI)が
+    /// そのまま使え、プレイヤーが編成し直せるようになる。
     /// UI一式は(DungeonPartyHud等と同様に)実行時にコードで組み立てる。
     /// </summary>
     public class DungeonResultUI : MonoBehaviour
     {
         [SerializeField] private DungeonRunController controller;
-        [Tooltip("「戻る」ボタンから村へ画面切り替えを呼ぶための参照。未設定でも動作する(ボタンが押せなくなるだけ)。")]
+        [Tooltip("「戻る」ボタンから村へ、「もう一回」からパーティー編成画面へ画面切り替えを呼ぶための参照。未設定でも動作する(ボタンが押せなくなるだけ)。")]
         [SerializeField] private GameScreenController screenController;
+        [Tooltip("「もう一回」で同じダンジョンを選択済みの状態にして開くパーティー編成画面。未設定の場合はダンジョン未選択のまま編成画面が開く。")]
+        [SerializeField] private PartyFormationUI partyFormationUI;
 
         [Header("レイアウト(仮値、要調整。専用アート未着手のため単色パネルで代用)")]
         [SerializeField] private Vector2 panelSize = new(880f, 680f);
@@ -320,18 +327,18 @@ namespace Slimelands.Dungeon
 
         private void HandleRetryClicked()
         {
-            if (controller == null || controller.CurrentDungeon == null)
+            if (controller == null || controller.CurrentDungeon == null || screenController == null)
             {
                 return;
             }
 
-            var party = controller.PlayerUnits
-                .Select(unit => unit.SourceIndividual)
-                .Where(individual => individual != null)
-                .ToList();
+            if (partyFormationUI != null)
+            {
+                partyFormationUI.SelectDungeon(controller.CurrentDungeon);
+            }
 
             HidePanel();
-            controller.StartDungeon(controller.CurrentDungeon, party);
+            screenController.ShowPartyFormation();
         }
 
         // uGUIのボタン等はEventSystemが無いと入力を受け取れない。このプロジェクトは新Input System

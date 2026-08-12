@@ -4880,3 +4880,58 @@ DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { re
 - 今後の微調整は、`PunyuMeteor.asset`のInspectorで
   `Meteor Impact Effect Foot Offset`の値を直接変更するだけでよい
   (再コンパイル不要、プラスで下・マイナスで上に移動)。
+
+## 修正: ダンジョン結果画面の「もう一回」が敵を出現させずに無言で失敗する不具合
+
+### 経緯
+
+ユーザーから「敵がでてきませんでした」と報告があった(結果画面の「もう一回」ボタンを押した後)。
+
+### 原因
+
+`DungeonRunController.StartDungeon`は、渡されたパーティーのうちHPが最大HPの50%未満の個体
+(`SlimeIndividual.CanJoinParty == false`)を編成から除外する仕様になっている。一方、
+`DungeonResultUI.HandleRetryClicked`は直前の戦闘で使っていた`controller.PlayerUnits`の
+`SourceIndividual`をそのまま`controller.StartDungeon`へ渡し直していた。ダンジョンを
+クリア/失敗した直後は、パーティーの多くが50%未満までHPを削られていることが多く、
+全員が除外されると`playerUnits.Count == 0`になり、`StartDungeon`は次のウェーブを
+一切出現させずに(`ProceedToNextWave`を呼ばずに)早期returnしていた。この際に出る
+フィードバックはHUDログへの1行のみで、画面上は敵が出現しないまま何も起きたように
+見えなかった。
+
+Play Mode上で`DungeonRunController`の実際の状態を直接調べ、パーティーのHPを1まで
+下げてから同じ経路(`controller.StartDungeon(controller.CurrentDungeon, party)`)を
+再現したところ、`PlayerUnits.Count: 1 -> 0`、`State: InBattle -> NotStarted`、
+`AliveEnemies`は変化なし(次のウェーブが呼ばれないため)という形で問題を確定的に再現した。
+
+なお、通常の初回ダンジョン突入(ダンジョン詳細画面「ここに行く」→パーティー編成画面)は
+`PartyFormationUI`を経由しており、そちらは`TogglePartyMember`が`CanJoinParty == false`の
+個体をそもそも選択不可にする(既存のUIで正しくフィードバックされる)。「もう一回」だけが
+このパーティー編成画面を経由せず、チェックなしで直接`StartDungeon`を呼んでいたのが問題だった。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/DungeonResultUI.cs`の`HandleRetryClicked`を、直前の
+パーティーを直接`StartDungeon`へ渡す実装から、初回突入と同じ経路(パーティー編成画面
+`PartyFormationUI`)へ戻す実装に変更した。
+
+- `[SerializeField] private PartyFormationUI partyFormationUI;`を追加。
+- `HandleRetryClicked`は`partyFormationUI.SelectDungeon(controller.CurrentDungeon)`で
+  同じダンジョンを選択済みにした上で、結果パネルを閉じて`screenController.ShowPartyFormation()`
+  を呼ぶだけに変更(`controller.StartDungeon`の直接呼び出しは削除)。
+- これにより、HP不足で編成できない個体は`PartyFormationUI`の既存の表示・選択制限で
+  正しくフィードバックされ、プレイヤーが編成を組み直してから出発できるようになる。
+- 未使用になった`using System.Linq;`を削除。
+- シーン上の`DungeonResultUI`の`partyFormationUI`参照はEdit Mode中に`SerializedObject`
+  経由で設定し、シーンを保存した(Play Mode中に設定した参照は保存されない点に注意し、
+  一度Play Modeを終了してから設定し直した)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode上でダンジョンを開始し、パーティーのHPを1まで下げて(`CanJoinParty=False`に
+  なることを確認した上で)`DungeonResultUI.HandleRetryClicked`を直接呼び出し、
+  `CurrentScreen: DungeonBattle -> PartyFormation`、`PartyFormationUI.SelectedDungeon`が
+  正しく同じダンジョンになることを確認した。
+- コンソールにエラー・警告が出ていないことを確認。
+- テストで変更したロスター個体のHPは元の値(30)に復元済み。

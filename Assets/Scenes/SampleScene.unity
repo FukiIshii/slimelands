@@ -2014,6 +2014,8 @@ MonoBehaviour:
   portraitSize: 100
   ultimateButtonSize: 88
   innerMargin: 10
+  ultimateGaugeTrackColor: {r: 0.25, g: 0.25, b: 0.25, a: 0.9}
+  ultimateGaugeFillColor: {r: 1, g: 0.85, b: 0.2, a: 1}
 --- !u!114 &360021983
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2029,6 +2031,14 @@ MonoBehaviour:
   screenController: {fileID: 360021980}
   partyFormationUI: {fileID: 360021978}
   progressManager: {fileID: 360021985}
+  panelSize: {x: 900, y: 780}
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.55}
+  panelColor: {r: 0.93, g: 0.85, b: 0.66, a: 1}
+  clearedTextColor: {r: 0.25, g: 0.5, b: 0.9, a: 1}
+  goEnabledColor: {r: 0.75, g: 0.1, b: 0.1, a: 1}
+  goDisabledColor: {r: 0.55, g: 0.55, b: 0.55, a: 1}
+  iconSize: 220
+  buttonSize: {x: 240, y: 72}
 --- !u!114 &360021984
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2090,6 +2100,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonResultUI
   controller: {fileID: 360021976}
   screenController: {fileID: 360021980}
+  partyFormationUI: {fileID: 360021978}
   panelSize: {x: 880, y: 680}
   overlayColor: {r: 0, g: 0, b: 0, a: 0.55}
   panelColor: {r: 0.93, g: 0.85, b: 0.66, a: 1}
