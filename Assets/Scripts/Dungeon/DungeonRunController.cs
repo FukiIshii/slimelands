@@ -166,6 +166,14 @@ namespace Slimelands.Dungeon
         public event Action<BattleUnit> OnUnitFainted;
 
         /// <summary>
+        /// デバッグ表示専用: 必殺技の当たり判定(Circle/Line/Sweep/Meteorいずれか)のコライダー
+        /// クエリ(Physics2D.OverlapCircleAll/OverlapBoxAll)が実際に実行された瞬間に発火する。
+        /// 戦闘ロジック(ダメージ計算・ターゲティング)には一切影響しない、Scene View上での
+        /// Gizmos可視化用の通知専用イベント(実際のGame Viewには表示されない)。
+        /// </summary>
+        public event Action<UltimateHitboxDebugInfo> OnUltimateHitboxChecked;
+
+        /// <summary>
         /// ダンジョンへの突入。partyはHPが最大HPの50%以上に回復している個体(CanJoinParty)のみが
         /// 実際に参加する。affinity/balanceを省略した場合はInspectorで設定したデフォルト値を使う。
         /// </summary>
@@ -333,6 +341,7 @@ namespace Slimelands.Dungeon
         {
             Vector2 origin = primaryTarget.Position;
             List<BattleUnit> hits = QueryUnitsInCircle(origin, skill.AreaRadius, caster);
+            OnUltimateHitboxChecked?.Invoke(new UltimateHitboxDebugInfo(origin, skill.AreaRadius));
             ApplyAreaDamage(caster, hits, skill, origin);
         }
 
@@ -347,6 +356,7 @@ namespace Slimelands.Dungeon
             Vector2 boxSize = new(skill.AreaLength, skill.AreaRadius * 2f);
 
             List<BattleUnit> hits = QueryUnitsInBox(boxCenter, boxSize, angle, caster);
+            OnUltimateHitboxChecked?.Invoke(new UltimateHitboxDebugInfo(boxCenter, boxSize, angle));
             ApplyAreaDamage(caster, hits, skill, origin);
         }
 
@@ -482,6 +492,7 @@ namespace Slimelands.Dungeon
             caster.IsInvulnerable = false;
 
             List<BattleUnit> hits = QueryUnitsInCircle(pending.LandingPosition, pending.Skill.AreaRadius, caster);
+            OnUltimateHitboxChecked?.Invoke(new UltimateHitboxDebugInfo(pending.LandingPosition, pending.Skill.AreaRadius));
             ApplyAreaDamage(caster, hits, pending.Skill, pending.LandingPosition);
         }
 
@@ -523,6 +534,7 @@ namespace Slimelands.Dungeon
                 Vector2 boxCenter = new(x, bounds.center.y);
                 Vector2 boxSize = new(sweep.Skill.AreaRadius * 2f, bounds.height);
                 List<BattleUnit> hitThisTick = QueryUnitsInBox(boxCenter, boxSize, 0f, sweep.Caster);
+                OnUltimateHitboxChecked?.Invoke(new UltimateHitboxDebugInfo(boxCenter, boxSize, 0f));
 
                 foreach (BattleUnit target in hitThisTick)
                 {
@@ -1429,6 +1441,38 @@ namespace Slimelands.Dungeon
             public MeteorPhase Phase;
             public float PhaseElapsed;
             public Vector2 LandingPosition;
+        }
+    }
+
+    /// <summary>
+    /// デバッグ表示専用: 必殺技の当たり判定(Physics2D.OverlapCircleAll/OverlapBoxAll)が実際に
+    /// 実行された瞬間の形状情報。DungeonRunController.OnUltimateHitboxCheckedで通知され、
+    /// Scene View上でのGizmos可視化(開発用、実際のGame Viewには表示されない)にのみ使う。
+    /// </summary>
+    public readonly struct UltimateHitboxDebugInfo
+    {
+        public readonly bool IsCircle;
+        public readonly Vector2 Center;
+        public readonly float Radius;
+        public readonly Vector2 BoxSize;
+        public readonly float AngleDegrees;
+
+        public UltimateHitboxDebugInfo(Vector2 center, float radius)
+        {
+            IsCircle = true;
+            Center = center;
+            Radius = radius;
+            BoxSize = default;
+            AngleDegrees = 0f;
+        }
+
+        public UltimateHitboxDebugInfo(Vector2 center, Vector2 boxSize, float angleDegrees)
+        {
+            IsCircle = false;
+            Center = center;
+            Radius = 0f;
+            BoxSize = boxSize;
+            AngleDegrees = angleDegrees;
         }
     }
 }

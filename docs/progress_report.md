@@ -5153,3 +5153,50 @@ Play Mode上でキャスターの`transform.position`を着地後に強制的に
   対処療法が不要になった。
 - コンソールにエラー・警告が出ていないことを確認。
 - テストで生成したBattleUnitView/MeteorImpactEffectViewは明示的に破棄済み。
+
+## 新機能: 必殺技の当たり判定を開発用デバッグ表示(Gizmos)で可視化
+
+### 経緯
+
+ユーザーから「必殺技の当たり判定を可視化してほしい」と依頼があった。用途を確認したところ
+「開発用のデバッグ表示(Scene View上のGizmos、実際のプレイ画面には出さない)」を選択された。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/DungeonRunController.cs`に、必殺技の当たり判定クエリ
+(`Physics2D.OverlapCircleAll`/`OverlapBoxAll`)が実際に実行された瞬間の形状(円/矩形の
+中心・半径・サイズ・角度)を通知する専用イベント`OnUltimateHitboxChecked`
+(`Action<UltimateHitboxDebugInfo>`)を追加した。既存の`OnAreaUltimateActivated`イベントは
+Line必殺技の場合`origin`が実際の判定矩形の中心と異なる(`caster.Position`のまま)ため、
+新規に正確な形状情報を持つ専用イベントとして追加した。以下の4箇所(実際に判定クエリが
+発生する箇所全て)から発火させている:
+
+- `ActivateCircleUltimate`(Circle必殺技、対象中心の円)
+- `ActivateLineUltimate`(Line必殺技、発動者から対象方向へ伸びる矩形)
+- `TickActiveSweeps`のヒット判定ブロック内(Sweep必殺技、判定間隔(SweepTickInterval)ごとに
+  帯の現在位置で発火。攻撃対象の索敵(PickRandomNearbyOpponent等)は別枠のため含めていない)
+- `ResolveMeteorLanding`(Meteor必殺技、着地地点中心の円)
+
+新規ファイル`Assets/Scripts/Dungeon/Visuals/UltimateHitboxGizmoDebugView.cs`を追加。
+`OnUltimateHitboxChecked`を購読し、受け取った形状情報を発生時刻とともに保持、
+`OnDrawGizmos()`で円は`Gizmos.DrawWireSphere`、矩形は`Gizmos.matrix`で回転を適用した上で
+`Gizmos.DrawWireCube`を使って描画する。判定自体は1フレームで終わり一瞬しか見えないため、
+`displayDuration`(初期値0.6秒)かけてフェードアウトさせながら表示し続ける。
+`Application.isPlaying`がfalseの場合は何も描画しない。戦闘ロジック・既存の見た目演出には
+一切書き込まない、完全に読み取り専用の可視化レイヤー。
+
+シーン上の`DungeonManagers`(`DungeonRunController`が乗っているGameObject)に本コンポーネントを
+追加し、`controller`参照を自身に設定した上でシーンを保存した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode上で実際にダンジョンを開始し(`Update()`をSendMessageで手動ポンプして敵を
+  出現させた上で)、メテオ必殺技(ぷにゅメテオ)を実際に発動させ、`OnUltimateHitboxChecked`を
+  一時的に購読して発火内容を検証した。`Circle center=(9.41, -1.31) radius=2.2`のように、
+  発動したスキルの`AreaRadius`(2.2)と一致する正確な形状が1回だけ通知されることを確認した。
+- `Unity_SceneView_Capture2DScene`でのキャプチャではGizmosは描画されなかった(このキャプチャ
+  ツールが専用カメラでのオフスクリーン撮影のため、Scene View固有のGizmos描画パイプラインを
+  通らない仕様上の制限)。イベントの発火自体と座標の正確性は上記の通り直接検証済みのため、
+  実際の見た目はUnity Editorで実際にScene Viewを開いて確認する必要がある旨をユーザーに案内する。
+- コンソールにエラー・警告が出ていないことを確認。
