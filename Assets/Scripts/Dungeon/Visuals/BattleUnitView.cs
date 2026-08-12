@@ -61,6 +61,19 @@ namespace Slimelands.Dungeon
         // 着地エフェクトが全コマ再生し終えてから、フェードアウトして消えるまでの時間(秒、仮値)。
         // それまではぷつっと消えていたのをユーザー要望でフェードに変更。
         private const float MeteorImpactEffectFadeDuration = 0.25f;
+        // punyumeteo.pngは96x96のキャンバスに絵柄が描かれているが、Texture2D.GetPixelsで
+        // 実測したところ全コマ共通で絵柄の下に16px分の透明な余白がある(spritePixelsPerUnit=100
+        // なので0.16ワールド単位)。SpriteRenderer.boundsはこの透明部分を含んだスプライト矩形の
+        // 端を返すため、それをスライムの足元に合わせただけでは、実際に目で見える絵柄の下端
+        // (見た目の足元)が余白の分だけ浮いて見えてしまう。MeteorImpactEffectScale倍率がかかる分も
+        // 拡大されるため、下記でスケール込みの実際のズレ量を計算して差し引く。
+        private const float MeteorImpactEffectBottomMarginPixels = 16f;
+        private const float MeteorImpactEffectPixelsPerUnit = 100f;
+        // 上記の計算だけでは追い込みきれない見た目のズレを手動で微調整するための値
+        // (ワールド単位)。プラスにするとエフェクトが下へ、マイナスにすると上へ動く。
+        // 座標の計算式そのものではなく見た目だけを追加調整したい場合はこの値だけを変えればよい
+        // (仮値、要調整)。
+        private const float MeteorImpactEffectFootOffset = 0f;
         // 元画像が右向きのため、この値未満のX移動はノイズとみなして向きを変えない
         // (浮動小数点誤差で左右に細かくちらつくのを防ぐ)。
         private const float FacingChangeThreshold = 0.001f;
@@ -555,11 +568,16 @@ namespace Slimelands.Dungeon
             // スライム本体のスプライト下端(足元)とエフェクトのスプライト下端を揃える。
             // 両者は中心ピボットの別スプライトで大きさも違うため、中心を合わせただけでは
             // エフェクトの方が下(足元より下)にはみ出して見えてしまう(ユーザー指摘)。
-            // ワールド座標のbounds(現在のスケール込み)から必要なズレを逆算して補正する。
+            // ワールド座標のbounds(現在のスケール込み)から必要なズレを逆算して補正した上で、
+            // スプライト内の透明な余白の分(見た目の足元がbounds上端より浮いて見える分、
+            // MeteorImpactEffectScale倍率込み)を差し引き、さらに手動微調整用の
+            // MeteorImpactEffectFootOffsetを加える。
             float slimeBottomY = visualRenderer.bounds.min.y;
             float effectBottomY = meteorImpactEffectRenderer.bounds.min.y;
+            float visualMarginCorrection =
+                (MeteorImpactEffectBottomMarginPixels / MeteorImpactEffectPixelsPerUnit) * MeteorImpactEffectScale;
             Vector3 correctedPosition = meteorImpactEffectRenderer.transform.position;
-            correctedPosition.y += slimeBottomY - effectBottomY;
+            correctedPosition.y += (slimeBottomY - effectBottomY) - visualMarginCorrection + MeteorImpactEffectFootOffset;
             meteorImpactEffectRenderer.transform.position = correctedPosition;
         }
 

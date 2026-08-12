@@ -4799,3 +4799,43 @@ DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { re
   - 着地エフェクト再生開始時点で`slimeBottomY`と`effectBottomY`が完全に一致
     (差分0.0000)することを確認した。
 - テストで生成したBattleUnitViewは明示的に破棄済み。
+
+## 修正: 着地エフェクトの足元位置が座標上は一致しても見た目でズレていた問題
+
+### 経緯
+
+直前の対応(座標(SpriteRenderer.bounds)ベースで足元を揃える修正)に対し、ユーザーから
+「座標ではなく、見た目の足元位置の差分がなるようにしたい。なので、座標の変え方を教えて」
+と指摘があった。
+
+### 原因
+
+`punyumeteo.png`は96x96のキャンバスに絵柄が描かれているが、`Texture2D.GetPixels`で
+実際の透明ピクセルを調べたところ、全6コマ共通で絵柄の下に16px分の透明な余白があることが
+判明した(JSON側`trimmed: false`のため、スプライトの矩形自体は透明部分を含めた96x96
+フル範囲になっている)。`SpriteRenderer.bounds`はこの透明部分を含んだ矩形の端を返すため、
+それをスライムの足元に合わせても、実際に目に見える絵柄の下端(見た目の足元)は
+余白の分だけ浮いて見えていた。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`の`PlayMeteorImpactEffect`に、
+実測した透明マージン(`MeteorImpactEffectBottomMarginPixels = 16f`、
+`spritePixelsPerUnit = 100f`で除算)に`MeteorImpactEffectScale`を掛けた分だけ、
+座標ベースの補正からさらに差し引く計算を追加した。これによりスケールを後から
+変更しても比例して正しく補正される。加えて、それでも見た目で追い込みたい場合の
+微調整用に`MeteorImpactEffectFootOffset`(初期値0、プラスで下・マイナスで上に動く)
+を残した。ユーザーへは、座標の計算式そのものを直接いじるより、まずこの
+`MeteorImpactEffectFootOffset`の値を変えて見た目を確認する方法を案内する想定。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode中に一時的にテクスチャの`isReadable`を有効化し、`Texture2D.GetPixels`で
+  6コマ全ての透明ピクセル境界を実測(全コマ`bottomMarginPx=16`で一致、
+  `topMarginPx`はコマごとに8〜54とばらつきがあり、隕石が上空へ広がっていく
+  アニメーションと整合)。確認後`isReadable`は元の設定に戻した。
+- 検証用ダンジョンで実測: `slimeBottom`と、`effectBoundsBottom`に実測マージン
+  (0.16×1.6=0.256ワールド単位)を加算した`visualEffectBottom`が完全に一致
+  (`diff=0`)することを確認した。
+- テストで生成したBattleUnitViewは明示的に破棄済み。
