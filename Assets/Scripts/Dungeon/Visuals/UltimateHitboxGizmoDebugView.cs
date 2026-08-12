@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Slimelands.Dungeon
 {
@@ -42,6 +45,23 @@ namespace Slimelands.Dungeon
         private void HandleHitboxChecked(UltimateHitboxDebugInfo info)
         {
             recent.Add((info, Time.time));
+        }
+
+        /// <summary>
+        /// Scene ViewはEditorの都合(マウスがScene View上にある時など)で再描画されるかどうかが
+        /// 決まり、毎フレーム自動では再描画されない。何もしないと当たり判定が発生してから
+        /// displayDuration秒の間に一度もScene Viewが再描画されず、表示されないままフェード
+        /// アウトしてしまうことがある(実際に発生していた不具合)。表示中は毎フレーム明示的に
+        /// 再描画を要求することで確実に見えるようにする。
+        /// </summary>
+        private void Update()
+        {
+#if UNITY_EDITOR
+            if (recent.Count > 0)
+            {
+                SceneView.RepaintAll();
+            }
+#endif
         }
 
         private void OnDrawGizmos()
