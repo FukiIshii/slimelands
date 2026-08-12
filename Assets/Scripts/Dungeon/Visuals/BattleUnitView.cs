@@ -557,7 +557,12 @@ namespace Slimelands.Dungeon
             // 脆かった。ダメージ範囲も着地地点そのものを中心にしているため、見た目もそこに
             // 揃える方が一貫性がある。見た目の微調整はskill.MeteorImpactEffectFootOffset
             // (SlimeSkillDataのInspectorで調整可能)のみで行う。
-            meteorImpactEffectRenderer.transform.localPosition = new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
+            // ワールド座標(transform.position)を直接指定する。localPositionだと親
+            // (visualScaleRoot、種族のUnitVisualScaleが掛かっている)のスケール分だけ
+            // オフセットが余計に拡大されてしまう(実測でスケール1.6倍の種族においてオフセットが
+            // 1.6倍effectiveに増幅され、着地地点から大きく離れて表示される不具合になっていた)。
+            meteorImpactEffectRenderer.transform.position =
+                transform.position + new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
         }
 
         /// <summary>

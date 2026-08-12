@@ -44,8 +44,8 @@ namespace Slimelands.Slime
                  "コマ送りエフェクト。未設定(0枚)の場合は従来通り発動者自身の見た目が拡縮するだけになる。")]
         [SerializeField] private List<Sprite> meteorEffectFrames = new();
         [Tooltip("Meteor専用: 着地エフェクトの表示位置(ワールド単位)。着地地点(areaRadiusの" +
-                 "円形範囲判定と同じ座標)からのYオフセットとして加算する。プラスで下へ、" +
-                 "マイナスで上へ移動。")]
+                 "円形範囲判定と同じ座標)からのYオフセットとして加算する。プラスで上へ、" +
+                 "マイナスで下へ移動(ワールド座標にそのまま加算するため、Y軸の向きと符号が一致する)。")]
         [SerializeField] private float meteorImpactEffectFootOffset;
 
         public string SkillName => skillName;

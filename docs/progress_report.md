@@ -4981,3 +4981,46 @@ Play Mode上で`DungeonRunController`の実際の状態を直接調べ、パー�
   `skill.MeteorImpactEffectFootOffset`(現在の設定値-0.3)と完全に一致することを確認した。
   種族のスプライトを一切参照せずに着地地点を正確に基準にできていることを確認できた。
 - テストで生成したBattleUnitViewは明示的に破棄済み。
+
+## 修正: 着地エフェクトのオフセットが親のスケール分だけ余計に拡大されていた不具合
+
+### 経緯
+
+上記の修正後、ユーザーから「エフェクトの出現位置に違和感がある」と報告があり、
+選択式の確認で「上下方向がずれている」ことが分かった。
+
+### 原因
+
+`MeteorImpactEffect`は`visualScaleRoot`(種族の`UnitVisualScale`、実測でこの個体は1.6倍)の
+子オブジェクトになっている。前回の修正で`meteorImpactEffectRenderer.transform.localPosition`
+(親からの相対座標)に`skill.MeteorImpactEffectFootOffset`を設定していたが、
+`localPosition`は親のスケールがそのまま掛かった上でワールド座標に変換される。そのため
+`footOffset = -0.35`を指定しても、実際のワールド座標では`-0.35 × 1.6 = -0.56`ズレてしまい、
+意図した位置よりずっと下(着地地点から0.56ワールド単位も離れた場所)にエフェクトが
+表示されていた。旧実装(スライムのSpriteRenderer.boundsを使う方式)は`transform.position`
+(ワールド座標)を直接操作していたため、このスケールの影響を受けていなかった
+(今回の簡略化で新たに持ち込んでしまった不具合)。
+
+Unity_SceneView_Capture2DSceneで実際のゲーム内(森ダンジョン、実在の種族・背景)を
+キャプチャして視覚的に確認し、エフェクトがスライムから明らかに離れた場所(地面の奥、
+1ワールド単位近く下)に表示されていることを直接確認した上で原因を特定した。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`の`PlayMeteorImpactEffect`を、
+`localPosition`ではなく`transform.position`(ワールド座標)を直接指定する形に変更。
+着地の瞬間、キャスター自身の`transform.position`は既に着地地点に一致しているため、
+`meteorImpactEffectRenderer.transform.position = transform.position + new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);`
+とするだけで、親のスケールに影響されずに正確な着地地点+オフセットの座標になる。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode上で実際のダンジョン(森ダンジョン)を開始し、実在の種族(ぷにゅメテオを
+  習得済みのロスター個体)でメテオモーションを着地まで進行させ、
+  `Effect.y - casterPos.y = -0.35`(= footOffsetそのもの、スケールの影響なし)に
+  なることを実測で確認した。
+- `Unity_SceneView_Capture2DScene`で実際の背景・スプライトを使ったキャプチャを行い、
+  修正前は着地エフェクトがスライムから大きく離れた地面の奥に表示されていたのに対し、
+  修正後はスライムの足元近くに自然に表示されるようになったことを目視で確認した。
+- テストで生成した状態はPlay Mode終了により破棄済み。
