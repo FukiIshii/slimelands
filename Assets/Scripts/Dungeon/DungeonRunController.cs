@@ -49,6 +49,14 @@ namespace Slimelands.Dungeon
                  "全速力で反対方向へ切り返してしまい、高速に左右へ振り向き続ける不具合になる。この間隔の" +
                  "間は同じ向きを保持することで、瞬間的な位置のブレに過敏に反応しないようにする。")]
         [SerializeField] private float retreatDirectionRefreshInterval = 0.25f;
+        [Tooltip("後退方向へ進もうとしても行動帯の端に阻まれてほとんど位置が変わらない(壁際まで" +
+                 "追い詰められて、これ以上対象から離れられない)状態を検知するための閾値。1フレームで" +
+                 "本来進めるはずの距離に対する、行動帯の端でクランプされた後に実際に進めた距離の比率が" +
+                 "この値を下回ったら「追い詰められている」とみなし、その場に固まらせず" +
+                 "OrbitAroundTargetで対象を中心に周回させる(壁に張り付いたまま停止するのは" +
+                 "不自然、GDD「常に動き続けている」方針とも矛盾するため)。周回中に角度が回れば、" +
+                 "壁際から外れた瞬間に自然と後退を再開できる。")]
+        [SerializeField] private float retreatStuckMovementRatio = 0.15f;
 
         [Header("交戦中の待機時の周回移動(仮値、要調整)")]
         [Tooltip("近接タイプが接触距離(MeleeContactDistance)まで、遠距離タイプが後退距離" +
@@ -1308,7 +1316,8 @@ namespace Slimelands.Dungeon
         /// </summary>
         private void RetreatFromTarget(BattleUnit unit, BattleUnit target, Rect bounds, float dt)
         {
-            if (Vector2.Distance(unit.Position, target.Position) >= rangedRetreatDistance)
+            float distanceToTarget = Vector2.Distance(unit.Position, target.Position);
+            if (distanceToTarget >= rangedRetreatDistance)
             {
                 OrbitAroundTarget(unit, target, rangedRetreatDistance, bounds, dt);
                 return;
@@ -1337,6 +1346,18 @@ namespace Slimelands.Dungeon
             Vector2 newPosition = unit.Position + step;
             newPosition.x = Mathf.Clamp(newPosition.x, bounds.xMin, bounds.xMax);
             newPosition.y = Mathf.Clamp(newPosition.y, bounds.yMin, bounds.yMax);
+
+            // 行動帯の端に押し付けられていて、後退方向へ進もうとしてもクランプでほとんど位置が
+            // 変わらない(=これ以上対象から離れられず追い詰められている)場合は、その場に固まらせず
+            // OrbitAroundTargetに切り替える(retreatStuckMovementRatioのコメント参照)。
+            float intendedTravel = step.magnitude;
+            float actualTravel = Vector2.Distance(unit.Position, newPosition);
+            if (intendedTravel > 0.0001f && actualTravel < intendedTravel * retreatStuckMovementRatio)
+            {
+                OrbitAroundTarget(unit, target, distanceToTarget, bounds, dt);
+                return;
+            }
+
             unit.Position = newPosition;
         }
 
