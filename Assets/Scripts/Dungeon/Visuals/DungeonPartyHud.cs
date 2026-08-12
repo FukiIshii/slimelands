@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace Slimelands.Dungeon
 {
     /// <summary>
-    /// ダンジョン戦闘中、画面上部(右上)にプレイヤー側スライムの肖像・名前・HPバー・必殺技発動ボタンを
+    /// ダンジョン戦闘中、画面上部(左上を起点に左から右へ)にプレイヤー側スライムの肖像・名前・HPバー・必殺技発動ボタンを
     /// 表示するuGUIベースのHUD。DungeonRunControllerのイベントを購読して自動的に生成・更新するだけの
     /// 見た目専用コンポーネントで、戦闘ロジックには一切書き込まない(必殺技発動ボタンはCLAUDE.mdで
     /// 許可されている「必殺技発動」操作をcontroller.TryActivateUltimate経由で呼ぶのみ)。
@@ -128,23 +128,23 @@ namespace Slimelands.Dungeon
                 }
                 else
                 {
-                    listGo = new GameObject("PartyList", typeof(RectTransform), typeof(VerticalLayoutGroup));
+                    listGo = new GameObject("PartyList", typeof(RectTransform), typeof(HorizontalLayoutGroup));
                     listGo.transform.SetParent(canvasGo.transform, false);
                 }
 
                 listRoot = listGo.GetComponent<RectTransform>();
-                listRoot.anchorMin = new Vector2(1f, 1f);
-                listRoot.anchorMax = new Vector2(1f, 1f);
-                listRoot.pivot = new Vector2(1f, 1f);
-                listRoot.anchoredPosition = new Vector2(-screenMargin.x, -screenMargin.y);
+                listRoot.anchorMin = new Vector2(0f, 1f);
+                listRoot.anchorMax = new Vector2(0f, 1f);
+                listRoot.pivot = new Vector2(0f, 1f);
+                listRoot.anchoredPosition = new Vector2(screenMargin.x, -screenMargin.y);
 
-                var vlg = listGo.GetComponent<VerticalLayoutGroup>();
-                vlg.spacing = rowSpacing;
-                vlg.childAlignment = TextAnchor.UpperRight;
-                vlg.childForceExpandWidth = false;
-                vlg.childForceExpandHeight = false;
-                vlg.childControlWidth = false;
-                vlg.childControlHeight = false;
+                var hlg = listGo.GetComponent<HorizontalLayoutGroup>();
+                hlg.spacing = rowSpacing;
+                hlg.childAlignment = TextAnchor.UpperLeft;
+                hlg.childForceExpandWidth = false;
+                hlg.childForceExpandHeight = false;
+                hlg.childControlWidth = false;
+                hlg.childControlHeight = false;
             }
 
             // uGUIのボタン等はEventSystemが無いと入力を受け取れない。このプロジェクトは新Input System

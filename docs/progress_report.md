@@ -4216,3 +4216,36 @@ Play Mode上で短い名前(「木材」「板材」)と長い名前(「スラ�
   40回送ってシミュレートした。生成された`BattleUnitView`(2体分)の子GameObjectを調べ、
   `HpBar`を含む名前の子オブジェクトが存在しないこと(childCountが`VisualScaleRoot`のみの
   1個であること)を確認した。エラー・警告も発生しなかった。
+
+## 変更: パーティHUD(DungeonPartyHud)を縦並びから左から右への横並びに変更
+
+### 変更内容
+
+`Assets/Scripts/Dungeon/Visuals/DungeonPartyHud.cs`の`EnsureCanvasAndEventSystem()`内、
+各メンバーの行(`PartyList`)のレイアウトを`VerticalLayoutGroup`(右上起点、縦積み)から
+`HorizontalLayoutGroup`(左上起点、左から右へ積む)に変更した。`listRoot`のアンカー/ピボットも
+右上(1,1)から左上(0,0→実際は(0,1))へ変更し、`anchoredPosition`の符号を反転(`-screenMargin.x`→
+`screenMargin.x`)して左端基準にした。クラス冒頭のドキュメントコメントも「画面上部(右上)」から
+実態に合わせて更新した。
+
+### 見つけて修正した既存の不具合(今回の変更とは別件)
+
+検証用にPlay Modeで`DungeonPartyHud`を有効化したところ、`OnEnable`が
+`NullReferenceException`で失敗し、パーティのHUDが一切生成されない不具合が判明した。
+原因は、`Assets/Scenes/SampleScene.unity`に過去のテスト時点で生成された`PartyList`
+GameObjectがそのまま保存されてしまっており、旧`VerticalLayoutGroup`コンポーネントが
+付いたまま残っていたこと。`EnsureCanvasAndEventSystem()`は「同名の子が既にあれば再利用する」
+設計のため、この残留オブジェクトを見つけて`GetComponent<HorizontalLayoutGroup>()`を呼び、
+`null`のまま`.spacing`にアクセスしてNREになっていた。シーンに保存されたこの残留
+GameObject(`PartyList`とその`VerticalLayoutGroup`)を削除し、シーンを保存し直すことで解消した
+(再生成時に正しい`HorizontalLayoutGroup`付きで作り直されるようになった)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Modeで`TestDungeon`を`StartDungeon`し、レベル30のスライム3体のパーティーでHUDを
+  実際に生成させ、`PartyList`に`HorizontalLayoutGroup`が付いていること、3件のエントリが
+  生成されることを確認した。
+- `LayoutRebuilder.ForceRebuildLayoutImmediate`でレイアウトを確定させた上で、各エントリの
+  `anchoredPosition.x`が`160→488→816`(行幅320+間隔8=328ずつ)と左から右へ順に増加していることを
+  確認し、左から右への横並びになっていることを検証した。
