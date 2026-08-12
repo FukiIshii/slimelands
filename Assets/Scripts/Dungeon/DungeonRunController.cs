@@ -437,6 +437,12 @@ namespace Slimelands.Dungeon
             Vector2 offset = new(Mathf.Cos(caster.ApproachAngleRadians), Mathf.Sin(caster.ApproachAngleRadians));
             Vector2 landingPosition = target.Position + offset * meleeContactDistance;
 
+            // targetが行動帯の端付近にいると、円周上の点(offset方向)が行動帯の外(=カメラの表示
+            // 範囲外)へ飛び出すことがあるため、他の移動処理と同様に行動帯内へクランプする。
+            Rect landingBounds = GetMovementBounds();
+            landingPosition.x = Mathf.Clamp(landingPosition.x, landingBounds.xMin, landingBounds.xMax);
+            landingPosition.y = Mathf.Clamp(landingPosition.y, landingBounds.yMin, landingBounds.yMax);
+
             pendingMeteors.Add(new PendingMeteor
             {
                 Caster = caster,
@@ -1334,7 +1340,14 @@ namespace Slimelands.Dungeon
             // 進むことを許容し、次のフレームでdistance<=standoffの停止条件(→Orbit)に
             // 確実に到達できるようにする。
             float travel = Mathf.Min(balanceData.CombatMovementSpeed * dt, distance);
-            unit.Position += direction * travel;
+            Vector2 newPosition = unit.Position + direction * travel;
+
+            // 対象(登場演出中でまだ行動帯の外=画面外にいる敵など)を追いかけて自分自身が
+            // 行動帯の外(=カメラの表示範囲外)へ出てしまわないよう、他の移動処理
+            // (RetreatFromTarget/OrbitAroundTarget/TickWander)と同様にここでもクランプする。
+            newPosition.x = Mathf.Clamp(newPosition.x, bounds.xMin, bounds.xMax);
+            newPosition.y = Mathf.Clamp(newPosition.y, bounds.yMin, bounds.yMax);
+            unit.Position = newPosition;
         }
 
         /// <summary>
