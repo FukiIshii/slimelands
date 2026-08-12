@@ -226,10 +226,14 @@ Stacklands(カード積み重ね式の村運営)と「ゆっくり育ててい�
 - **実装済み**: `DungeonData.ParentDungeons`(親ダンジョンの配列、複数指定で合流ノード)と
   `DungeonProgressManager`(解放・クリア状態の判定、`DungeonRunController.OnDungeonCleared`購読で
   クリア記録)で上記を実現している。画面遷移は「村 → ダンジョンツリー画面(ノードをタップ) →
-  ダンジョン詳細画面(名前・出現する敵を確認) → 「挑戦する」でパーティー編成画面 → 出発で
-  ダンジョン戦闘画面」の一本道(`GameScreenController`の`GameScreen`列挙型で管理、新規Unityシーンには
-  分離せず同一シーン内の表示切り替えを踏襲)。ダンジョン一覧は`PartyFormationUI.availableDungeons`を
+  ダンジョン詳細画面(パーチメント風パネルで名前・アートワーク・説明文・推奨レベル・参加体数・
+  クリア済みバッジを表示) → 「ここに行く」でパーティー編成画面 → 出発でダンジョン戦闘画面」の
+  一本道(`GameScreenController`の`GameScreen`列挙型で管理、新規Unityシーンには分離せず同一
+  シーン内の表示切り替えを踏襲)。ダンジョン一覧は`PartyFormationUI.availableDungeons`を
   「全ダンジョンのマスターリスト」として扱う
+- **実装済み**: `DungeonData.RequiredPartySize`は「参加できる体数の上限」として扱う。
+  パーティー編成画面ではこの体数を超えて選択できない(`PartyFormationUI.TogglePartyMember`が
+  上限到達時に追加を拒否する)。上限未満での出発は引き続き可能
 - **実装済み**: ダンジョンクリア時の素材ドロップは`DungeonData.DropRewards`(資源カード×個数の
   リスト、確定ドロップ)と`DungeonRewardHandler`(`DungeonRunController.OnDungeonCleared`を
   購読し、`CardBoard`へ実際にカードを出現させる橋渡し役。村・ダンジョン疎結合を保つため

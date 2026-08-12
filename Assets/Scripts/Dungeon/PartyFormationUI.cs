@@ -40,7 +40,8 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>指定したスライムの編成状態を切り替える(選択中なら外す、未選択なら加える)。
-        /// HP不足(CanJoinParty=false)の個体は追加できない。</summary>
+        /// HP不足(CanJoinParty=false)の個体は追加できない。また、選択中のダンジョンの
+        /// RequiredPartySize(参加体数の上限)に達している場合はそれ以上追加できない。</summary>
         public bool TogglePartyMember(SlimeIndividual slime)
         {
             if (slime == null)
@@ -54,6 +55,11 @@ namespace Slimelands.Dungeon
             }
 
             if (!slime.CanJoinParty)
+            {
+                return false;
+            }
+
+            if (SelectedDungeon != null && selectedParty.Count >= SelectedDungeon.RequiredPartySize)
             {
                 return false;
             }
@@ -117,6 +123,7 @@ namespace Slimelands.Dungeon
             GUILayout.Space(8f);
             GUILayout.Label("--- 在籍スライム(タップで編成に追加/除外) ---");
             scroll = GUILayout.BeginScrollView(scroll, GUILayout.Height(260f));
+            bool atCap = SelectedDungeon != null && selectedParty.Count >= SelectedDungeon.RequiredPartySize;
             foreach (SlimeIndividual slime in roster.Slimes)
             {
                 bool eligible = slime.CanJoinParty;
@@ -127,8 +134,12 @@ namespace Slimelands.Dungeon
                 {
                     label += "(HP不足のため編成不可)";
                 }
+                else if (!isSelected && atCap)
+                {
+                    label += "(参加人数の上限のため編成不可)";
+                }
 
-                GUI.enabled = eligible || isSelected;
+                GUI.enabled = isSelected || (eligible && !atCap);
                 bool toggled = GUILayout.Toggle(isSelected, label);
                 GUI.enabled = true;
 
@@ -141,7 +152,7 @@ namespace Slimelands.Dungeon
 
             GUILayout.Space(8f);
             int required = SelectedDungeon != null ? SelectedDungeon.RequiredPartySize : 0;
-            GUILayout.Label($"選択中: {selectedParty.Count}体 / 必要: {required}体");
+            GUILayout.Label($"選択中: {selectedParty.Count}体 / 参加人数: {required}体");
 
             GUI.enabled = SelectedDungeon != null && selectedParty.Count > 0;
             if (GUILayout.Button("出発", GUILayout.Height(32f)))

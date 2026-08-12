@@ -49,9 +49,14 @@ namespace Slimelands.Dungeon
     public class DungeonData : ScriptableObject
     {
         [SerializeField] private string dungeonName;
-        [Tooltip("このダンジョンに挑むために必要なパーティーの体数。")]
+        [Tooltip("ダンジョン詳細画面に表示するフレーバーテキスト。")]
+        [SerializeField, TextArea(2, 4)] private string description;
+        [Tooltip("ダンジョン詳細画面に表示するアートワーク。未設定ならプレースホルダー(単色の円)を使う。")]
+        [SerializeField] private Sprite icon;
+        [Tooltip("このダンジョンに挑めるパーティーの体数の上限。パーティー編成画面ではこれを超えて" +
+            "選択できない(参加人数はこの体数以下であればよい)。")]
         [SerializeField] private int requiredPartySize = 3;
-        [Tooltip("出現する敵のレベル(このダンジョンでは一律)。仮値、要調整。")]
+        [Tooltip("出現する敵のレベル(このダンジョンでは一律)。ダンジョン詳細画面には「推奨レベル」として表示する。仮値、要調整。")]
         [SerializeField] private int enemyLevel = 1;
         [Tooltip("出現するウェーブのリスト。先頭から順に進行する。")]
         [SerializeField] private List<EncounterWaveData> waves = new();
@@ -67,6 +72,8 @@ namespace Slimelands.Dungeon
         [SerializeField] private List<DungeonDropEntry> dropRewards = new();
 
         public string DungeonName => dungeonName;
+        public string Description => description;
+        public Sprite Icon => icon;
         public int RequiredPartySize => requiredPartySize;
         public int EnemyLevel => enemyLevel;
         public IReadOnlyList<EncounterWaveData> Waves => waves;
