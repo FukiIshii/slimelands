@@ -122,5 +122,18 @@ namespace Slimelands.Slime
         {
             level = Mathf.Max(1, newLevel);
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// テスト専用: AssignedUltimateを指定のスキルへ強制的に差し替える。本来は生成時に
+        /// ランダム抽選されたきり変化しない(GDD確定仕様)ため、通常のゲームプレイ経路からは
+        /// 呼ばれない。狙ったスキルの個体を確実に用意したいテスト/デバッグ作業のためだけに
+        /// 用意する(UNITY_EDITORでのみコンパイルされ、実機ビルドには含まれない)。
+        /// </summary>
+        public void SetAssignedUltimateForTesting(SlimeSkillData skill)
+        {
+            assignedUltimate = skill;
+        }
+#endif
     }
 }

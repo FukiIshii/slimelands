@@ -4502,3 +4502,26 @@ Inspectorから調整可能にした。
 
 Play Modeで実際に発動させ、`TryActivateUltimate`から`IsInSkillMotion`が`false`に戻るまでの
 所要時間が約1.1秒(想定値1.03秒に近い)になったことを確認した。エラー・警告は発生しなかった。
+
+## 追加: テスト専用の必殺技強制指定メソッド
+
+### 経緯
+
+必殺技「ぷにゅメテオ」を持つ個体をテスト用に用意した際、`SlimeIndividual.AssignedUltimate`が
+「生成時に候補プールからランダムに1つ抽選され、以後変化しない」仕様(GDD確定仕様)のため、
+狙ったスキルが出るまで生成し直す(数十回試行)しかなかった。ユーザーから「テストに不便な
+仕様ですね」との指摘があり、対応方針を確認したところ「テスト専用の補助を用意する」を
+選択されたため対応した(本番のゲームプレイ仕様=生成時ランダム抽選・以後固定、は変更しない)。
+
+### 実装内容
+
+`Assets/Scripts/Slime/SlimeIndividual.cs`に`SetAssignedUltimateForTesting(SlimeSkillData skill)`
+を追加した。`#if UNITY_EDITOR`で囲み、実機ビルドには含まれないようにしている(通常の
+ゲームプレイ経路から呼ばれることは無く、Unity_RunCommand等でのテスト/デバッグ作業専用)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Modeで個体を生成(初期抽選は「火炎ブレス」)した後、
+  `SetAssignedUltimateForTesting(PunyuMeteor)`を呼び、`AssignedUltimate`が確実に
+  「ぷにゅメテオ」へ切り替わることを確認した。エラー・警告は発生しなかった。
