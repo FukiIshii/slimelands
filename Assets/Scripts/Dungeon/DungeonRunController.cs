@@ -653,6 +653,7 @@ namespace Slimelands.Dungeon
             {
                 case DungeonState.WaitingForEncounter:
                     TickMovement(dt);
+                    TickUltimateCooldowns(dt);
                     encounterTimer -= dt;
                     if (encounterTimer <= 0f)
                     {
@@ -665,6 +666,7 @@ namespace Slimelands.Dungeon
                     TickPendingMeleeHits(dt);
                     TickActiveSweeps(dt);
                     TickPendingMeteors(dt);
+                    TickUltimateCooldowns(dt);
                     TickBattle(dt);
                     break;
 
@@ -750,6 +752,23 @@ namespace Slimelands.Dungeon
             OnEnemyWaveSpawned?.Invoke(spawned);
         }
 
+        /// <summary>
+        /// プレイヤー側の必殺技クールタイムを進行させる。次ウェーブ待機中(WaitingForEncounter)も
+        /// 呼ばれるため、TickBattle(交戦中のみ実行)から切り出している。
+        /// </summary>
+        private void TickUltimateCooldowns(float dt)
+        {
+            foreach (BattleUnit unit in playerUnits)
+            {
+                if (unit.IsFainted || !unit.HasUltimate)
+                {
+                    continue;
+                }
+
+                unit.UltimateCooldownRemaining = Mathf.Max(0f, unit.UltimateCooldownRemaining - dt);
+            }
+        }
+
         private void TickBattle(float dt)
         {
             foreach (BattleUnit unit in playerUnits)
@@ -759,16 +778,10 @@ namespace Slimelands.Dungeon
                     continue;
                 }
 
-                if (unit.HasUltimate)
-                {
-                    unit.UltimateCooldownRemaining = Mathf.Max(0f, unit.UltimateCooldownRemaining - dt);
-                }
-
                 if (unit.IsInSkillMotion)
                 {
-                    // メテオ等の必殺技演出中(予備動作〜着地)は通常攻撃を行わない。
-                    // クールタイムは演出中も進行させる(このスキル自身の再発動はCanActivateUltimateの
-                    // IsInSkillMotionガードで別途防いでいる)。
+                    // メテオ等の必殺技演出中(予備動作〜着地)は通常攻撃を行わない
+                    // (クールタイム自体はTickUltimateCooldownsで演出中も進行する)。
                     continue;
                 }
 

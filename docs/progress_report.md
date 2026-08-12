@@ -4463,3 +4463,31 @@ Inspectorから調整可能にした。
   - クールタイム終了(残り=0): `fillAmount=1`に復帰し、ボタンが再度`interactable=true`に
     なることを確認した。
 - いずれの検証中もコンソールにエラー・警告は出力されなかった。
+
+## 修正: 必殺技クールタイムが次ウェーブ待機中(WaitingForEncounter)に進行しない不具合
+
+### 経緯
+
+ユーザーから「接敵してるときしか、必殺技ゲージが回復しないようになってる?」との質問があり、
+コードを確認したところ、`UltimateCooldownRemaining`を減算する処理が`TickBattle`
+(`DungeonState.InBattle`のときだけ呼ばれる)の中にしかなく、ウェーブ間の待機中
+(`WaitingForEncounter`)やクリア後はクールタイムが一切進行しない実装になっていたことが
+判明した。「待機中も進めるようにして」との指示を受け修正した。
+
+### 修正内容
+
+`Assets/Scripts/Dungeon/DungeonRunController.cs`: `TickBattle`内にあったクールタイム
+減算処理を`TickUltimateCooldowns(dt)`として切り出し、`Update()`の
+`DungeonState.WaitingForEncounter`ケースにも(`InBattle`ケースと並んで)呼び出しを追加した。
+`IsInSkillMotion`中もクールタイムは進行させる従来の挙動は維持している(切り出した
+メソッドは`IsFainted`/`HasUltimate`のみでガードし、`IsInSkillMotion`は見ない)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Modeで、1ウェーブ目(即時出現・弱い敵)を倒した直後に2ウェーブ目
+  (`WaitForTime`、`waitSeconds=3`)の待機に入る一時的な検証用ダンジョンを作り、
+  `State`が`WaitingForEncounter`のままである間に`UltimateCooldownRemaining`を5に
+  設定して50回`Update`をポンプ(dt=0.02×50=約1秒相当)したところ、待機状態を維持したまま
+  残りクールタイムが5→約4に減少することを確認した(修正前は待機中は一切減らなかった)。
+- エラー・警告は発生しなかった。
