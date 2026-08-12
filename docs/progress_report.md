@@ -4638,3 +4638,52 @@ SetAssignedUltimateForTesting`を呼んでその場で切り替わる。在籍�
   - 以降、100ms相当(3ステップ)ごとに`punyumeteo_1`→`_2`→`_3`→`_4`→`_5`とコマが進行。
   - `_5`の再生後、`impactPlaying=False`に戻り非表示化を確認(ループせず1回で終了)。
 - テストで生成した一時的なBattleUnitView/ダンジョンアセットは明示的に破棄済み。
+
+## 修正: ダンジョン詳細画面「ここに行く」ボタンが反応しなくなる不具合
+
+### 経緯
+
+ユーザーから「ダンジョンにいけなくなってる」と報告があった。調査したところ、
+`GameScreenController`経由の画面遷移API自体はエラーなく正常に動作すること、
+在籍スライム・パーティー編成・`DungeonRunController.StartDungeon`まで含めた本番の
+コード経路もエラーなく動作することを確認できたため、村パート/ダンジョンパートのロジック
+自体には問題がないと判明した。さらに絞り込んだところ、ダンジョン詳細画面の「ここに行く」
+ボタン(`DungeonDetailUI`)の`onClick`にリスナーが登録されていない(`Invoke()`しても
+画面遷移しない)ことを発見した。
+
+### 原因
+
+`DungeonDetailUI.EnsureUi()`(および同じパターンの`DungeonResultUI.EnsureUi()`)は、
+「初回のみUI一式を作成し、以後は`overlayGo != null`を見て何もしない」というガードを
+先頭に持っていた。しかし`overlayGo`やボタンの参照はいずれも`GameObject`/`Component`型の
+フィールドであり、Play Mode中にスクリプトを再コンパイルしてドメインリロードが起きても
+Unity側で値が保持されてしまう(シーン上のGameObject自体もドメインリロードでは破棄され
+ない)。一方、`onClick.AddListener(...)`で登録したコード側のリスナー(UnityEventの
+非永続リスナー)はドメインリロードを跨ぐと消えてしまう。
+結果として、「`overlayGo`は非nullのまま残っているのでガードに引っかかり、
+リスナーを張り直す処理(そもそも同ガードの内側にあるため)が二度と実行されない」
+という状態になり、Play Mode中にスクリプトを1回でも再コンパイルすると、それ以降
+ボタンをクリックしても何も起きなくなっていた。今回のセッションではぷにゅメテオの
+エフェクト実装のためBattleUnitView.cs等を何度も編集・再コンパイルしており、それが
+直接の引き金になっていた。
+
+### 修正内容
+
+`Assets/Scripts/Dungeon/DungeonDetailUI.cs`と`Assets/Scripts/Dungeon/Visuals/
+DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { return; }`
+ガードを削除した。`transform.Find(...)`で既存のOverlayを見つけた場合は、参照の再取得に
+加えて`RemoveAllListeners()`してから`AddListener`し直す処理を必ず通るようにし
+(二重登録防止)、毎回のOnEnable()で確実にリスナーが最新の状態になるようにした。
+`DungeonPartyHud`は必殺技発動ボタンをパーティー出現イベントのたびに全て
+作り直す実装のため、同種の不具合は無いことを確認済み(修正不要)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認(修正中に発生したローカル変数名の衝突
+  (`cancelButton`)も合わせて修正)。
+- 実際の本番コード経路(`GameScreenController.ShowDungeonDetail`→`DungeonDetailUI`の
+  「ここに行く」ボタンの`onClick.Invoke()`)で、修正前は`CurrentScreen`が
+  `DungeonDetail`のまま変化しなかったが、修正後は`PartyFormation`へ正しく遷移することを
+  確認した。
+- 検証のため一時的にダンジョンへ出発させていた状態を`ReturnToVillage()`で村画面に戻し、
+  ユーザーのセッションを片付けた。

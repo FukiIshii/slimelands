@@ -159,17 +159,16 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// UI一式(Overlay/Panel/各テキスト・ボタン)を初回のみ作成する。DungeonPartyHudと同様、
-        /// Edit Mode上での操作やドメインリロード後に再度呼ばれても、既にシーンに存在する同名の子を
-        /// 再利用して重複生成を防ぐ。
+        /// UI一式(Overlay/Panel/各テキスト・ボタン)を用意する。Edit Mode上での操作やドメイン
+        /// リロード後に再度呼ばれても、既にシーンに存在する同名の子を再利用して重複生成を防ぐ。
+        /// 呼ぶたびに毎回transform.Find()から辿り直す(overlayGo等のGameObject/Component参照
+        /// フィールドはPlay Mode中のドメインリロードを挟んでも値が保持されてしまうため、
+        /// 「overlayGo != nullなら初期化済みとみなしてスキップ」というガードを入れると、
+        /// リロード後にonClickの再登録(下記)が二度と行われなくなりボタンが反応しなくなる
+        /// 不具合になっていた)。
         /// </summary>
         private void EnsureUi()
         {
-            if (overlayGo != null)
-            {
-                return;
-            }
-
             Transform existingOverlay = transform.Find("DungeonResultOverlay");
             if (existingOverlay != null)
             {
@@ -179,6 +178,15 @@ namespace Slimelands.Dungeon
                 itemRow = (RectTransform)overlayGo.transform.Find("Panel/ItemRow");
                 backButton = overlayGo.transform.Find("Panel/BackButton").GetComponent<Button>();
                 retryButton = overlayGo.transform.Find("Panel/RetryButton").GetComponent<Button>();
+
+                // Play Mode中の再コンパイル(ドメインリロード)でシーン上のGameObjectはそのまま残るが、
+                // onClick.AddListenerで登録したコード側のリスナーは消えてしまうため、ここで張り直す
+                // (DungeonDetailUIの同種の不具合と同じ原因、二重登録を避けるためRemoveAllListenersしてから登録)。
+                backButton.onClick.RemoveAllListeners();
+                backButton.onClick.AddListener(HandleBackClicked);
+                retryButton.onClick.RemoveAllListeners();
+                retryButton.onClick.AddListener(HandleRetryClicked);
+
                 EnsureEventSystem();
                 return;
             }

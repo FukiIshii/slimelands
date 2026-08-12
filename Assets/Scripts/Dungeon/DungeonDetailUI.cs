@@ -117,16 +117,16 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// UI一式(Overlay/Panel/各テキスト・ボタン)を初回のみ作成する。DungeonResultUIと同様、
+        /// UI一式(Overlay/Panel/各テキスト・ボタン)を用意する。DungeonResultUIと同様、
         /// 既にシーンに存在する同名の子を再利用して重複生成を防ぐ。
+        /// 呼ぶたびに毎回transform.Find()から辿り直す(overlayGo等のGameObject/Component参照
+        /// フィールドはPlay Mode中のドメインリロード(スクリプト再コンパイル)を挟んでも値が
+        /// 保持されてしまうため、「overlayGo != nullなら初期化済みとみなしてスキップ」という
+        /// ガードを入れると、リロード後にonClickの再登録(下記)が二度と行われなくなり
+        /// ボタンが反応しなくなる不具合になっていた)。
         /// </summary>
         private void EnsureUi()
         {
-            if (overlayGo != null)
-            {
-                return;
-            }
-
             Transform existingOverlay = transform.Find("DungeonDetailOverlay");
             if (existingOverlay != null)
             {
@@ -138,6 +138,17 @@ namespace Slimelands.Dungeon
                 clearStatusText = overlayGo.transform.Find("Panel/ClearStatus").GetComponent<Text>();
                 goButton = overlayGo.transform.Find("Panel/GoButton").GetComponent<Button>();
                 goButtonLabel = goButton.transform.Find("Label").GetComponent<Text>();
+
+                // Play Mode中の再コンパイル(ドメインリロード)でシーン上のGameObjectはそのまま残るが、
+                // onClick.AddListenerで登録したコード側のリスナーは消えてしまう(overlayGo等の
+                // 非シリアライズフィールドがnullに戻ってこの再利用分岐に来る=リロード後の1回目という
+                // ことなので、ここで確実に張り直す。二重登録を避けるためRemoveAllListenersしてから登録)。
+                Button existingCancelButton = overlayGo.transform.Find("Panel/CancelButton").GetComponent<Button>();
+                existingCancelButton.onClick.RemoveAllListeners();
+                existingCancelButton.onClick.AddListener(HandleCancelClicked);
+                goButton.onClick.RemoveAllListeners();
+                goButton.onClick.AddListener(HandleGoClicked);
+
                 EnsureEventSystem();
                 return;
             }
