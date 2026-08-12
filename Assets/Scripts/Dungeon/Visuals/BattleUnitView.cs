@@ -37,7 +37,7 @@ namespace Slimelands.Dungeon
         private const float RollDegreesPerWorldUnit = 480f;
         private const float MeleeDashBackDuration = 0.12f;
         // メテオの上空滞在時、地上からどれだけ高く見せるか(ワールド単位、仮値・要調整)。
-        private const float MeteorPeakHeight = 2.2f;
+        private const float MeteorPeakHeight = 3.5f;
         // メテオの予備動作(縮む)・落下着地の瞬間に潰れる度合いのスケール(仮値)。
         private static readonly Vector3 MeteorSquishScale = new(1.15f, 0.7f, 1f);
         private static readonly Vector3 MeteorImpactScale = new(1.35f, 0.6f, 1f);
@@ -547,9 +547,20 @@ namespace Slimelands.Dungeon
             meteorImpactEffectTimer = 0f;
             meteorImpactEffectFading = false;
             meteorImpactEffectFadeTimer = 0f;
+            meteorImpactEffectRenderer.transform.localPosition = Vector3.zero;
             meteorImpactEffectRenderer.sprite = frames[0];
             meteorImpactEffectRenderer.color = Color.white;
             meteorImpactEffectRenderer.enabled = true;
+
+            // スライム本体のスプライト下端(足元)とエフェクトのスプライト下端を揃える。
+            // 両者は中心ピボットの別スプライトで大きさも違うため、中心を合わせただけでは
+            // エフェクトの方が下(足元より下)にはみ出して見えてしまう(ユーザー指摘)。
+            // ワールド座標のbounds(現在のスケール込み)から必要なズレを逆算して補正する。
+            float slimeBottomY = visualRenderer.bounds.min.y;
+            float effectBottomY = meteorImpactEffectRenderer.bounds.min.y;
+            Vector3 correctedPosition = meteorImpactEffectRenderer.transform.position;
+            correctedPosition.y += slimeBottomY - effectBottomY;
+            meteorImpactEffectRenderer.transform.position = correctedPosition;
         }
 
         /// <summary>
@@ -612,6 +623,12 @@ namespace Slimelands.Dungeon
 
         /// <summary>テスト専用: 現在の着地エフェクトのスプライトを外部から確認するためのデバッグ用アクセサ。</summary>
         public Sprite DebugMeteorImpactEffectSprite => meteorImpactEffectRenderer != null ? meteorImpactEffectRenderer.sprite : null;
+
+        /// <summary>テスト専用: スライム本体スプライトのワールド座標での下端Yを確認するためのデバッグ用アクセサ。</summary>
+        public float DebugVisualBottomY => visualRenderer != null ? visualRenderer.bounds.min.y : float.NaN;
+
+        /// <summary>テスト専用: 着地エフェクトスプライトのワールド座標での下端Yを確認するためのデバッグ用アクセサ。</summary>
+        public float DebugMeteorImpactEffectBottomY => meteorImpactEffectRenderer != null ? meteorImpactEffectRenderer.bounds.min.y : float.NaN;
 #endif
     }
 }

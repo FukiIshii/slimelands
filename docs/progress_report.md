@@ -4765,3 +4765,37 @@ DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { re
     かけて滑らかに減衰し、その後`impactPlaying=False`(非表示)に戻ることを確認した。
 - テストで生成したBattleUnitViewは明示的に破棄済み(今回はCardBoard関連のテストは
   行っていないため、前回のようなシーン上カードへの影響は無い)。
+
+## 調整: メテオの上昇をより高く、着地エフェクトの足元をスライムに揃える
+
+### 経緯
+
+ユーザーから「もっと高く上がるように。また、スライムの一番下とエフェクトの1番下が
+あうようにしたい」との調整依頼があった。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`を変更した。
+
+- `MeteorPeakHeight`(上空滞在時の高さ)を2.2→3.5(仮値、要調整)に引き上げた。
+- `PlayMeteorImpactEffect`(着地エフェクト再生開始時)で、スライム本体スプライトと
+  着地エフェクトスプライトのワールド座標bounds下端(`SpriteRenderer.bounds.min.y`)を
+  比較し、その差分だけ着地エフェクトのtransform位置を上下に補正して、両者の下端
+  (足元)が一致するようにした。両スプライトとも中心ピボットで大きさも異なるため、
+  中心を合わせただけではエフェクトの方が下にはみ出して見えていた
+  (前回の1.6倍拡大でさらに顕著になっていた)。SpriteRenderer.boundsはスケール・
+  位置を含んだワールド座標系のAABBのため、コマごとの見た目差(トリム等)を
+  気にせず汎用的に補正できる。
+- 検証用に`DebugVisualBottomY`/`DebugMeteorImpactEffectBottomY`
+  (いずれも`#if UNITY_EDITOR`限定のテスト専用アクセサ)を追加した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- 一時的な検証用ダンジョンでぷにゅメテオを発動し、`DebugAdvanceMeteorAnim`で
+  進行させながら確認した。
+  - 上昇フェーズ中の最高到達Yを記録し、着地点からの上昇量が以前(peakHeight=2.2)より
+    明確に増えていることを確認(riseAmount≈4.92、着地地点から見た相対値)。
+  - 着地エフェクト再生開始時点で`slimeBottomY`と`effectBottomY`が完全に一致
+    (差分0.0000)することを確認した。
+- テストで生成したBattleUnitViewは明示的に破棄済み。
