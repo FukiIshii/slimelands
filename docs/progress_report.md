@@ -5237,4 +5237,50 @@ Play Mode中にScene Viewタブを開いた状態にしておく必要がある�
 - 実際の見た目(Scene View上の描画)は本ツールのキャプチャ手段では確認できないため、
   ユーザー側での実機確認を依頼する。
 - コンソールにエラー・警告が出ていないことを確認。
+
+## 新機能: SlimeSkillDataの範囲サイズをScene View上でドラッグ調整できるように
+
+### 経緯
+
+必殺技の当たり判定の仕組み(Physics2Dのコライダーではなく、対象座標から計算した円/矩形で
+`OverlapCircleAll`/`OverlapBoxAll`を1回だけ呼ぶ方式)を説明した流れで、ユーザーから
+「その攻撃の範囲にある半径と出現位置をいじるのはビジュアル的に可能か、GUIで直接操作
+できるか」と質問があった。半径・長さ(`AreaRadius`/`AreaLength`)はSlimeSkillData上の
+固定値だが、出現位置(origin)は戦闘中に対象・発動者の座標から都度計算される値のため
+固定値としては存在しない、と回答した上で、「半径・長さをEdit Modeでアセットを選択して
+調整したい(Play Mode不要)」という要望を確認した。
+
+### 実装内容
+
+新規ファイル`Assets/Editor/Slime/SlimeSkillDataEditor.cs`を追加。`SlimeSkillData`用の
+`CustomEditor`で、`OnSceneGUI()`内で`AreaShape`に応じたハンドルをワールド原点(0,0,0)を
+仮の基準点として表示する:
+
+- **Circle/Meteor**: `areaRadius`を、円周上の点をXY平面内で自由にドラッグして調整できる
+  ハンドル(`Handles.FreeMoveHandle`+ドラッグ後の距離から半径を再計算)。
+- **Line**: `areaLength`(+X方向への伸び)と`areaRadius`(半幅、+Y方向)を、それぞれ独立した
+  `Handles.Slider`で調整できるハンドル。
+- **Sweep**: `areaRadius`(帯の半幅)のみ調整可能なハンドル。帯の高さは行動帯の高さ
+  (`DungeonRunController.movementBandHeight`、シーン側の値でアセットには含まれない)に
+  依存するため、プレビューは仮の高さ(3ワールド単位)で矩形を表示するに留めた。
+
+値の書き換えは`SerializedProperty`(`serializedObject.FindProperty("areaRadius")`等)経由で
+行っており、Undo・Dirty管理はUnity標準の仕組みにそのまま乗る(`SlimeSkillData`側への
+コード変更は不要)。`OnInspectorGUI`では、必殺技かつSingleTarget以外の場合にのみ
+「Scene View上にプレビュー用ハンドルを表示している」旨のHelpBoxを追加した。
+
+`Assets/Scripts/Slime/UltimateAreaShape.cs`のXMLドキュメントコメントが「コライダー/物理演算を
+使わず幾何計算で判定する」という実装と異なる古い記述のままだったため、実態
+(Physics2Dのコライダークエリを使っている)に合わせて修正した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- `PunyuMeteor.asset`(AreaShape=Meteor)を`Selection.activeObject`で選択し、
+  `SceneView.RepaintAll()`を呼んで`OnSceneGUI`を強制実行させ、例外が発生しないことを
+  確認した(`DrawRadiusHandle`経由でareaRadiusプロパティへの参照・ハンドル描画呼び出しが
+  正常に完走することを確認)。
+- 実際のドラッグ操作(マウス入力)は本ツールでは再現できないため、ハンドルの見た目・
+  操作感はユーザー側での実機確認を依頼する。
+- コンソールにエラー・警告が出ていないことを確認。
 - コンソールにエラー・警告が出ていないことを確認。

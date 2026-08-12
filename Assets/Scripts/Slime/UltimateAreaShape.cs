@@ -1,10 +1,11 @@
 namespace Slimelands.Slime
 {
     /// <summary>
-    /// 必殺技(isUltimate=true)がダメージを与える範囲の形状。SingleTarget以外はコライダー/物理演算を
-    /// 使わず、実座標(BattleUnit.Position)同士の幾何計算(距離・線分距離)で命中判定を行う
-    /// (このプロジェクトの検証手法がUpdate()の疑似フレーム送りに依存しており、実際のPhysics2D
-    /// ステップが進行しないため)。
+    /// 必殺技(isUltimate=true)がダメージを与える範囲の形状。SingleTarget以外は、範囲自体は
+    /// Colliderを持たず、対象座標から計算した円/矩形の形でPhysics2D.OverlapCircleAll/
+    /// OverlapBoxAllを1回だけ呼び出し、各ユニットが常時持っているCollider2D(BattleUnitHurtbox)
+    /// を検出する方式で命中判定を行う(DungeonRunController.QueryUnitsInCircle/QueryUnitsInBox
+    /// 参照)。攻撃側・防御側どちらもColliderの接触イベント(OnTriggerEnter等)には依存しない。
     /// </summary>
     public enum UltimateAreaShape
     {
