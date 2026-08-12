@@ -4935,3 +4935,49 @@ Play Mode上で`DungeonRunController`の実際の状態を直接調べ、パー�
   正しく同じダンジョンになることを確認した。
 - コンソールにエラー・警告が出ていないことを確認。
 - テストで変更したロスター個体のHPは元の値(30)に復元済み。
+
+## 修正: ぷにゅメテオ着地エフェクトの位置基準を「着地地点」に変更(見た目のスライム依存を撤廃)
+
+### 経緯
+
+これまでの着地エフェクトの位置合わせは、発動者(キャスター)のスプライトの見た目の下端
+(`visualRenderer.bounds.min.y`)に、エフェクト自身のスプライトの見た目の下端を合わせる
+という、キャスター側の見た目に依存した補正だった。ユーザーから「着地地点にエフェクトを
+生成するという形でどうでしょう?」と、キャスターのスプライト形状に依存しない、着地座標
+そのものを基準にする方式への変更提案があった。
+
+### 検討
+
+ダメージ判定側(`DungeonRunController.ResolveMeteorLanding`)は、既に`pending.LandingPosition`
+(範囲必殺技Circleと共通の`QueryUnitsInCircle`)を中心に範囲ダメージを判定している。つまり
+「着地地点」という座標は既にゲームロジック側で意味を持つ基準点として使われている。
+一方、旧実装のキャスターのスプライトbounds基準の補正は、種族ごとにスプライトの余白・
+大きさが異なると成立しなくなる脆い作りだった。着地地点を基準にすれば、ダメージ範囲の
+表示上の目印としても一貫性があり、種族に依存しない頑丈な実装になる。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`の`PlayMeteorImpactEffect`から、
+`visualRenderer.bounds`/`meteorImpactEffectRenderer.bounds`を使った位置補正を全て削除。
+着地の瞬間、キャスター自身の`transform.position`は既に着地地点(`meteorLandingPosition`)に
+一致させてある(`TickMeteorAnim`のFalling完了処理で`transform.position = homePosition`済み)
+ため、エフェクト(キャスターの子オブジェクト)の`localPosition`を
+`new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f)`に設定するだけで、
+「着地地点 + 手動オフセット」の座標にそのまま表示されるようになる。
+
+- 不要になった定数`MeteorImpactEffectBottomMarginPixels`/`MeteorImpactEffectPixelsPerUnit`
+  (透明マージンの実測値)を削除。
+- `Assets/Scripts/Slime/SlimeSkillData.cs`の`meteorImpactEffectFootOffset`のTooltipを
+  「着地地点からのYオフセット」という新しい意味に更新(初期値は0に変更。以前の値は
+  旧計算式専用の補正値だったため、計算式が変わった今は意味を持たない)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Mode上で`BattleUnitView`を単体生成し、`PlayMeteorMotion`でメテオモーションを
+  着地まで進行させ(`DebugAdvanceMeteorAnim`を0.02秒刻みで着地するまでループ)、
+  着地エフェクトのワールド座標と着地地点の差分を検証した。結果:
+  `Effect world position - LandingPosition = (0, -0.3, 0)`となり、
+  `skill.MeteorImpactEffectFootOffset`(現在の設定値-0.3)と完全に一致することを確認した。
+  種族のスプライトを一切参照せずに着地地点を正確に基準にできていることを確認できた。
+- テストで生成したBattleUnitViewは明示的に破棄済み。

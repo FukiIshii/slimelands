@@ -61,14 +61,6 @@ namespace Slimelands.Dungeon
         // 着地エフェクトが全コマ再生し終えてから、フェードアウトして消えるまでの時間(秒、仮値)。
         // それまではぷつっと消えていたのをユーザー要望でフェードに変更。
         private const float MeteorImpactEffectFadeDuration = 0.25f;
-        // punyumeteo.pngは96x96のキャンバスに絵柄が描かれているが、Texture2D.GetPixelsで
-        // 実測したところ全コマ共通で絵柄の下に16px分の透明な余白がある(spritePixelsPerUnit=100
-        // なので0.16ワールド単位)。SpriteRenderer.boundsはこの透明部分を含んだスプライト矩形の
-        // 端を返すため、それをスライムの足元に合わせただけでは、実際に目で見える絵柄の下端
-        // (見た目の足元)が余白の分だけ浮いて見えてしまう。MeteorImpactEffectScale倍率がかかる分も
-        // 拡大されるため、下記でスケール込みの実際のズレ量を計算して差し引く。
-        private const float MeteorImpactEffectBottomMarginPixels = 16f;
-        private const float MeteorImpactEffectPixelsPerUnit = 100f;
         // 元画像が右向きのため、この値未満のX移動はノイズとみなして向きを変えない
         // (浮動小数点誤差で左右に細かくちらつくのを防ぐ)。
         private const float FacingChangeThreshold = 0.001f;
@@ -555,25 +547,17 @@ namespace Slimelands.Dungeon
             meteorImpactEffectTimer = 0f;
             meteorImpactEffectFading = false;
             meteorImpactEffectFadeTimer = 0f;
-            meteorImpactEffectRenderer.transform.localPosition = Vector3.zero;
             meteorImpactEffectRenderer.sprite = frames[0];
             meteorImpactEffectRenderer.color = Color.white;
             meteorImpactEffectRenderer.enabled = true;
 
-            // スライム本体のスプライト下端(足元)とエフェクトのスプライト下端を揃える。
-            // 両者は中心ピボットの別スプライトで大きさも違うため、中心を合わせただけでは
-            // エフェクトの方が下(足元より下)にはみ出して見えてしまう(ユーザー指摘)。
-            // ワールド座標のbounds(現在のスケール込み)から必要なズレを逆算して補正した上で、
-            // スプライト内の透明な余白の分(見た目の足元がbounds上端より浮いて見える分、
-            // MeteorImpactEffectScale倍率込み)を差し引き、さらに手動微調整用の
-            // skill.MeteorImpactEffectFootOffset(SlimeSkillDataのInspectorで調整可能)を加える。
-            float slimeBottomY = visualRenderer.bounds.min.y;
-            float effectBottomY = meteorImpactEffectRenderer.bounds.min.y;
-            float visualMarginCorrection =
-                (MeteorImpactEffectBottomMarginPixels / MeteorImpactEffectPixelsPerUnit) * MeteorImpactEffectScale;
-            Vector3 correctedPosition = meteorImpactEffectRenderer.transform.position;
-            correctedPosition.y += (slimeBottomY - effectBottomY) - visualMarginCorrection + skill.MeteorImpactEffectFootOffset;
-            meteorImpactEffectRenderer.transform.position = correctedPosition;
+            // 着地地点(caster.Position。範囲ダメージ判定(QueryUnitsInCircle)の中心と同じ座標)に
+            // そのまま表示する(ユーザー要望)。以前はスライム本体のSpriteRenderer.boundsを使って
+            // 足元を追いかけていたが、種族ごとにスプライトの余白・大きさが違うと合わなくなり
+            // 脆かった。ダメージ範囲も着地地点そのものを中心にしているため、見た目もそこに
+            // 揃える方が一貫性がある。見た目の微調整はskill.MeteorImpactEffectFootOffset
+            // (SlimeSkillDataのInspectorで調整可能)のみで行う。
+            meteorImpactEffectRenderer.transform.localPosition = new Vector3(0f, skill.MeteorImpactEffectFootOffset, 0f);
         }
 
         /// <summary>
