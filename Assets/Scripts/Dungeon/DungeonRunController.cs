@@ -1138,19 +1138,29 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// 行動帯(プレイヤー・敵とも自由に動き回れる範囲)。このコンポーネントのtransform.position.yを
-        /// 上端(=背景画像の水平中央線、床と奥の境界)とし、そこから下方向へmovementBandHeight分だけ
-        /// 確保する(床の部分のみで行動させるため)。この帯自体は画面のアスペクト比に合わせて縮めない
-        /// (MovementBandWidthのコメント参照)。帯全体が実際にカメラの表示範囲に収まるようにする役目は
-        /// DungeonCameraFitter(カメラ側のorthographicSizeを調整する)が担う。
+        /// 行動帯(プレイヤー・敵とも自由に動き回れる=実座標(Position、スプライトの中心)が
+        /// 到達できる範囲)。このコンポーネントのtransform.position.yを上端(=背景画像の水平中央線、
+        /// 床と奥の境界)とし、そこから下方向へmovementBandHeight分だけ確保する(床の部分のみで
+        /// 行動させるため)。MovementBandWidth/Height(DungeonCameraFitterがカメラをフィットさせる
+        /// 対象)は「見た目(スプライト)が到達しうる外周」を表す一方、実座標(Position)はスプライトの
+        /// 中心のため、実座標をそのまま帯の左右端まで到達させると、スプライトの半分
+        /// (UnitVisualScaleで拡大された見た目の半径ぶん)がカメラの表示範囲からはみ出してしまう
+        /// (ユーザー報告: 遠距離タイプが追い詰められると明らかに端に押し付けられて見える不具合の
+        /// 原因)。そのため、幅方向のみ実座標が動ける範囲を見た目の半径(HurtboxRadius×
+        /// UnitVisualScale)ぶん内側へ縮める。高さ方向は縮めない
+        /// (movementBandHeight=3に対し見た目の直径が3.2と既に上回っており、同様に縮めると
+        /// 高さ方向にほぼ動けなくなってしまうため。widthのみで一旦様子を見る)。
         /// </summary>
         private Rect GetMovementBounds()
         {
             float floorTopY = transform.position.y;
+            float visualRadius = HurtboxRadius * UnitVisualScale;
+            float width = Mathf.Max(0.1f, movementBandWidth - visualRadius * 2f);
+
             return new Rect(
-                transform.position.x - movementBandWidth * 0.5f,
+                transform.position.x - width * 0.5f,
                 floorTopY - movementBandHeight,
-                movementBandWidth,
+                width,
                 movementBandHeight);
         }
 
