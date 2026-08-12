@@ -4595,3 +4595,46 @@ SetAssignedUltimateForTesting`を呼んでその場で切り替わる。在籍�
     (`ResolveDefaultSprite()`のフォールバックが機能していなかったため)。
 - テストで生成した一時的なBattleUnitView/ダンジョンアセットはPlay Mode終了時に破棄される
   ランタイム限定のものであり、テスト後に明示的に破棄済み。
+
+## 修正: ぷにゅメテオのエフェクトを「着地時・スライムの後ろ」表示に変更
+
+### 経緯
+
+上記の実装(上昇〜滞空〜落下の間、発動者自身の見た目をエフェクトスプライトに置き換える)に対し、
+ユーザーから「着地時に表示するエフェクトです。スライムの後ろに表示してください」と修正指示が
+あった。punyumeteo.pngは飛行中の発動者本体の代替表示ではなく、着地の瞬間にスライムの背後へ
+重ねて出す着地エフェクトとして用意されたものだった。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`を以下のように変更した。
+
+- 飛行中(Windup〜Rising〜Hovering〜Falling)に発動者自身のスプライトを差し替える処理
+  (`TickMeteorEffectSprite`)を削除し、発動者の見た目は常に通常表示(拡縮のみ)に戻した。
+  それに伴い、Bind()側の初期スプライト解決も元の実装(重複除去用に切り出していた
+  `ResolveDefaultSprite()`ヘルパー)を廃止し、単純な形に戻した。
+- `Awake()`で発動者本体のSpriteRenderer(`sortingOrder=10`)とは別に、着地エフェクト専用の
+  子SpriteRenderer「MeteorImpactEffect」(`sortingOrder=9`、本体より低い値=常に後ろに重なる)
+  を追加した。
+- 落下(Falling)完了の瞬間(着地の瞬間)に`PlayMeteorImpactEffect`を呼び、
+  `meteorEffectFrames`を先頭から1回だけ(ループしない)100ms間隔で再生し、最後のコマまで
+  終わったら非表示に戻すようにした(`TickMeteorImpactEffect`、Update()から毎フレーム呼ぶ)。
+  未設定(0枚)のスキルでは何も起きず、従来通り発動者自身の拡縮演出のみになる。
+- テスト専用の`DebugAdvanceMeteorAnim(dt)`も、飛行フェーズと着地エフェクトの両方を同じdtで
+  進行させるように更新した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- 前回同様、この実行環境ではPlay Mode中に`Time.deltaTime`が長時間0のまま進まなくなる
+  (通常のUpdate()もAwake()/Start()等のライフサイクルも自動進行しない)不安定な状態に
+  陥ることがあると判明したため、Play Modeを一度再起動して切り分けた。
+  再起動後の新しいセッションでは`Time.deltaTime`が正常に進行することを確認した。
+- `DebugAdvanceMeteorAnim`で1ステップ(dt=0.03秒)ずつ進めながら検証:
+  - 飛行中(Windup〜Falling): 発動者の見た目は常に`slime_0`(通常表示)のまま変化しない
+    (着地エフェクトは`impactPlaying=False`)。
+  - 着地の瞬間: `impactPlaying=True`、`punyumeteo_0`から表示開始。発動者本体は引き続き
+    `slime_0`のまま(=エフェクトはスライム本体を置き換えず、別レイヤーとして重なる)。
+  - 以降、100ms相当(3ステップ)ごとに`punyumeteo_1`→`_2`→`_3`→`_4`→`_5`とコマが進行。
+  - `_5`の再生後、`impactPlaying=False`に戻り非表示化を確認(ループせず1回で終了)。
+- テストで生成した一時的なBattleUnitView/ダンジョンアセットは明示的に破棄済み。

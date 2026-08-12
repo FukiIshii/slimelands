@@ -88,8 +88,10 @@ namespace Slimelands.Dungeon
         private float meteorAnimTimer;
         private Vector3 meteorLandingPosition;
         private SlimeSkillData meteorSkill;
-        private float meteorEffectFrameTimer;
-        private int meteorEffectFrameIndex;
+        private SpriteRenderer meteorImpactEffectRenderer;
+        private IReadOnlyList<Sprite> meteorImpactEffectFrames;
+        private float meteorImpactEffectTimer;
+        private int meteorImpactEffectFrameIndex;
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
@@ -126,6 +128,14 @@ namespace Slimelands.Dungeon
             visual = visualGo.transform;
             visualRenderer = visualGo.GetComponent<SpriteRenderer>();
             visualRenderer.sortingOrder = 10;
+
+            // メテオ着地エフェクト(SlimeSkillData.MeteorEffectFrames)専用の表示。スライムの
+            // スプライト(sortingOrder=10)より低い値にして、常にスライムの後ろに重なって見えるようにする。
+            var impactEffectGo = new GameObject("MeteorImpactEffect", typeof(SpriteRenderer));
+            impactEffectGo.transform.SetParent(visualScaleRoot, false);
+            meteorImpactEffectRenderer = impactEffectGo.GetComponent<SpriteRenderer>();
+            meteorImpactEffectRenderer.sortingOrder = 9;
+            meteorImpactEffectRenderer.enabled = false;
         }
 
         /// <summary>
@@ -153,35 +163,26 @@ namespace Slimelands.Dungeon
             animationFrameIndex = 0;
             animationTimer = 0f;
 
-            visualRenderer.sprite = ResolveDefaultSprite();
+            Sprite sprite = animationFrames != null && animationFrames.Count > 0 ? animationFrames[0] : null;
+            if (sprite == null)
+            {
+                sprite = unit.Species != null ? unit.Species.BattleSprite : null;
+            }
+            if (sprite == null)
+            {
+                sprite = RuntimeSpriteFactory.GetCircleSprite(
+                    RuntimeSpriteFactory.GetFallbackColor(attackType, unit.IsPlayerSide));
+            }
+
+            visualRenderer.sprite = sprite;
             visualRenderer.color = Color.white;
             // 移動し始めるまでの暫定の向き(プレイヤー側は敵側を、敵側はプレイヤー側を向く)。
             // 元画像は右向きのため、flipX=trueで左向きになる。
             visualRenderer.flipX = !unit.IsPlayerSide;
             lastFacingTrackedX = homePosition.x;
-        }
 
-        /// <summary>
-        /// 通常時に表示すべきスプライトを、Bind()と同じ優先順位(コマ送りアニメーション→
-        /// 種族の単一スプライト→フォールバックの単色円)で解決する。メテオ演出のエフェクト表示
-        /// (visualRenderer.sprite上書き)から復帰する際にも同じロジックを使う。
-        /// </summary>
-        private Sprite ResolveDefaultSprite()
-        {
-            Sprite sprite = animationFrames != null && animationFrames.Count > 0
-                ? animationFrames[Mathf.Clamp(animationFrameIndex, 0, animationFrames.Count - 1)]
-                : null;
-            if (sprite == null)
-            {
-                sprite = boundUnit != null && boundUnit.Species != null ? boundUnit.Species.BattleSprite : null;
-            }
-            if (sprite == null)
-            {
-                sprite = RuntimeSpriteFactory.GetCircleSprite(
-                    RuntimeSpriteFactory.GetFallbackColor(attackType, boundUnit != null && boundUnit.IsPlayerSide));
-            }
-
-            return sprite;
+            meteorImpactEffectRenderer.enabled = false;
+            meteorImpactEffectFrames = null;
         }
 
         /// <summary>
@@ -238,8 +239,6 @@ namespace Slimelands.Dungeon
             meteorSkill = skill;
             meteorPhase = MeteorAnimPhase.Windup;
             meteorAnimTimer = 0f;
-            meteorEffectFrameTimer = 0f;
-            meteorEffectFrameIndex = 0;
         }
 
         /// <summary>
@@ -299,6 +298,7 @@ namespace Slimelands.Dungeon
             }
 
             TickAnimation();
+            TickMeteorImpactEffect(Time.deltaTime);
 
             if (meleePhase != MeleeAnimPhase.Idle)
             {
@@ -446,12 +446,12 @@ namespace Slimelands.Dungeon
         /// </summary>
         public void DebugAdvanceMeteorAnim(float dt)
         {
-            if (meteorPhase == MeteorAnimPhase.Idle)
+            if (meteorPhase != MeteorAnimPhase.Idle)
             {
-                return;
+                TickMeteorAnim(dt);
             }
 
-            TickMeteorAnim(dt);
+            TickMeteorImpactEffect(dt);
         }
 #endif
 
@@ -470,8 +470,6 @@ namespace Slimelands.Dungeon
                     {
                         meteorPhase = MeteorAnimPhase.Rising;
                         meteorAnimTimer = 0f;
-                        meteorEffectFrameTimer = 0f;
-                        meteorEffectFrameIndex = 0;
                     }
                     break;
                 }
@@ -482,7 +480,6 @@ namespace Slimelands.Dungeon
                     Vector3 peakPosition = meteorLandingPosition + Vector3.up * MeteorPeakHeight;
                     transform.position = Vector3.Lerp(homePosition, peakPosition, p);
                     visual.localScale = Vector3.Lerp(MeteorSquishScale, Vector3.one * MeteorAirborneScale, p);
-                    TickMeteorEffectSprite();
                     if (p >= 1f)
                     {
                         meteorPhase = MeteorAnimPhase.Hovering;
@@ -494,7 +491,6 @@ namespace Slimelands.Dungeon
                 {
                     float duration = Mathf.Max(0.01f, meteorSkill.MeteorHoverDuration);
                     float p = Mathf.Clamp01(meteorAnimTimer / duration);
-                    TickMeteorEffectSprite();
                     if (p >= 1f)
                     {
                         meteorPhase = MeteorAnimPhase.Falling;
@@ -509,7 +505,6 @@ namespace Slimelands.Dungeon
                     Vector3 peakPosition = meteorLandingPosition + Vector3.up * MeteorPeakHeight;
                     transform.position = Vector3.Lerp(peakPosition, meteorLandingPosition, p);
                     visual.localScale = Vector3.Lerp(Vector3.one * MeteorAirborneScale, MeteorImpactScale, p);
-                    TickMeteorEffectSprite();
                     if (p >= 1f)
                     {
                         meteorPhase = MeteorAnimPhase.Idle;
@@ -517,8 +512,7 @@ namespace Slimelands.Dungeon
                         transform.position = homePosition;
                         visual.localScale = Vector3.one;
 
-                        // 隕石エフェクト表示中に上書きしたスプライトを、通常の見た目へ戻す。
-                        visualRenderer.sprite = ResolveDefaultSprite();
+                        PlayMeteorImpactEffect(meteorSkill);
                     }
                     break;
                 }
@@ -526,26 +520,60 @@ namespace Slimelands.Dungeon
         }
 
         /// <summary>
-        /// meteorSkill.MeteorEffectFramesが設定されている場合のみ、上昇〜滞空〜落下の間、
-        /// 発動者の見た目(visualRenderer.sprite)を隕石エフェクトのコマ送りに置き換える。
-        /// 未設定(0枚)の場合は何もせず、従来通り発動者自身の見た目(拡縮のみ)のままになる。
+        /// meteorSkill.MeteorEffectFramesが設定されている場合のみ、着地の瞬間にスライムの後ろ
+        /// (MeteorImpactEffectのsortingOrderで制御)へ隕石エフェクトを1回分再生する。
+        /// 未設定(0枚)の場合は何もせず、従来通り発動者自身の見た目(拡縮のみ)の演出のままになる。
         /// </summary>
-        private void TickMeteorEffectSprite()
+        private void PlayMeteorImpactEffect(SlimeSkillData skill)
         {
-            IReadOnlyList<Sprite> effectFrames = meteorSkill != null ? meteorSkill.MeteorEffectFrames : null;
-            if (effectFrames == null || effectFrames.Count == 0)
+            IReadOnlyList<Sprite> frames = skill != null ? skill.MeteorEffectFrames : null;
+            if (frames == null || frames.Count == 0)
             {
                 return;
             }
 
-            meteorEffectFrameTimer += Time.deltaTime;
-            if (meteorEffectFrameTimer >= MeteorEffectFrameDuration)
+            meteorImpactEffectFrames = frames;
+            meteorImpactEffectFrameIndex = 0;
+            meteorImpactEffectTimer = 0f;
+            meteorImpactEffectRenderer.sprite = frames[0];
+            meteorImpactEffectRenderer.enabled = true;
+        }
+
+        /// <summary>
+        /// PlayMeteorImpactEffectで開始した着地エフェクトのコマ送りを進行させる。全コマ再生し終えたら
+        /// 非表示に戻す(ループしない、1回きりの着地演出)。毎フレーム呼ぶが、再生中でなければ何もしない。
+        /// </summary>
+        private void TickMeteorImpactEffect(float dt)
+        {
+            if (!meteorImpactEffectRenderer.enabled || meteorImpactEffectFrames == null)
             {
-                meteorEffectFrameTimer -= MeteorEffectFrameDuration;
-                meteorEffectFrameIndex = (meteorEffectFrameIndex + 1) % effectFrames.Count;
+                return;
             }
 
-            visualRenderer.sprite = effectFrames[meteorEffectFrameIndex];
+            meteorImpactEffectTimer += dt;
+            if (meteorImpactEffectTimer < MeteorEffectFrameDuration)
+            {
+                return;
+            }
+
+            meteorImpactEffectTimer -= MeteorEffectFrameDuration;
+            meteorImpactEffectFrameIndex++;
+            if (meteorImpactEffectFrameIndex >= meteorImpactEffectFrames.Count)
+            {
+                meteorImpactEffectRenderer.enabled = false;
+                meteorImpactEffectFrames = null;
+                return;
+            }
+
+            meteorImpactEffectRenderer.sprite = meteorImpactEffectFrames[meteorImpactEffectFrameIndex];
         }
+
+#if UNITY_EDITOR
+        /// <summary>テスト専用: 現在の着地エフェクトの再生状態を外部から確認するためのデバッグ用アクセサ。</summary>
+        public bool DebugIsPlayingMeteorImpactEffect => meteorImpactEffectRenderer != null && meteorImpactEffectRenderer.enabled;
+
+        /// <summary>テスト専用: 現在の着地エフェクトのスプライトを外部から確認するためのデバッグ用アクセサ。</summary>
+        public Sprite DebugMeteorImpactEffectSprite => meteorImpactEffectRenderer != null ? meteorImpactEffectRenderer.sprite : null;
+#endif
     }
 }
