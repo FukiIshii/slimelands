@@ -5,19 +5,13 @@ using Slimelands.Slime;
 namespace Slimelands.Slime.Editor
 {
     /// <summary>
-    /// SlimeSkillDataのInspectorで必殺技の範囲(Circle/Line/Sweep/Meteorのareaサイズ関連)を
-    /// 選んだ際、Scene View上にプレビュー用のハンドルを表示し、ドラッグでサイズを調整できるように
-    /// する。実際の発動位置(origin)は戦闘中の対象・発動者の座標から都度計算されるため固定値として
-    /// 存在せず、ここではワールド原点(0,0,0)を仮の基準点としてプレビューする(実際のダンジョンでの
-    /// 見え方はUltimateHitboxGizmoDebugView(Play Mode専用)で確認する)。
-    /// Play Modeでなくても(アセットをProjectウィンドウで選択するだけで)操作できる。
+    /// SlimeSkillDataのInspectorに、必殺技の範囲(Circle/Line/Sweep/Meteorのareaサイズ)を
+    /// Scene View上にプレビュー用ハンドルとして表示している旨の案内を追加する。ハンドル自体の
+    /// 描画・ドラッグ操作は<see cref="SlimeSkillDataSceneViewHandles"/>が担当する。
     /// </summary>
     [CustomEditor(typeof(SlimeSkillData))]
     public class SlimeSkillDataEditor : UnityEditor.Editor
     {
-        private static readonly Vector3 PreviewOrigin = Vector3.zero;
-        private static readonly Color HandleColor = new(1f, 0.25f, 0.25f, 0.9f);
-
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
@@ -30,15 +24,39 @@ namespace Slimelands.Slime.Editor
                     "ドラッグしてサイズを調整できます。", MessageType.Info);
             }
         }
+    }
 
-        private void OnSceneGUI()
+    /// <summary>
+    /// SlimeSkillDataアセットがProjectウィンドウで選択されている間、Scene View上に必殺技の範囲
+    /// (Circle/Line/Sweepのareaサイズ)のプレビュー用ハンドルを表示し、ドラッグでサイズを
+    /// 調整できるようにする。
+    /// SlimeSkillDataはScriptableObject(シーン上のComponentではない)のため、通常の
+    /// Editor.OnSceneGUIは呼ばれない(Componentを対象とするEditor専用の仕組みのため、実測で
+    /// 確認済み)。代わりにSceneView.duringSceneGui(選択オブジェクトの種類を問わず、Scene Viewの
+    /// 描画のたびに呼ばれる)を使う。実際の発動位置(origin)は戦闘中の対象・発動者の座標から
+    /// 都度計算されるため固定値として存在せず、ここではワールド原点(0,0,0)を仮の基準点として
+    /// プレビューする(実際のダンジョンでの見え方はUltimateHitboxGizmoDebugView(Play Mode専用)
+    /// で確認する)。Play Modeでなくてもアセットを選択するだけで操作できる。
+    /// </summary>
+    [InitializeOnLoad]
+    public static class SlimeSkillDataSceneViewHandles
+    {
+        private static readonly Vector3 PreviewOrigin = Vector3.zero;
+        private static readonly Color HandleColor = new(1f, 0.25f, 0.25f, 0.9f);
+
+        static SlimeSkillDataSceneViewHandles()
         {
-            var skill = (SlimeSkillData)target;
-            if (!skill.IsUltimate)
+            SceneView.duringSceneGui += OnSceneGUI;
+        }
+
+        private static void OnSceneGUI(SceneView sceneView)
+        {
+            if (Selection.activeObject is not SlimeSkillData skill || !skill.IsUltimate)
             {
                 return;
             }
 
+            var serializedObject = new SerializedObject(skill);
             serializedObject.Update();
             Handles.color = HandleColor;
 
@@ -46,13 +64,13 @@ namespace Slimelands.Slime.Editor
             {
                 case UltimateAreaShape.Circle:
                 case UltimateAreaShape.Meteor:
-                    DrawRadiusHandle(PreviewOrigin, "areaRadius");
+                    DrawRadiusHandle(serializedObject, PreviewOrigin, "areaRadius");
                     break;
                 case UltimateAreaShape.Line:
-                    DrawLineHandles();
+                    DrawLineHandles(serializedObject);
                     break;
                 case UltimateAreaShape.Sweep:
-                    DrawSweepWidthHandle();
+                    DrawSweepWidthHandle(serializedObject);
                     break;
             }
 
@@ -61,7 +79,7 @@ namespace Slimelands.Slime.Editor
 
         /// <summary>中心originを持つ円(Circle/Meteor共通、areaRadius)。円周上の点をXY平面内で自由に
         /// ドラッグさせ、その点までの距離を新しい半径として反映する。</summary>
-        private void DrawRadiusHandle(Vector3 origin, string propertyName)
+        private static void DrawRadiusHandle(SerializedObject serializedObject, Vector3 origin, string propertyName)
         {
             SerializedProperty prop = serializedObject.FindProperty(propertyName);
             float radius = prop.floatValue;
@@ -83,7 +101,7 @@ namespace Slimelands.Slime.Editor
 
         /// <summary>発動者からareaLengthだけ+X方向へ伸びる矩形(半幅areaRadius)。長さと半幅を
         /// それぞれ独立したハンドルで調整できるようにする。</summary>
-        private void DrawLineHandles()
+        private static void DrawLineHandles(SerializedObject serializedObject)
         {
             SerializedProperty lengthProp = serializedObject.FindProperty("areaLength");
             SerializedProperty radiusProp = serializedObject.FindProperty("areaRadius");
@@ -94,10 +112,7 @@ namespace Slimelands.Slime.Editor
             Vector3 boxCenter = origin + Vector3.right * (length * 0.5f);
             Vector3 boxSize = new(length, halfWidth * 2f, 0.1f);
 
-            Matrix4x4 previousMatrix = Handles.matrix;
-            Handles.matrix = Matrix4x4.identity;
             Handles.DrawWireCube(boxCenter, boxSize);
-            Handles.matrix = previousMatrix;
 
             // 長さ調整ハンドル(+X方向の先端)。
             Vector3 lengthHandlePos = origin + Vector3.right * length;
@@ -126,7 +141,7 @@ namespace Slimelands.Slime.Editor
         /// <summary>Sweepの帯の半幅(areaRadius)のみ調整する。帯の高さは行動帯の高さ
         /// (DungeonRunController.movementBandHeight、シーン側の値でこのアセットには含まれない)
         /// で決まるため、プレビューは仮の高さ(3ワールド単位)で表示する。</summary>
-        private void DrawSweepWidthHandle()
+        private static void DrawSweepWidthHandle(SerializedObject serializedObject)
         {
             const float previewHeight = 3f;
             SerializedProperty radiusProp = serializedObject.FindProperty("areaRadius");

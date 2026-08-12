@@ -5283,4 +5283,49 @@ Play Mode中にScene Viewタブを開いた状態にしておく必要がある�
 - 実際のドラッグ操作(マウス入力)は本ツールでは再現できないため、ハンドルの見た目・
   操作感はユーザー側での実機確認を依頼する。
 - コンソールにエラー・警告が出ていないことを確認。
+
+## 修正: SlimeSkillDataのScene Viewハンドルが実際には全く呼ばれていなかった不具合
+
+### 経緯
+
+ユーザーから「表示されてない気がする」と再度報告があった。
+
+### 原因
+
+`Editor.OnSceneGUI()`は、対象(target)が`Component`(シーン上のGameObjectにアタッチされた
+コンポーネント)であるEditorでのみ呼ばれる仕組みで、`SlimeSkillData`のような
+`ScriptableObject`(アセット、シーン上のGameObjectではない)を対象とするEditorでは
+そもそも呼ばれない。前回の実装は`[CustomEditor(typeof(SlimeSkillData))]`クラスの中に
+`OnSceneGUI()`を書いていたため、アセットを選択してもUnity側から一度も呼び出されて
+いなかった。
+
+一時的に`OnSceneGUI`内に`Debug.Log`を仕込み、アセットを選択して`SceneView.RepaintAll()`を
+複数回呼んでも一切ログが出力されないことを確認し、原因を特定した。
+
+### 実装内容
+
+`Assets/Editor/Slime/SlimeSkillDataEditor.cs`を、Componentに依存しない
+`SceneView.duringSceneGui`静的イベント(Scene Viewが描画されるたびに、選択中のオブジェクトの
+種類を問わず呼ばれる)を使う方式に書き直した。`[InitializeOnLoad]`で静的コンストラクタから
+`SceneView.duringSceneGui += OnSceneGUI;`を登録し、ハンドラ内で
+`Selection.activeObject is SlimeSkillData skill`を判定してからハンドルを描画する。
+値の書き換えは`Editor.serializedObject`の代わりに`new SerializedObject(skill)`を都度
+構築して行う(静的メソッドのため`target`/`serializedObject`プロパティが使えないため)。
+`SlimeSkillDataEditor`(Inspector用のHelpBox表示)自体はそのまま残した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- 修正前の実装で`OnSceneGUI`に`Debug.Log`を仕込み、一度も呼ばれていないことを実証した上で
+  原因を特定した。
+- 修正後の`SceneView.duringSceneGui`ハンドラにも同様に`Debug.Log`を仕込んで検証を試みたが、
+  本ツール(Unity_RunCommand)からの`SceneView.RepaintAll()`/`SceneView.Repaint()`/
+  `EditorApplication.QueuePlayerLoopUpdate()`の呼び出しでは、実際のEditor再描画パス
+  (`duringSceneGui`が発火するタイミング)が本ツール実行中に同期的に走らないため、
+  この自動検証手段では呼び出しを直接確認できなかった(Play Mode中の`Update()`が
+  自動進行しないのと同種の、この実行環境固有の制限)。`SceneView.duringSceneGui`は
+  Component以外のオブジェクト向けにScene View拡張を行う際の標準的な手法であり、
+  実際のUnity Editorの通常操作(マウス操作等による再描画)では動作するはずだが、
+  完全な自動検証はできていないため、ユーザー側での実機確認を依頼する。
+- デバッグ用の`Debug.Log`は最終的に削除済み。
 - コンソールにエラー・警告が出ていないことを確認。
