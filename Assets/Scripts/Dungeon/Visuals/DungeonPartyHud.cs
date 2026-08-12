@@ -24,6 +24,10 @@ namespace Slimelands.Dungeon
         [SerializeField] private float portraitSize = 100f;
         [SerializeField] private float ultimateButtonSize = 88f;
         [SerializeField] private float innerMargin = 10f;
+        [Tooltip("必殺技ゲージの土台(未充填部分)の色。")]
+        [SerializeField] private Color ultimateGaugeTrackColor = new(0.25f, 0.25f, 0.25f, 0.9f);
+        [Tooltip("必殺技ゲージの充填部分の色(クールタイム経過に応じて時計回りに満ちていく)。")]
+        [SerializeField] private Color ultimateGaugeFillColor = new(1f, 0.85f, 0.2f);
 
         private static Font cachedFont;
 
@@ -38,6 +42,7 @@ namespace Slimelands.Dungeon
             public Image HpFill;
             public Text HpText;
             public Button UltimateButton;
+            public Image UltimateGaugeFill;
             public Text UltimateButtonText;
         }
 
@@ -228,11 +233,28 @@ namespace Slimelands.Dungeon
             float buttonY = (rowSize.y - ultimateButtonSize) * 0.5f;
             RectTransform buttonRect = CreateChild(rowGo.transform, "UltimateButton", typeof(Image), typeof(Button));
             SetRect(buttonRect, buttonX, buttonY, ultimateButtonSize, ultimateButtonSize);
-            buttonRect.GetComponent<Image>().sprite = RuntimeSpriteFactory.GetCircleSprite(new Color(1f, 0.85f, 0.2f));
+            buttonRect.GetComponent<Image>().sprite = RuntimeSpriteFactory.GetCircleSprite(ultimateGaugeTrackColor);
             Button ultimateButton = buttonRect.GetComponent<Button>();
             BattleUnit capturedUnit = unit;
             DungeonRunController capturedController = controller;
             ultimateButton.onClick.AddListener(() => capturedController.TryActivateUltimate(capturedUnit));
+
+            // クールタイム経過に応じて時計回りに満ちていく放射状ゲージ。土台(UltimateButton自身の
+            // Image)の上に重ね、fillAmountを0(発動直後)〜1(発動可能)で毎フレーム更新する。
+            var gaugeFillGo = new GameObject("GaugeFill", typeof(RectTransform), typeof(Image));
+            gaugeFillGo.transform.SetParent(buttonRect, false);
+            RectTransform gaugeFillRect = gaugeFillGo.GetComponent<RectTransform>();
+            gaugeFillRect.anchorMin = Vector2.zero;
+            gaugeFillRect.anchorMax = Vector2.one;
+            gaugeFillRect.offsetMin = Vector2.zero;
+            gaugeFillRect.offsetMax = Vector2.zero;
+            Image gaugeFillImage = gaugeFillGo.GetComponent<Image>();
+            gaugeFillImage.sprite = RuntimeSpriteFactory.GetCircleSprite(Color.white);
+            gaugeFillImage.color = ultimateGaugeFillColor;
+            gaugeFillImage.type = Image.Type.Filled;
+            gaugeFillImage.fillMethod = Image.FillMethod.Radial360;
+            gaugeFillImage.fillOrigin = (int)Image.Origin360.Top;
+            gaugeFillImage.fillClockwise = true;
 
             var buttonTextGo = new GameObject("Label", typeof(RectTransform), typeof(Text));
             buttonTextGo.transform.SetParent(buttonRect, false);
@@ -255,6 +277,7 @@ namespace Slimelands.Dungeon
                 HpFill = hpFillImage,
                 HpText = hpText,
                 UltimateButton = ultimateButton,
+                UltimateGaugeFill = gaugeFillImage,
                 UltimateButtonText = buttonText,
             };
             entries[unit] = entry;
@@ -280,6 +303,19 @@ namespace Slimelands.Dungeon
             entry.UltimateButtonText.text = unit.CanActivateUltimate
                 ? "必殺技"
                 : Mathf.CeilToInt(unit.UltimateCooldownRemaining).ToString();
+
+            if (unit.CanActivateUltimate)
+            {
+                entry.UltimateGaugeFill.fillAmount = 1f;
+            }
+            else
+            {
+                float totalCooldown = unit.UltimateSkill != null ? unit.UltimateSkill.CooldownSeconds : 0f;
+                float elapsedRatio = totalCooldown > 0f
+                    ? 1f - Mathf.Clamp01(unit.UltimateCooldownRemaining / totalCooldown)
+                    : 0f;
+                entry.UltimateGaugeFill.fillAmount = elapsedRatio;
+            }
         }
 
         /// <summary>anchorMin=anchorMax=pivot=(0,0)の子を作り、(x,y,width,height)をそのまま

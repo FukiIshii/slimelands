@@ -4429,3 +4429,37 @@ Play Modeで`ForestDungeon`を選び、詳細画面に設定した説明文が�
 これらを無関係な変更として意図的に除外してきたが、今回はこの2ファイル自体が説明文追加の
 直接の対象になったため、ファイルを分離してコミットする手段がなく、このバランス調整も
 まとめてコミットした。
+
+## 追加: 必殺技ゲージ(DungeonPartyHud)
+
+### 経緯
+
+ユーザーから「必殺技ゲージを作ってください。時間経過で必殺技が使えるようになる。必殺技に
+よってその時間が異なる。インスペクタ上で決めれるようにしておいてください」との依頼が
+あった。クールタイムの長さ自体は既存の`SlimeSkillData.CooldownSeconds`([Tooltip]付きの
+`[SerializeField]`)で必殺技ごとにInspectorから設定可能な形にすでになっていたため、今回の
+実装対象は「時間経過を視覚的なゲージとして表示する」部分のみ。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/DungeonPartyHud.cs`の必殺技ボタンを、土台の円(暗い色、
+`ultimateGaugeTrackColor`)+放射状に満ちていくゲージ(`GaugeFill`子、`Image.Type.Filled`/
+`FillMethod.Radial360`/`fillOrigin=Top`/`fillClockwise=true`、`ultimateGaugeFillColor`)の
+2層構造にした。`RefreshEntry`で毎フレーム、
+`fillAmount = 1 - (UltimateCooldownRemaining / UltimateSkill.CooldownSeconds)`
+を計算して反映し(発動可能時は`1`に固定)、発動直後は0(空)から始まり、必殺技ごとの
+`CooldownSeconds`の時間をかけて時計回りに満タンへ戻る見た目になる。残り秒数の数字表示
+(既存)はゲージの上にそのまま重ねて表示する。ゲージの色2種は`[SerializeField]`で
+Inspectorから調整可能にした。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Modeでレベル30のスライム(必殺技「ぷにゅメテオ」、`CooldownSeconds=9`)を1体だけ
+  ダンジョンに出撃させ、`BattleUnit.UltimateCooldownRemaining`を直接書き換えて検証した。
+  - 発動可能時(`CooldownSeconds<=0`): `fillAmount=1`、ラベル「必殺技」。
+  - クールタイム開始直後(残り=9): `fillAmount=0`、ラベル「9」。
+  - 半分経過(残り=4.5): `fillAmount=0.5`、ラベル「5」。
+  - クールタイム終了(残り=0): `fillAmount=1`に復帰し、ボタンが再度`interactable=true`に
+    なることを確認した。
+- いずれの検証中もコンソールにエラー・警告は出力されなかった。
