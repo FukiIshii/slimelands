@@ -18,12 +18,12 @@ namespace Slimelands.Dungeon
         [SerializeField] private DungeonRunController controller;
 
         [Header("レイアウト(仮値、要調整)")]
-        [SerializeField] private Vector2 rowSize = new(320f, 88f);
-        [SerializeField] private float rowSpacing = 8f;
+        [SerializeField] private Vector2 rowSize = new(440f, 120f);
+        [SerializeField] private float rowSpacing = 12f;
         [SerializeField] private Vector2 screenMargin = new(16f, 16f);
-        [SerializeField] private float portraitSize = 72f;
-        [SerializeField] private float ultimateButtonSize = 64f;
-        [SerializeField] private float innerMargin = 8f;
+        [SerializeField] private float portraitSize = 100f;
+        [SerializeField] private float ultimateButtonSize = 88f;
+        [SerializeField] private float innerMargin = 10f;
 
         private static Font cachedFont;
 
@@ -181,18 +181,18 @@ namespace Slimelands.Dungeon
             float infoX = innerMargin + portraitSize + innerMargin;
             float infoWidth = rowSize.x - infoX - ultimateButtonSize - innerMargin - innerMargin;
 
-            const float nameHeight = 28f;
+            const float nameHeight = 38f;
             float nameY = rowSize.y - innerMargin - nameHeight;
             RectTransform nameRect = CreateChild(rowGo.transform, "Name", typeof(Text));
             SetRect(nameRect, infoX, nameY, infoWidth, nameHeight);
             Text nameText = nameRect.GetComponent<Text>();
             nameText.text = unit.DisplayName;
             nameText.font = GetDefaultFont();
-            nameText.fontSize = 22;
+            nameText.fontSize = 30;
             nameText.color = Color.white;
             nameText.alignment = TextAnchor.MiddleLeft;
 
-            const float hpBarHeight = 24f;
+            const float hpBarHeight = 32f;
             float hpBarY = innerMargin;
             RectTransform hpBarRect = CreateChild(rowGo.transform, "HpBar", typeof(Image));
             SetRect(hpBarRect, infoX, hpBarY, infoWidth, hpBarHeight);
@@ -220,7 +220,7 @@ namespace Slimelands.Dungeon
             hpTextRect.offsetMax = Vector2.zero;
             Text hpText = hpTextGo.GetComponent<Text>();
             hpText.font = GetDefaultFont();
-            hpText.fontSize = 14;
+            hpText.fontSize = 18;
             hpText.alignment = TextAnchor.MiddleCenter;
             hpText.color = Color.white;
 
@@ -244,7 +244,7 @@ namespace Slimelands.Dungeon
             Text buttonText = buttonTextGo.GetComponent<Text>();
             buttonText.text = "必殺技";
             buttonText.font = GetDefaultFont();
-            buttonText.fontSize = 14;
+            buttonText.fontSize = 18;
             buttonText.alignment = TextAnchor.MiddleCenter;
             buttonText.color = Color.black;
 

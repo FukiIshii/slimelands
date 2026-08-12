@@ -2008,12 +2008,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Slimelands.Dungeon.DungeonPartyHud
   controller: {fileID: 360021976}
-  rowSize: {x: 320, y: 88}
-  rowSpacing: 8
+  rowSize: {x: 440, y: 120}
+  rowSpacing: 12
   screenMargin: {x: 16, y: 16}
-  portraitSize: 72
-  ultimateButtonSize: 64
-  innerMargin: 8
+  portraitSize: 100
+  ultimateButtonSize: 88
+  innerMargin: 10
 --- !u!114 &360021983
 MonoBehaviour:
   m_ObjectHideFlags: 0
