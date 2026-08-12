@@ -4525,3 +4525,30 @@ Play Modeで実際に発動させ、`TryActivateUltimate`から`IsInSkillMotion`
 - Play Modeで個体を生成(初期抽選は「火炎ブレス」)した後、
   `SetAssignedUltimateForTesting(PunyuMeteor)`を呼び、`AssignedUltimate`が確実に
   「ぷにゅメテオ」へ切り替わることを確認した。エラー・警告は発生しなかった。
+
+## 追加: 必殺技の強制変更をUnity Editor上で操作できるように
+
+### 経緯
+
+前項のテスト専用メソッド追加後、ユーザーから「どうやって変更するの」と質問があり、
+「今後も私(Claude)に頼んで変更してほしい」か「Unity Editor上で自分で操作できるように
+してほしい」かを確認したところ、後者を選択された。
+
+### 実装内容
+
+`Assets/Editor/Slime/VillageSlimeRosterEditor.cs`を新規追加した(`[CustomEditor(typeof(
+VillageSlimeRoster))]`、既存の`Assets/Editor/`配下のエディタ拡張と同じ置き場所)。
+`VillageSlimeRoster`のInspectorに「デバッグ: 必殺技を強制変更(テスト専用)」という
+セクションを追加し、在籍スライムごとに現在の必殺技名を表示、種族の
+`UltimateSkillCandidates`をボタンとして並べ、クリックすると`SlimeIndividual.
+SetAssignedUltimateForTesting`を呼んでその場で切り替わる。在籍スライムはランタイムのみの
+データ(シリアライズされない)のため、Play Mode中のみ操作可能(Edit Modeでは案内メッセージを
+表示)。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- Play Modeで`VillageSlimeRoster`(在籍6体)を`Selection.activeGameObject`で選択させ、
+  Inspectorの実際の描画(`OnInspectorGUI`)がエラーなく実行されることを確認した
+  (IMGUIのボタンクリック自体はUnity_RunCommandからシミュレートできないため、実際の
+  クリック動作の見た目確認はユーザー側で行ってもらう想定)。
