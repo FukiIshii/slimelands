@@ -4687,3 +4687,47 @@ DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { re
   確認した。
 - 検証のため一時的にダンジョンへ出発させていた状態を`ReturnToVillage()`で村画面に戻し、
   ユーザーのセッションを片付けた。
+
+## 追加: 村の盤面にテスト用のカードを配置するデバッグパネル
+
+### 経緯
+
+ユーザーから「テストのためにカードを簡単に配置できるようにしたい」との要望があった。
+配置方法をAskUserQuestionで確認したところ「Unity Editor上のデバッグパネル」を選択されたため、
+`VillageSlimeRosterEditor`と同じ位置付け(テスト専用、本番のゲームプレイ経路には触れない)で
+`CardBoard`用のカスタムエディタを追加した。
+
+### 実装内容
+
+- `Assets/Scripts/Cards/CardBoard.cs`: 既存の公開API`SpawnStack(CardData, Vector3)`
+  (ガチャ・合成等と同じ`CreateLooseCard`を経由し、スライムカードなら個体生成・
+  在籍名簿登録まで含めて正しく行う)をデバッグパネルからも利用する。カメラ参照
+  (`targetCamera`)をエディタから読めるよう`#if UNITY_EDITOR`限定の
+  `DebugTargetCamera`プロパティを追加した(本番の型・挙動には影響しない)。
+- `Assets/Editor/Cards/CardBoardEditor.cs`(新規): `[CustomEditor(typeof(CardBoard))]`。
+  `AssetDatabase.FindAssets("t:CardData")`でプロジェクト内の全カードアセットを収集し、
+  `CardCategory`(Resource/Slime/Building)ごとに見出しを立てて、カード名のボタンを
+  並べる。ボタンを押すと`SpawnStack`を呼び、`CardBoard`が参照しているカメラの現在の
+  表示中心付近(連続クリックでも重なりすぎないよう毎回ランダムに少しずらす)へ即座に
+  出現する。Play Mode中のみ操作可能(Edit Modeでは案内メッセージを表示、
+  `VillageSlimeRosterEditor`と同じ設計)。
+
+### テスト・トラブル
+
+- コンパイルエラー・警告なしを確認(なお、`namespace Slimelands.Cards`直下に
+  クラスを置いたところ、同フォルダの`CardPlaceholderIconGenerator.cs`が使っている
+  `namespace Slimelands.Cards.Editor`と`UnityEditor.Editor`の型名が衝突する
+  `CS0118`エラーが発生したため、`CardBoardEditor`も`Slimelands.Cards.Editor`
+  名前空間に置き、基底クラスは`UnityEditor.Editor`と完全修飾して解決した)。
+- `board.SpawnStack(...)`を実際に呼び出し、資源カード(木材)とスライムカード
+  (クリスタルスライム)がそれぞれ正しく生成され、スライムカードでは在籍名簿
+  (`VillageSlimeRoster`)にも1体増えることを確認した。
+- **重大なヒヤリハット**: 上記テストの後片付けとして、シーン上の全`CardController`を
+  `Object.Destroy`で一括削除するテストスクリプトを実行した。実行時にはPlay Modeが
+  (このセッション中に何度か発生していた原因不明の理由で)既に停止しておりEdit Mode
+  だったため、盤面に配置済みだったユーザーの本来のカード(建物・資源・スライム、
+  計41枚)までまとめて破棄してしまった。幸い`git diff`で`SampleScene.unity`に
+  差分が無いことを確認できたため、保存せず`EditorSceneManager.OpenScene`で
+  シーンをディスクから再読み込みし、ユーザーの盤面を完全に復旧できた(テストで
+  追加した2枚のみ、再読み込み後は正しく消えている)。以後、テスト後片付けで
+  シーン上のオブジェクトを一括破棄するような操作は行わないよう注意する。

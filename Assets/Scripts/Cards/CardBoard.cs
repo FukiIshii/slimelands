@@ -18,6 +18,10 @@ namespace Slimelands.Cards
     public class CardBoard : MonoBehaviour
     {
         [SerializeField] private Camera targetCamera;
+#if UNITY_EDITOR
+        /// <summary>テスト専用: デバッグパネル(CardBoardEditor)がカードの出現位置を計算するために参照する。</summary>
+        public Camera DebugTargetCamera => targetCamera;
+#endif
         [SerializeField] private CardRecipeBook recipeBook;
         [SerializeField] private CardController cardPrefab;
         [SerializeField] private Transform cardParent;
