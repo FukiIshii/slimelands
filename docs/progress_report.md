@@ -4731,3 +4731,37 @@ DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { re
   シーンをディスクから再読み込みし、ユーザーの盤面を完全に復旧できた(テストで
   追加した2枚のみ、再読み込み後は正しく消えている)。以後、テスト後片付けで
   シーン上のオブジェクトを一括破棄するような操作は行わないよう注意する。
+
+## 調整: メテオ着地エフェクトを拡大・フェードアウトに変更
+
+### 経緯
+
+ユーザーから「ぷにゅめておのエフェクトをもう少し大きく。そして消えるときはフェードアウト」
+との調整依頼があった。
+
+### 実装内容
+
+`Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`を変更した。
+
+- `Awake()`で`MeteorImpactEffect`(着地エフェクト用の子SpriteRenderer)の
+  `transform.localScale`に新設した`MeteorImpactEffectScale`(1.6倍、仮値・要調整)を
+  適用し、スライム本体より一回り大きく表示されるようにした。
+- 全コマ(`punyumeteo_0`〜`_5`)再生し終えた瞬間に即座に`enabled = false`で消していた
+  処理を、最終コマの表示を保ったまま`MeteorImpactEffectFadeDuration`(0.25秒、仮値)
+  かけてアルファ値を1→0へ線形に減衰させ、完全に透明になってから非表示に戻す処理に
+  変更した(`TickMeteorImpactEffect`にフェード専用の分岐を追加)。`PlayMeteorImpactEffect`
+  (再生開始時)・`Bind()`(ユニット再バインド時)ではフェード状態・アルファ値を
+  確実にリセットする。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認。
+- 一時的な検証用ダンジョンでぷにゅメテオを発動し、`DebugAdvanceMeteorAnim`で
+  1ステップずつ進めながら`MeteorImpactEffect`の`transform.localScale`と
+  `SpriteRenderer.color.a`を直接確認した。
+  - `effectLocalScale=(1.60, 1.60, 1.60)`であることを確認。
+  - `punyumeteo_5`(最終コマ)まで到達後、`alpha`が1.00→0.88→0.76→…→0.00まで
+    9ステップ(dt=0.03秒×9≈0.25秒、設定した`MeteorImpactEffectFadeDuration`と一致)
+    かけて滑らかに減衰し、その後`impactPlaying=False`(非表示)に戻ることを確認した。
+- テストで生成したBattleUnitViewは明示的に破棄済み(今回はCardBoard関連のテストは
+  行っていないため、前回のようなシーン上カードへの影響は無い)。

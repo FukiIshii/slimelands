@@ -55,6 +55,12 @@ namespace Slimelands.Dungeon
         // SlimeSkillData.MeteorEffectFramesのコマ送り速度。punyumeteo.json(aseprite書き出し)の
         // 各フレームduration(100ms)に合わせた値。
         private const float MeteorEffectFrameDuration = 0.1f;
+        // メテオ着地エフェクトの表示倍率(仮値、要調整)。スライム本体より一回り大きく見せる
+        // ことで着地の存在感を出す(ユーザー要望)。
+        private const float MeteorImpactEffectScale = 1.6f;
+        // 着地エフェクトが全コマ再生し終えてから、フェードアウトして消えるまでの時間(秒、仮値)。
+        // それまではぷつっと消えていたのをユーザー要望でフェードに変更。
+        private const float MeteorImpactEffectFadeDuration = 0.25f;
         // 元画像が右向きのため、この値未満のX移動はノイズとみなして向きを変えない
         // (浮動小数点誤差で左右に細かくちらつくのを防ぐ)。
         private const float FacingChangeThreshold = 0.001f;
@@ -92,6 +98,8 @@ namespace Slimelands.Dungeon
         private IReadOnlyList<Sprite> meteorImpactEffectFrames;
         private float meteorImpactEffectTimer;
         private int meteorImpactEffectFrameIndex;
+        private bool meteorImpactEffectFading;
+        private float meteorImpactEffectFadeTimer;
         private float idleHopTimer;
         private bool isFaintedVisual;
         private float faintTimer;
@@ -133,6 +141,7 @@ namespace Slimelands.Dungeon
             // スプライト(sortingOrder=10)より低い値にして、常にスライムの後ろに重なって見えるようにする。
             var impactEffectGo = new GameObject("MeteorImpactEffect", typeof(SpriteRenderer));
             impactEffectGo.transform.SetParent(visualScaleRoot, false);
+            impactEffectGo.transform.localScale = Vector3.one * MeteorImpactEffectScale;
             meteorImpactEffectRenderer = impactEffectGo.GetComponent<SpriteRenderer>();
             meteorImpactEffectRenderer.sortingOrder = 9;
             meteorImpactEffectRenderer.enabled = false;
@@ -183,6 +192,7 @@ namespace Slimelands.Dungeon
 
             meteorImpactEffectRenderer.enabled = false;
             meteorImpactEffectFrames = null;
+            meteorImpactEffectFading = false;
         }
 
         /// <summary>
@@ -535,17 +545,44 @@ namespace Slimelands.Dungeon
             meteorImpactEffectFrames = frames;
             meteorImpactEffectFrameIndex = 0;
             meteorImpactEffectTimer = 0f;
+            meteorImpactEffectFading = false;
+            meteorImpactEffectFadeTimer = 0f;
             meteorImpactEffectRenderer.sprite = frames[0];
+            meteorImpactEffectRenderer.color = Color.white;
             meteorImpactEffectRenderer.enabled = true;
         }
 
         /// <summary>
         /// PlayMeteorImpactEffectで開始した着地エフェクトのコマ送りを進行させる。全コマ再生し終えたら
-        /// 非表示に戻す(ループしない、1回きりの着地演出)。毎フレーム呼ぶが、再生中でなければ何もしない。
+        /// 即座に消すのではなくフェードアウトさせてから非表示に戻す(1回きりの着地演出、ループしない)。
+        /// 毎フレーム呼ぶが、再生中でなければ何もしない。
         /// </summary>
         private void TickMeteorImpactEffect(float dt)
         {
-            if (!meteorImpactEffectRenderer.enabled || meteorImpactEffectFrames == null)
+            if (!meteorImpactEffectRenderer.enabled)
+            {
+                return;
+            }
+
+            if (meteorImpactEffectFading)
+            {
+                meteorImpactEffectFadeTimer += dt;
+                float alpha = 1f - Mathf.Clamp01(meteorImpactEffectFadeTimer / MeteorImpactEffectFadeDuration);
+                Color color = meteorImpactEffectRenderer.color;
+                color.a = alpha;
+                meteorImpactEffectRenderer.color = color;
+
+                if (meteorImpactEffectFadeTimer >= MeteorImpactEffectFadeDuration)
+                {
+                    meteorImpactEffectRenderer.enabled = false;
+                    meteorImpactEffectFrames = null;
+                    meteorImpactEffectFading = false;
+                }
+
+                return;
+            }
+
+            if (meteorImpactEffectFrames == null)
             {
                 return;
             }
@@ -560,8 +597,9 @@ namespace Slimelands.Dungeon
             meteorImpactEffectFrameIndex++;
             if (meteorImpactEffectFrameIndex >= meteorImpactEffectFrames.Count)
             {
-                meteorImpactEffectRenderer.enabled = false;
-                meteorImpactEffectFrames = null;
+                // 最終コマの表示を保ったままフェードアウトを開始する(次のUpdate呼び出しから減衰)。
+                meteorImpactEffectFading = true;
+                meteorImpactEffectFadeTimer = 0f;
                 return;
             }
 
