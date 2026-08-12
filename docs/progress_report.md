@@ -4491,3 +4491,14 @@ Inspectorから調整可能にした。
   設定して50回`Update`をポンプ(dt=0.02×50=約1秒相当)したところ、待機状態を維持したまま
   残りクールタイムが5→約4に減少することを確認した(修正前は待機中は一切減らなかった)。
 - エラー・警告は発生しなかった。
+
+## 調整: 必殺技「ぷにゅメテオ」の上昇・落下を高速化
+
+ユーザーから「もう少し早く移動するようにして」との要望があり、`PunyuMeteor.asset`の
+実際に座標が動く2フェーズ(上空へ移動する`meteorRiseDuration`、着地点へ落下する
+`meteorFallDuration`)を短縮した: `meteorRiseDuration` 0.4→0.25、`meteorFallDuration`
+0.3→0.18(その場に留まる予備動作`meteorWindupDuration`と滞空`meteorHoverDuration`は
+「移動」ではないため変更していない)。発動から着地までの合計時間は約1.3秒→約1.0秒になる。
+
+Play Modeで実際に発動させ、`TryActivateUltimate`から`IsInSkillMotion`が`false`に戻るまでの
+所要時間が約1.1秒(想定値1.03秒に近い)になったことを確認した。エラー・警告は発生しなかった。

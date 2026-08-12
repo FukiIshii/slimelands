@@ -24,6 +24,6 @@ MonoBehaviour:
   sweepOneWayDuration: 1
   sweepTickInterval: 0.5
   meteorWindupDuration: 0.3
-  meteorRiseDuration: 0.4
+  meteorRiseDuration: 0.25
   meteorHoverDuration: 0.3
-  meteorFallDuration: 0.3
+  meteorFallDuration: 0.18
