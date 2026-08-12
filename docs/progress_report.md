@@ -4839,3 +4839,44 @@ DungeonResultUI.cs`の`EnsureUi()`から、先頭の`if (overlayGo != null) { re
   (0.16×1.6=0.256ワールド単位)を加算した`visualEffectBottom`が完全に一致
   (`diff=0`)することを確認した。
 - テストで生成したBattleUnitViewは明示的に破棄済み。
+
+## 修正: 着地エフェクトの微調整値(FootOffset)をInspectorで調整可能に変更
+
+### 経緯
+
+上記の`MeteorImpactEffectFootOffset`はコード上の`const`だったため、値を変えるたびに
+スクリプトを書き換えて再コンパイルする必要があった。ユーザーから「微調整だから
+インスペクタ上でいじれるようにしたほうがいいかな?」と提案があった。
+
+### 検討
+
+`BattleUnitView`は`DungeonBattleView.CreateView`で`new GameObject(typeof(BattleUnitView), ...)`
+により毎回コードから直接生成されており、プレハブ化されていない。そのため
+`BattleUnitView`側に`[SerializeField]`を付けてもPlay Mode中に一時的にInspectorで
+弄れるだけで、Stopすると値は保存されない。一方、この効果が紐づく
+`SlimeSkillData`(`PunyuMeteor.asset`)は既に`MeteorEffectFrames`をScriptableObjectとして
+保持しており、Edit Mode中でもInspectorで編集・保存できる。CLAUDE.mdの
+「バランス値・調整値はScriptableObjectで管理する」方針にも沿うため、
+`SlimeSkillData`側に持たせることにした。
+
+### 実装内容
+
+- `Assets/Scripts/Slime/SlimeSkillData.cs`にMeteor専用の
+  `[SerializeField] private float meteorImpactEffectFootOffset = 1f;`と
+  公開プロパティ`MeteorImpactEffectFootOffset`を追加。
+- `Assets/Scripts/Dungeon/Visuals/BattleUnitView.cs`から`const float
+  MeteorImpactEffectFootOffset`を削除し、`PlayMeteorImpactEffect`内で
+  `skill.MeteorImpactEffectFootOffset`を直接参照するように変更(`skill`は
+  同メソッドの引数として既に渡されている)。
+- 既存の調整値(コード上でconst=1fになっていた分)を引き継ぐため、
+  `PunyuMeteor.asset`の`meteorImpactEffectFootOffset`をSerializedObject経由で
+  `1`に設定して保存した。
+
+### テスト
+
+- コンパイルエラー・警告なしを確認(Unity_RunCommand実行時の
+  `isCompilationSuccessful: true`)。
+- コンソールにエラー・警告が出ていないことを確認。
+- 今後の微調整は、`PunyuMeteor.asset`のInspectorで
+  `Meteor Impact Effect Foot Offset`の値を直接変更するだけでよい
+  (再コンパイル不要、プラスで下・マイナスで上に移動)。

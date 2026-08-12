@@ -43,6 +43,10 @@ namespace Slimelands.Slime
         [Tooltip("Meteor専用(任意): 上昇〜落下中に発動者の見た目の代わりに表示する隕石本体の" +
                  "コマ送りエフェクト。未設定(0枚)の場合は従来通り発動者自身の見た目が拡縮するだけになる。")]
         [SerializeField] private List<Sprite> meteorEffectFrames = new();
+        [Tooltip("Meteor専用: 着地エフェクトの足元位置の微調整(ワールド単位)。" +
+                 "スライムの足元とエフェクトの足元を自動で揃えた上で、見た目のズレが気になる場合に" +
+                 "この値でずらす。プラスで下へ、マイナスで上へ移動。")]
+        [SerializeField] private float meteorImpactEffectFootOffset = 1f;
 
         public string SkillName => skillName;
         public string Description => description;
@@ -60,5 +64,6 @@ namespace Slimelands.Slime
         public float MeteorHoverDuration => meteorHoverDuration;
         public float MeteorFallDuration => meteorFallDuration;
         public IReadOnlyList<Sprite> MeteorEffectFrames => meteorEffectFrames;
+        public float MeteorImpactEffectFootOffset => meteorImpactEffectFootOffset;
     }
 }
