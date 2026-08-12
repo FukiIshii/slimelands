@@ -4337,3 +4337,18 @@ Play Modeで`TestDungeon`を実際に戦わせてクリアさせようとした�
 - 敗退(Failed)時の「もう一回」は同じダンジョンへの再挑戦として実装したが、全滅した
   パーティーで即座に再挑戦させてよいかはバランス上の論点として残る(現状は
   `CanJoinParty`によるHP50%未満の個体除外がそのまま働くのみ)。
+
+### 追加修正: 入手アイテム欄でアイコンと個数表示が重なる不具合
+
+ユーザーの実機スクリーンショットで、アイコンの下に表示するはずの個数(`x N`)がアイコンに
+めり込んで見える不具合が見つかった。原因は`itemRow`の`HorizontalLayoutGroup`が
+`childControlWidth/Height = false`のため、各アイテム枠(`Item`)に付けていた`LayoutElement`の
+`preferredWidth/Height`が実際のサイズに反映されておらず(この設定では子のRectTransformの
+既存サイズをそのまま使うだけで、LayoutElementの値は無視される)、既定サイズのまま
+アイコン(96x96、上詰め)と個数テキスト(下詰め)が重なっていた。`LayoutElement`をやめて
+`Item`の`RectTransform.sizeDelta`を直接`(itemIconSize, itemIconSize + ItemCountAreaHeight)`
+(定数`ItemCountAreaHeight = 40f`)に設定するよう修正し、`itemRow`自体の高さ計算にも
+同じ定数を使うようにした。
+
+Play Modeで再検証し、アイコン下端と個数テキスト上端の間に10pxの隙間ができ、重ならないことを
+確認した。

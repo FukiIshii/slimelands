@@ -30,6 +30,10 @@ namespace Slimelands.Dungeon
         [SerializeField] private float itemSpacing = 28f;
         [SerializeField] private Vector2 buttonSize = new(220f, 72f);
 
+        // アイコン下の個数表示("x N")の分の高さ。itemIconSizeとの間に隙間(ItemCountAreaHeight - Count自体の高さ30f)
+        // を確保しないと、アイコンとテキストが詰まって重なって見える(要修正だった見た目のバグ)。
+        private const float ItemCountAreaHeight = 40f;
+
         private static Font cachedFont;
 
         private GameObject overlayGo;
@@ -118,11 +122,13 @@ namespace Slimelands.Dungeon
 
         private void CreateItemEntry(Sprite icon, int amount)
         {
-            var itemGo = new GameObject("Item", typeof(RectTransform), typeof(LayoutElement));
+            // itemRowのHorizontalLayoutGroupはchildControlWidth/Height=falseのため、
+            // LayoutElementの指定サイズは反映されない(位置合わせのみ行い、子のRectTransform
+            // 自体のサイズはそのまま使われる)。そのためsizeDeltaを直接指定する。
+            var itemGo = new GameObject("Item", typeof(RectTransform));
             itemGo.transform.SetParent(itemRow, false);
-            LayoutElement layoutElement = itemGo.GetComponent<LayoutElement>();
-            layoutElement.preferredWidth = itemIconSize;
-            layoutElement.preferredHeight = itemIconSize + 32f;
+            RectTransform itemRect = itemGo.GetComponent<RectTransform>();
+            itemRect.sizeDelta = new Vector2(itemIconSize, itemIconSize + ItemCountAreaHeight);
 
             var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
             iconGo.transform.SetParent(itemGo.transform, false);
@@ -242,7 +248,7 @@ namespace Slimelands.Dungeon
             itemsLabelText.alignment = TextAnchor.MiddleCenter;
             itemsLabelText.color = new Color(0.25f, 0.15f, 0.05f);
 
-            float itemRowHeight = itemIconSize + 32f;
+            float itemRowHeight = itemIconSize + ItemCountAreaHeight;
             float itemRowY = itemsLabelY - 16f - itemRowHeight;
             RectTransform itemRowRect = CreateChild(panelGo.transform, "ItemRow", typeof(HorizontalLayoutGroup));
             SetRect(itemRowRect, innerMargin, itemRowY, panelSize.x - innerMargin * 2f, itemRowHeight);
