@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Slimelands.Cards;
 
 namespace Slimelands.Slime
 {
@@ -24,6 +25,9 @@ namespace Slimelands.Slime
             "ここに保持される(気絶=死亡ではないため個体自体は破棄しない)。専用の状態フラグは持たず、" +
             "常にこの実数値から気絶・編成可否を算出する。")]
         [SerializeField] private int currentHp = -1;
+        [Tooltip("1スロット制で装備中のアクセサリー(未装備はnull)。個体値強化とは別枠の一時的な補正として" +
+            "CalculateCurrentStatsに反映される。カード自体は装備中の間、盤面から外れてこの参照にのみ存在する。")]
+        [SerializeField] private AccessoryCardData equippedAccessory;
 
         /// <summary>パーティー編成に必要な最大HP比率。この値未満の間は次のダンジョンに編成できない。</summary>
         private const float PartyEligibleHpRatio = 0.5f;
@@ -33,6 +37,9 @@ namespace Slimelands.Slime
         public int Exp => exp;
         public SlimeIndividualValues IndividualValues => individualValues;
         public SlimeSkillData AssignedUltimate => assignedUltimate;
+
+        /// <summary>1スロット制で装備中のアクセサリー(未装備はnull)。</summary>
+        public AccessoryCardData EquippedAccessory => equippedAccessory;
 
         /// <summary>現在のHP。未初期化(-1)の場合は満タン(CalculateCurrentStats().maxHp)を返す。</summary>
         public int CurrentHp => currentHp < 0 ? CalculateCurrentStats().maxHp : Mathf.Min(currentHp, CalculateCurrentStats().maxHp);
@@ -91,7 +98,7 @@ namespace Slimelands.Slime
             currentHp = Mathf.Min(CalculateCurrentStats().maxHp, CurrentHp + amount);
         }
 
-        /// <summary>種族の成長値+個体値を反映した現在の実ステータス。</summary>
+        /// <summary>種族の成長値+個体値+装備中アクセサリーの補正を反映した現在の実ステータス。</summary>
         public SlimeStats CalculateCurrentStats()
         {
             SlimeStats stats = species.CalculateBaseStatsAtLevel(level);
@@ -99,7 +106,31 @@ namespace Slimelands.Slime
             stats.attack += individualValues.attack;
             stats.defense += individualValues.defense;
             stats.speed += individualValues.speed;
+            if (equippedAccessory != null)
+            {
+                stats += equippedAccessory.StatBonus;
+            }
+
             return stats;
+        }
+
+        /// <summary>
+        /// アクセサリーを装備する(1スロット制のため既存の装備は外れて返り値になる)。
+        /// 外れたアクセサリーをカードとして盤面に戻す処理はCardBoard側の責務。
+        /// </summary>
+        public AccessoryCardData Equip(AccessoryCardData accessory)
+        {
+            AccessoryCardData previous = equippedAccessory;
+            equippedAccessory = accessory;
+            return previous;
+        }
+
+        /// <summary>装備中のアクセサリーを外す(未装備ならnullを返す)。</summary>
+        public AccessoryCardData Unequip()
+        {
+            AccessoryCardData previous = equippedAccessory;
+            equippedAccessory = null;
+            return previous;
         }
 
         /// <summary>

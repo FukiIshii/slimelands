@@ -5578,4 +5578,119 @@ MeleeContactDistance/RangedRetreatDistance等の交戦距離は元の帯の幅(1
   MovementBandWidth(11)の半分(=DungeonCameraFitterがフィットさせるカメラ表示範囲の外周)と
   一致し、見た目がカメラの表示範囲内に収まる計算になることを確認した。検証後、テスト用の
   一時メソッドは削除した。
+
+# 追記: スライムのアクセサリー装備システム(1スロット制)(2026-08-14)
+
+## 実装した内容
+
+Stacklandsの装備UI(インジケーター+オーバーレイパネル)を参考にした、スライムへのアクセサリー
+装備システムを新規実装した。
+
+### 1. アクセサリーカード(新カテゴリ)
+- `Assets/Scripts/Cards/CardCategory.cs`: `Accessory`を追加。
+- `Assets/Scripts/Cards/AccessoryCardData.cs`(新規): `CardData`のサブクラス。装備中のみ有効な
+  `SlimeStats statBonus`を持つ。「特殊効果」の具体的な種類はGDD上未確定のため、今回はステータス
+  補正のみ実装した(GDD「今後詰める論点」に追記済み)。
+
+### 2. 個体側の装備状態(SlimeIndividual)
+- `Assets/Scripts/Slime/SlimeIndividual.cs`: `equippedAccessory`(1スロット制、未装備はnull)を追加。
+  `Equip(AccessoryCardData)`は既存の装備を返り値として外し、`Unequip()`は現在の装備を外して返す
+  (どちらもカードの生成・破棄はCardBoard側の責務のまま、個体の状態遷移だけを担う)。
+- `CalculateCurrentStats()`に`equippedAccessory.StatBonus`の加算を追加(個体値強化とは別枠の
+  一時的な補正、という依頼の要件通り)。
+
+### 3. 装備インジケーター(CardController)
+- スライムカードの下部に小さな楕円形のインジケーター(専用の絵素材が無いため、実行時に単色の
+  楕円テクスチャを1枚だけ生成して全カードで共有する、既存の`CardDescriptionUI.MakeSolidTexture`
+  と同じ「簡易UI要素をコードで生成する」パターンを踏襲)を表示する。表示/非表示は
+  `BoundIndividual.EquippedAccessory`の有無から`RefreshEquipmentIndicator()`で判定する。
+- インジケーターの当たり判定用に`EquipmentIndicatorMarker`(新規、マーカー用の空コンポーネント)を
+  追加。既存のsortingOrder管理(`CardController.SetSortingOrder`、`CardBoard.NextSortingOrder`)が
+  「1枚のカードにつき4つ分のsortingOrderを予約する」前提だった箇所を、インジケーター分を加えた
+  5つ分の予約に変更した(Frame/Icon/NameLabel/RequirementLabel/EquipmentIndicatorの5層)。
+
+### 4. 装備・装備解除・置き換え(CardBoard)
+- `EndDrag`に、アクセサリーカードをスライムカードへドロップした場合の専用分岐を追加(既存の
+  合成・スタッキング処理より先に判定し、通常の合成ロジックとは完全に分離した)。
+- 実際の状態変更は公開API`CardBoard.TryEquipAccessory(CardController accessoryCard, CardController
+  slimeCard)` / `CardBoard.TryUnequipAccessory(CardController slimeCard)`に切り出した。ドラッグ&
+  ドロップの入力処理からもテストコードからも同じこの経路を通る(下記テスト参照)。
+  - `TryEquipAccessory`: 個体への装備を確定し、アクセサリーカード自身は盤面から取り除いて破棄する。
+    既に何か装備していた場合は、外れたアクセサリーを既存の合成結果カードと同じ「飛んでいく」演出
+    (`PlaceResultCard`)で盤面へ独立したカードとして戻す(コードの再利用、新しい演出は追加していない)。
+  - `TryUnequipAccessory`: 個体の装備を外し、`CreateLooseCard`で実カードを生成してスライムの近くに
+    独立したスタックとして着地させる。
+- インジケーターのクリック検知(`FindIndicatorOwnerAt`、`Physics2D.OverlapPointAll`で
+  `EquipmentIndicatorMarker`を探す。既存の`FindTopCardAt`と同じ仕組みを流用)と、Stacklandsの
+  「オーバーレイパネルに表示→ドラッグして引き離すと解除、そのまま持ち主へ戻すとキャンセル」という
+  挙動を`ToggleEquipmentPreview`/`HandleEquipmentPreviewDrop`/`CloseEquipmentPreview`で実装した。
+  プレビューカードは`CreateLooseCard`で生成した実物のカードのため、既存のドラッグ機構(CardStack/
+  CardBoard.EndDrag)にそのまま乗せられる。別のスライムへドロップした場合はそのまま装備し直す
+  拡張動作も追加した(依頼の必須要件ではないが、既存のTryEquipAccessoryをそのまま再利用できたため
+  自然に実現できた)。
+- `CardBoard.CountCards`/`TryConsumeCards`は、装備プレビュー中の一時カード(`EquipmentPreviewOwner
+  != null`)を実在庫として二重カウントしないよう除外した(実体は`SlimeIndividual.EquippedAccessory`
+  側にのみあるため)。
+
+## テストした内容(Play Mode中、公開APIをUnity RunCommand経由で実行して検証)
+
+依頼の指定通り、RunCommandはマウス操作をシミュレートできないため、実際のドラッグ&ドロップ入力
+(`CardBoard.TryBeginDrag`/`EndDrag`、インジケーターのクリック)は経由せず、内部で同じ状態変更を
+行う公開API(`TryEquipAccessory`/`TryUnequipAccessory`)を直接呼び出して検証した。
+
+テスト用に`Assets/Data/Cards/Accessory/PowerRing.asset`(攻撃+5)と`GuardCharm.asset`
+(HP+10, 防御+3)を新規作成した。
+
+- **装備**: `TryEquipAccessory(ringCard, slimeCard)`実行後、
+  - 戻り値`true`、`slimeCard.BoundIndividual.EquippedAccessory == ring`を確認。
+  - `CalculateCurrentStats()`の攻撃力が24→29(+5)に変化、他のステータスは不変であることを確認
+    (基本ステータスへの一時的な加算として正しく機能)。
+  - `board.CountCards(ring)`が0(盤面からアクセサリーカードが取り除かれた)であることを確認。
+  - インジケーター(`EquipmentIndicator`子オブジェクト)がactive=trueになることを確認。
+- **置き換え**: 装備中に`TryEquipAccessory(charmCard, slimeCard)`を実行し、
+  - `EquippedAccessory`がcharmに変わり、ステータスがHP+10/防御+3(攻撃は+5が外れて元の24に戻る)に
+    なることを確認。
+  - 外れたringが`CreateLooseCard`で再生成され、シーン上に`Data == ring`のCardControllerとして
+    存在することを確認(`PlaceResultCard`の飛行演出はコルーチンのため、後述の環境制約により着地
+    まで進行させられなかったが、正しいデータで生成されたことは確認できた)。
+- **装備解除**: `TryUnequipAccessory(slimeCard)`実行後、
+  - 戻り値のCardControllerの`Data == charm`であること、`EquippedAccessory`がnullに戻ること、
+    ステータスが装備前の基本値(HP26/攻撃24/防御17/速さ30)に完全に戻ることを確認。
+  - `board.CountCards(charm)`が1(盤面上に独立したカードとして復元)であることを確認。
+  - インジケーターが再度active=falseになることを確認。
+- コンパイルエラー・警告なしを確認(Unity Console)。
+
+## 未実施・後で確認が必要な点
+
+1. **インジケーターのクリック→オーバーレイパネル表示→ドラッグして引き離す、という実際のマウス
+   操作経路**: `ToggleEquipmentPreview`/`HandleEquipmentPreviewDrop`/`CloseEquipmentPreview`は
+   private実装のままで、この環境のRunCommandはマウス操作のシミュレーションも(サンドボックスの
+   制約で)`System.Reflection`経由でのprivateメソッド直接呼び出しもできなかったため、自動テストの
+   対象外だった。状態遷移そのもの(装備/解除/置き換え)は上記の通り公開APIで検証済みだが、UIとして
+   実際にインジケーターをクリックしてオーバーレイが正しい位置に表示されるか、ドラッグして引き離す
+   操作が意図通り機能するかはユーザー側でのPlay Mode手動テストが必要。
+2. **外れたアクセサリーの「飛んでいく」演出がコルーチンとして正しく最後まで完了するか**:
+   このツール環境では過去のセッション(マナクリスタル自動生成の回)で判明した「ツール呼び出しの
+   合間にPlay Modeのフレームがほとんど進行しない」制約が今回も再現し(`Time.frameCount`が2で
+   足踏み)、`StartCoroutine`ベースの飛行アニメーション(`AnimateFlyPosition`)を完了まで進行させる
+   ことができなかった。既存の合成結果カードと全く同じ処理(`PlaceResultCard`)を再利用しているだけ
+   のため機能上のリスクは低いと考えているが、実地確認は未実施。
+3. **「特殊効果」の具体的な種類**: 依頼文の「ステータス上昇・特殊効果」のうち、特殊効果側は
+   GDD上どのような効果を指すか未確定のため今回は実装していない(GDD「今後詰める論点」に追記済み)。
+4. **アクセサリー自体を配合・制作で生み出すレシピ**: 今回のスコープは装備システム(着脱・効果反映)
+   のみで、`CardRecipeData`を使ったアクセサリーの制作レシピは追加していない。テストに使った
+   `PowerRing`/`GuardCharm`はRunCommand経由で直接生成したテスト専用アセット。
+5. **見た目の調整**: インジケーターの色・サイズ・位置、オーバーレイパネルの位置(`equipmentPreviewOffset`)は
+   いずれもInspectorで調整可能な仮値。専用の絵素材は用意していない(単色の楕円をコード生成)。
+
+## 変更したファイル
+
+- 新規: `Assets/Scripts/Cards/AccessoryCardData.cs`, `Assets/Scripts/Cards/EquipmentIndicatorMarker.cs`
+- 変更: `Assets/Scripts/Cards/CardCategory.cs`(Accessory追加)、`Assets/Scripts/Slime/SlimeIndividual.cs`
+  (装備状態・Equip/Unequip・ステータス反映)、`Assets/Scripts/Cards/CardController.cs`(装備
+  インジケーター・プレビュー用の状態保持)、`Assets/Scripts/Cards/CardBoard.cs`(装備/解除/置き換え
+  処理、インジケーターのクリック検知、sortingOrder予約数の変更)
+- 新規データ(テスト用): `Assets/Data/Cards/Accessory/PowerRing.asset`, `GuardCharm.asset`
+- ドキュメント: `docs/GDD.md`に「アクセサリー装備(確定仕様)」を追記、「今後詰める論点」に
+  「特殊効果」の扱いを追記
 - コンソールにエラー・警告が出ていないことを確認。

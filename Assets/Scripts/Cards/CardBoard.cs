@@ -49,6 +49,11 @@ namespace Slimelands.Cards
         [Tooltip("ドラッグ中のカードの面積のうち、この割合(0〜1)以上が対象カードと重なっていればスタックとして合体する。")]
         [SerializeField] private float stackOverlapThreshold = 0.1f;
 
+        [Header("アクセサリー装備")]
+        [Tooltip("装備インジケーターをクリックしたときに表示するオーバーレイプレビューカードの、" +
+            "スライムカードからの相対オフセット(下部に重なるように表示する)。")]
+        [SerializeField] private Vector3 equipmentPreviewOffset = new Vector3(0f, -0.9f, 0f);
+
         [Header("結果カードの配置")]
         [Tooltip("完成位置からこの範囲内に同じ種類の結果カードのスタックがあれば、そこへ合流する。")]
         [SerializeField] private float resultMergeSearchRadius = 3f;
@@ -109,9 +114,10 @@ namespace Slimelands.Cards
 
             // シーンに最初から置かれているカードの描画順は、このカウンター(Playのたびに0から始まる)とは
             // 無関係な値を持っている可能性があるため、既存の最大値より後ろから始めて逆転を防ぐ。
-            // +4としているのは、その最大値を持つカード自身のIcon(+1)/NameLabel(+2)/RequirementLabel(+3)の
-            // sortingOrderとも重複しないようにするため(NextSortingOrderが4つ分ずつ発行するのと合わせる)。
-            nextSortingOrder = FindHighestExistingSortingOrder() + 4;
+            // +5としているのは、その最大値を持つカード自身のIcon(+1)/NameLabel(+2)/RequirementLabel(+3)/
+            // EquipmentIndicator(+4)のsortingOrderとも重複しないようにするため(NextSortingOrderが
+            // 5つ分ずつ発行するのと合わせる)。
+            nextSortingOrder = FindHighestExistingSortingOrder() + 5;
 
             if (cardPrefab != null && cardPrefab.TryGetComponent(out BoxCollider2D prefabCollider))
             {
@@ -266,6 +272,13 @@ namespace Slimelands.Cards
 
         private void TryBeginDrag(Vector3 pointerWorldPosition)
         {
+            CardController indicatorOwner = FindIndicatorOwnerAt(pointerWorldPosition);
+            if (indicatorOwner != null)
+            {
+                ToggleEquipmentPreview(indicatorOwner);
+                return;
+            }
+
             CardController clickedCard = FindTopCardAt(pointerWorldPosition, null);
             OnCardSelected?.Invoke(clickedCard);
 
@@ -276,6 +289,13 @@ namespace Slimelands.Cards
                 isPanningCamera = true;
                 cameraPanAnchorWorldPosition = pointerWorldPosition;
                 return;
+            }
+
+            // 装備プレビューを開いたまま持ち主のスライムカード自体を動かすと、プレビューだけが
+            // その場に取り残されて見た目が不自然になるため、掴んだ瞬間に自動で閉じる(装備状態は変えない)。
+            if (clickedCard.ActiveEquipmentPreview != null)
+            {
+                CloseEquipmentPreview(clickedCard);
             }
 
             CardStack originalStack = clickedCard.ParentStack;
@@ -291,6 +311,67 @@ namespace Slimelands.Cards
             draggedStack.BeginDrag(pointerWorldPosition);
         }
 
+        /// <summary>クリック位置に装備インジケーターがあれば、その持ち主のスライムカードを返す(無ければnull)。</summary>
+        private CardController FindIndicatorOwnerAt(Vector3 worldPosition)
+        {
+            Collider2D[] hits = Physics2D.OverlapPointAll(worldPosition);
+            foreach (Collider2D hit in hits)
+            {
+                if (hit.GetComponent<EquipmentIndicatorMarker>() != null)
+                {
+                    return hit.GetComponentInParent<CardController>();
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 装備インジケーターのクリックに応じて、装備中アクセサリーのオーバーレイプレビューを
+        /// 表示/非表示にする(Stacklandsの装備UIを参考にした挙動)。プレビューはCreateLooseCardで
+        /// 生成した実物のカードのため、既存のドラッグ機構でそのまま持ち上げて引き離せる。
+        /// </summary>
+        private void ToggleEquipmentPreview(CardController slimeCard)
+        {
+            if (slimeCard.ActiveEquipmentPreview != null)
+            {
+                CloseEquipmentPreview(slimeCard);
+                return;
+            }
+
+            SlimeIndividual individual = slimeCard.BoundIndividual;
+            if (individual == null || individual.EquippedAccessory == null)
+            {
+                return;
+            }
+
+            Vector3 previewPosition = slimeCard.transform.position + equipmentPreviewOffset;
+            CardController previewCard = CreateLooseCard(individual.EquippedAccessory);
+            previewCard.MarkAsEquipmentPreview(slimeCard);
+            previewCard.transform.position = previewPosition;
+            previewCard.SetSortingOrder(NextSortingOrder());
+
+            CardStack previewStack = CardStack.Create(cardParent, previewPosition);
+            previewStack.AddToTop(previewCard);
+
+            slimeCard.SetActiveEquipmentPreview(previewCard);
+        }
+
+        /// <summary>表示中のプレビューをドラッグ操作を経ずに閉じる(装備状態は変化させない)。</summary>
+        private void CloseEquipmentPreview(CardController slimeCard)
+        {
+            CardController preview = slimeCard.ActiveEquipmentPreview;
+            slimeCard.ClearActiveEquipmentPreview();
+            if (preview == null)
+            {
+                return;
+            }
+
+            preview.ClearEquipmentPreviewOwner();
+            preview.ParentStack?.Remove(preview);
+            Destroy(preview.gameObject);
+        }
+
         private void EndDrag(Vector3 pointerWorldPosition)
         {
             CardStack dropped = draggedStack;
@@ -300,6 +381,24 @@ namespace Slimelands.Cards
             // 合成中のスタックはドロップ先にできない(何も乗せられない)。
             // ただし合成中のスタック自身を持ち上げて他所へ動かすことは引き続き可能。
             CardController target = FindStackDropTarget(dropped, skipCraftingStacks: true);
+            CardController droppedTopCard = dropped.Count == 1 ? dropped.PeekTop() : null;
+
+            // 装備プレビュー(オーバーレイパネルから取り出したアクセサリーカード)のドロップは、
+            // 通常の重ね合わせ・合成とは別の専用処理(装備解除、または元のスライムへ戻すキャンセル)を行う。
+            if (droppedTopCard != null && droppedTopCard.EquipmentPreviewOwner != null)
+            {
+                HandleEquipmentPreviewDrop(droppedTopCard, target, dropped);
+                return;
+            }
+
+            // アクセサリーカードをスライムカードへドロップした場合は、合成(CardCraftProcess)ではなく
+            // 装備処理を行う(アクセサリーは消費されず、スライムに紐づいた状態として保持される)。
+            if (droppedTopCard != null && droppedTopCard.Data is AccessoryCardData && target != null && target.BoundIndividual != null)
+            {
+                TryEquipAccessory(droppedTopCard, target);
+                return;
+            }
+
             if (target == null)
             {
                 // 十分に重なる相手がいない場合: 持ち上げていたグループはそのまま新しいスタックとして残るが、
@@ -316,7 +415,6 @@ namespace Slimelands.Cards
             }
 
             CardStack targetStack = target.ParentStack;
-            CardController droppedTopCard = dropped.Count == 1 ? dropped.PeekTop() : null;
 
             // 同じ種類のカードがN枚重なったスタックをまとめてドロップした場合、条件が合えば
             // 1枚ずつ順番に合成するバッチ給餌を行う(例: マナクリスタルを重ねてスライムに与える)。
@@ -345,6 +443,132 @@ namespace Slimelands.Cards
                     OnSlimePlacedOnDungeonGate?.Invoke();
                 }
             }
+        }
+
+        /// <summary>
+        /// アクセサリーカード1枚をスライムカードへ装備する(公開API)。盤面上のドラッグ&ドロップ操作
+        /// (EndDrag/HandleEquipmentPreviewDrop)からも、Play Mode中のテストコードからも同じこの経路を
+        /// 通る。既に何か装備している場合は、外れたアクセサリーを合成結果カードと同じ「飛んでいく」
+        /// 演出で盤面へ独立したカードとして戻す。accessoryCardは盤面上のスタックに属している必要がある
+        /// (装備確定と同時にそのスタックから取り除いて破棄する)。
+        /// </summary>
+        public bool TryEquipAccessory(CardController accessoryCard, CardController slimeCard)
+        {
+            if (accessoryCard == null || slimeCard == null
+                || !(accessoryCard.Data is AccessoryCardData newAccessory)
+                || slimeCard.BoundIndividual == null
+                || accessoryCard.ParentStack == null)
+            {
+                return false;
+            }
+
+            CardStack sourceStack = accessoryCard.ParentStack;
+
+            // 対象スライムの装備プレビューが開いたままだと、これから差し替わる装備内容と表示内容が
+            // 食い違ってしまうため、装備を確定する前に(装備状態は変えずに)閉じておく。
+            if (slimeCard.ActiveEquipmentPreview != null)
+            {
+                CloseEquipmentPreview(slimeCard);
+            }
+
+            AccessoryCardData previous = slimeCard.BoundIndividual.Equip(newAccessory);
+
+            sourceStack.Remove(accessoryCard);
+            Destroy(accessoryCard.gameObject);
+
+            slimeCard.RefreshEquipmentIndicator();
+
+            if (previous != null)
+            {
+                Vector3 anchorPosition = slimeCard.transform.position;
+                CardController returnedCard = CreateLooseCard(previous);
+                returnedCard.transform.position = anchorPosition;
+                returnedCard.SetSortingOrder(NextSortingOrder());
+                PlaceResultCard(returnedCard, anchorPosition, previous);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 装備中のアクセサリーを外し、盤面上に独立したカードとして復元する(公開API)。
+        /// オーバーレイパネルからアクセサリーをドラッグして引き離す操作の最終結果と同じ状態変化
+        /// (個体の装備解除+カードの復元)を、Play Mode中のテストコードから直接検証できるようにする。
+        /// 未装備の場合はnullを返す。
+        /// </summary>
+        public CardController TryUnequipAccessory(CardController slimeCard)
+        {
+            if (slimeCard == null || slimeCard.BoundIndividual == null)
+            {
+                return null;
+            }
+
+            if (slimeCard.ActiveEquipmentPreview != null)
+            {
+                CloseEquipmentPreview(slimeCard);
+            }
+
+            AccessoryCardData removed = slimeCard.BoundIndividual.Unequip();
+            if (removed == null)
+            {
+                return null;
+            }
+
+            slimeCard.RefreshEquipmentIndicator();
+
+            Vector3 landingPosition = slimeCard.transform.position + equipmentPreviewOffset;
+            CardController card = CreateLooseCard(removed);
+            card.transform.position = landingPosition;
+            card.SetSortingOrder(NextSortingOrder());
+
+            CardStack stack = CardStack.Create(cardParent, landingPosition);
+            stack.AddToTop(card);
+            return card;
+        }
+
+        /// <summary>
+        /// オーバーレイパネルから取り出した(=ActiveEquipmentPreview経由で表示した)アクセサリー
+        /// プレビューカードのドロップを処理する。持ち主のスライムカードへそのまま戻した場合は
+        /// キャンセル(装備状態は変えない)、それ以外へドロップした場合は装備解除が確定する
+        /// (別のスライムへドロップした場合はそのままそちらへ装備し直す)。
+        /// </summary>
+        private void HandleEquipmentPreviewDrop(CardController previewCard, CardController target, CardStack dropped)
+        {
+            CardController owner = previewCard.EquipmentPreviewOwner;
+            owner.ClearActiveEquipmentPreview();
+            previewCard.ClearEquipmentPreviewOwner();
+
+            if (target == owner)
+            {
+                // 持ち主のスライムカードへそのままドロップし直した = キャンセル。装備状態は変えない。
+                dropped.Remove(previewCard);
+                Destroy(previewCard.gameObject);
+                return;
+            }
+
+            // それ以外へのドロップは装備解除が確定する。
+            owner.BoundIndividual?.Unequip();
+            owner.RefreshEquipmentIndicator();
+
+            if (target != null && target.BoundIndividual != null)
+            {
+                // 別のスライムへドロップした場合は、そのままそちらへ装備し直す。
+                TryEquipAccessory(previewCard, target);
+                return;
+            }
+
+            if (target != null)
+            {
+                CardStack targetStack = target.ParentStack;
+                List<CardController> cardsToMove = dropped.TakeAll();
+                AssignAscendingSortingOrders(cardsToMove);
+                targetStack.AddRangeToTop(cardsToMove);
+                TryStartCraftIfMatches(targetStack);
+                return;
+            }
+
+            SnapToValidPosition(dropped);
+            TryStartCraftIfMatches(dropped);
         }
 
         /// <summary>
@@ -1109,7 +1333,9 @@ namespace Slimelands.Cards
             int count = 0;
             foreach (CardController card in FindObjectsByType<CardController>(FindObjectsInactive.Exclude))
             {
-                if (card.Data == data && card.ParentStack != null)
+                // 装備中アクセサリーのオーバーレイプレビューは、盤面上の実在庫としては数えない
+                // (見た目上一時的に存在するだけで、実体はSlimeIndividual.EquippedAccessory側にある)。
+                if (card.Data == data && card.ParentStack != null && card.EquipmentPreviewOwner == null)
                 {
                     count++;
                 }
@@ -1134,7 +1360,9 @@ namespace Slimelands.Cards
             {
                 // ParentStack == nullは合成完了直後などでRemove済み(Destroy()はフレーム末まで遅延する)の
                 // カードを指すため、二重に消費対象としてマッチしないよう除外する。
-                if (card.Data == data && card.ParentStack != null)
+                // 装備プレビュー(EquipmentPreviewOwner != null)も実体はSlimeIndividual側にあるだけの
+                // 一時的な見た目のため、コスト消費の対象からは除外する。
+                if (card.Data == data && card.ParentStack != null && card.EquipmentPreviewOwner == null)
                 {
                     matches.Add(card);
                     if (matches.Count >= amount)
@@ -1237,12 +1465,13 @@ namespace Slimelands.Cards
         private int NextSortingOrder()
         {
             // CardController.SetSortingOrder(order)は実際にはorder(Frame)/order+1(Icon)/order+2
-            // (NameLabel)/order+3(GachaGateCardDataのRequirementLabel)の4つのsortingOrderを消費する。
-            // 1ずつしか進めないと、直後に呼ばれる次のカードのFrameが前のカードのIcon/Labelと同じ値になり、
-            // 描画順が不定(タイ)になってしまう(ドラッグ中のカードのアイコンが本来手前にあるはずの
-            // カードの背後や前後に不安定に表示される不具合の原因だった)。常に4つ分空けて発行する。
+            // (NameLabel)/order+3(GachaGateCardDataのRequirementLabel)/order+4(装備インジケーター)の
+            // 5つのsortingOrderを消費する。1ずつしか進めないと、直後に呼ばれる次のカードのFrameが
+            // 前のカードのIcon/Labelと同じ値になり、描画順が不定(タイ)になってしまう(ドラッグ中の
+            // カードのアイコンが本来手前にあるはずのカードの背後や前後に不安定に表示される不具合の
+            // 原因だった)。常に5つ分空けて発行する。
             int order = nextSortingOrder;
-            nextSortingOrder += 4;
+            nextSortingOrder += 5;
             return order;
         }
     }

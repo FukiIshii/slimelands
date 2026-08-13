@@ -6,5 +6,6 @@ namespace Slimelands.Cards
         Resource,
         Slime,
         Building,
+        Accessory,
     }
 }

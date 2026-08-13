@@ -30,6 +30,13 @@ namespace Slimelands.Cards
             "下にずらして配置するか(ワールド単位)。")]
         [SerializeField] private float requirementLabelYOffset = -0.62f;
 
+        [Header("装備インジケーター")]
+        [Tooltip("スライムがアクセサリーを装備している間にカード下部へ表示する、小さな楕円形" +
+            "インジケーターのY方向オフセット(ワールド単位)。")]
+        [SerializeField] private float equipmentIndicatorYOffset = -0.62f;
+        [Tooltip("装備インジケーターの表示サイズ(ワールド単位、幅×高さ)。横長にすることで楕円形に見せる。")]
+        [SerializeField] private Vector2 equipmentIndicatorSize = new Vector2(0.28f, 0.16f);
+
         [Header("名前欄")]
         [Tooltip("frame画像上部の名前欄(上端の枠線と区切り線の間の帯)の中心Y座標。" +
             "frameの高さに対する比率(0=中心、0.5=上端)。cardframe_resources/crystals/" +
@@ -47,6 +54,23 @@ namespace Slimelands.Cards
         // -1は未初期化を表す(EnsureGachaChargesInitializedでGachaGateCardData.RequiredCrystalCountから
         // 初期化する)。
         private int gachaChargesRemaining = -1;
+
+        private GameObject equipmentIndicatorObject;
+        private SpriteRenderer equipmentIndicatorRenderer;
+        private static Sprite equipmentIndicatorSprite;
+
+        /// <summary>
+        /// このカードが「装備中アクセサリーのオーバーレイ表示」として一時的に盤面へ出現した
+        /// 複製かどうかを示す。null以外なら、装備元のスライムカードを指す。
+        /// CardBoard.HandleEquipmentPreviewDropがドロップ結果(装備解除/キャンセル)を判定するために使う。
+        /// </summary>
+        public CardController EquipmentPreviewOwner { get; private set; }
+
+        /// <summary>
+        /// (スライムカード側が持つ)現在オーバーレイ表示中のアクセサリープレビューカード。
+        /// 未表示ならnull。CardBoardがインジケーターのトグル状態を判定するために使う。
+        /// </summary>
+        public CardController ActiveEquipmentPreview { get; private set; }
 
         public CardData Data => data;
         public CardStack ParentStack { get; private set; }
@@ -76,6 +100,130 @@ namespace Slimelands.Cards
         public void BindSlimeIndividual(SlimeIndividual individual)
         {
             BoundIndividual = individual;
+            RefreshEquipmentIndicator();
+        }
+
+        /// <summary>装備解除の起点となる、盤面から切り離されたアクセサリーカード自身に対して呼ぶ。</summary>
+        public void MarkAsEquipmentPreview(CardController owner)
+        {
+            EquipmentPreviewOwner = owner;
+        }
+
+        public void ClearEquipmentPreviewOwner()
+        {
+            EquipmentPreviewOwner = null;
+        }
+
+        /// <summary>スライムカード側に、現在表示中のプレビューカードの参照を持たせる(トグル判定用)。</summary>
+        public void SetActiveEquipmentPreview(CardController preview)
+        {
+            ActiveEquipmentPreview = preview;
+        }
+
+        public void ClearActiveEquipmentPreview()
+        {
+            ActiveEquipmentPreview = null;
+        }
+
+        /// <summary>
+        /// BoundIndividualの装備状態(EquippedAccessory)に応じて、カード下部の小さな楕円形
+        /// インジケーターの表示/非表示を切り替える。装備/解除のたびにCardBoard側から呼ばれる。
+        /// </summary>
+        public void RefreshEquipmentIndicator()
+        {
+            bool shouldShow = BoundIndividual != null && BoundIndividual.EquippedAccessory != null;
+            if (!shouldShow)
+            {
+                if (equipmentIndicatorObject != null)
+                {
+                    equipmentIndicatorObject.SetActive(false);
+                }
+
+                return;
+            }
+
+            EnsureEquipmentIndicator();
+            equipmentIndicatorObject.SetActive(true);
+        }
+
+        private void EnsureEquipmentIndicator()
+        {
+            if (equipmentIndicatorObject != null)
+            {
+                return;
+            }
+
+            Transform existing = transform.Find("EquipmentIndicator");
+            GameObject go = existing != null ? existing.gameObject : new GameObject("EquipmentIndicator");
+            if (existing == null)
+            {
+                go.transform.SetParent(transform, false);
+            }
+
+            go.transform.localPosition = new Vector3(0f, equipmentIndicatorYOffset, 0f);
+            go.transform.localScale = new Vector3(equipmentIndicatorSize.x, equipmentIndicatorSize.y, 1f);
+
+            SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+            if (renderer == null)
+            {
+                renderer = go.AddComponent<SpriteRenderer>();
+            }
+
+            renderer.sprite = EnsureIndicatorSprite();
+            renderer.sortingOrder = EnsureFrameRenderer().sortingOrder + 4;
+
+            if (go.GetComponent<Collider2D>() == null)
+            {
+                CircleCollider2D collider = go.AddComponent<CircleCollider2D>();
+                collider.radius = 0.5f;
+            }
+
+            if (go.GetComponent<EquipmentIndicatorMarker>() == null)
+            {
+                go.AddComponent<EquipmentIndicatorMarker>();
+            }
+
+            equipmentIndicatorObject = go;
+            equipmentIndicatorRenderer = renderer;
+        }
+
+        /// <summary>
+        /// 専用の絵素材が無いため、実行時に単色の楕円テクスチャを1枚だけ生成して全カードで共有する
+        /// (CardDescriptionUI.MakeSolidTextureと同様、簡易UI要素をコードで生成するパターンを踏襲)。
+        /// </summary>
+        private static Sprite EnsureIndicatorSprite()
+        {
+            if (equipmentIndicatorSprite != null)
+            {
+                return equipmentIndicatorSprite;
+            }
+
+            const int width = 64;
+            const int height = 64;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+
+            Vector2 center = new Vector2((width - 1) * 0.5f, (height - 1) * 0.5f);
+            var fillColor = new Color(0.95f, 0.85f, 0.3f, 0.95f);
+            var clearColor = new Color(0f, 0f, 0f, 0f);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = (x - center.x) / center.x;
+                    float ny = (y - center.y) / center.y;
+                    bool inside = nx * nx + ny * ny <= 1f;
+                    texture.SetPixel(x, y, inside ? fillColor : clearColor);
+                }
+            }
+
+            texture.Apply();
+            equipmentIndicatorSprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), 100f);
+            return equipmentIndicatorSprite;
         }
 
         /// <summary>カード背景のフレームを描画する子SpriteRenderer。他システムからはsortingOrderの
@@ -91,6 +239,7 @@ namespace Slimelands.Cards
         {
             EnsureGachaChargesInitialized();
             RefreshVisual();
+            RefreshEquipmentIndicator();
         }
 
         public void Initialize(CardData cardData)
@@ -355,6 +504,11 @@ namespace Slimelands.Cards
                 {
                     meshRenderer.sortingOrder = order + 3;
                 }
+            }
+
+            if (equipmentIndicatorRenderer != null)
+            {
+                equipmentIndicatorRenderer.sortingOrder = order + 4;
             }
         }
 
